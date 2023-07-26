@@ -53,7 +53,7 @@ public class PhysicalOptimizationConfig {
     private static final String FORCE_JOIN_ORDER = "FORCE_JOIN_ORDER";
     private static final String QUERY_PLAN_SHAPE = "QUERY_PLAN_SHAPE";
     private static final String COLUMN_FILTER = "COLUMN_FILTER";
-
+    private static final String OPTIMIZE_GROUPBY = "OPTIMIZE_GROUPBY";
     private final Properties properties = new Properties();
 
     public PhysicalOptimizationConfig() {
@@ -356,4 +356,13 @@ public class PhysicalOptimizationConfig {
         String value = properties.getProperty(property);
         return value == null ? defaultValue : value;
     }
+
+    public boolean isOptimizationGroupBy() {
+        return getBoolean(OPTIMIZE_GROUPBY, AlgebricksConfig.OPTIMIZE_GROUPBY_DEFAULT);
+    }
+
+    public void setOptimizeGroupByEnabled(boolean OptimizeGroupBy) {
+        setBoolean(OPTIMIZE_GROUPBY, OptimizeGroupBy);
+    }
+
 }

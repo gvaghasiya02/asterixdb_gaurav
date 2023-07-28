@@ -37,6 +37,7 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOpe
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.AbstractStableSortPOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.SortGroupByPOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.physical.OptimizeGroupByPOperator;
 import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
 
 /**
@@ -104,7 +105,7 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                         //replace preclustered gby with sort gby
                         if (!groupByOperator.isGroupAll()) {
                             if (context.getPhysicalOptimizationConfig().isOptimizationGroupBy()) {
-                                op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
+                                op.setPhysicalOperator(new OptimizeGroupByPOperator(groupByOperator.getGroupByVarList(),
                                         sortPhysicalOperator.getSortColumns()));
                             } else {
                                 op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),

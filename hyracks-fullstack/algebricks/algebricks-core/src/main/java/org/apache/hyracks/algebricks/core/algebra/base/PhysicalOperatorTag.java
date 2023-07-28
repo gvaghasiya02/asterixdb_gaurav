@@ -65,6 +65,7 @@ public enum PhysicalOperatorTag {
     SINK,
     SINK_WRITE,
     SORT_GROUP_BY,
+    OPTIMIZE_GROUP_BY,
     SORT_MERGE_EXCHANGE,
     SPATIAL_JOIN,
     SPLIT,

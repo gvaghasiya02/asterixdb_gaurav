@@ -56,6 +56,7 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
     private final RecordDescriptor outputRecordDesc;
     private final boolean finalStage;
     private static final Algorithm ALG = Algorithm.MERGE_SORT;
+    private boolean isOptimized;
 
     /**
      * @param spec
@@ -85,12 +86,12 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
             int[] groupFields, INormalizedKeyComputerFactory firstKeyNormalizerFactory,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory partialAggregatorFactory,
             IAggregatorDescriptorFactory mergeAggregatorFactory, RecordDescriptor partialAggRecordDesc,
-            RecordDescriptor outRecordDesc, boolean finalStage) {
+            RecordDescriptor outRecordDesc, boolean finalStage,boolean isOptimized) {
         this(spec, framesLimit, sortFields, groupFields,
                 firstKeyNormalizerFactory != null ? new INormalizedKeyComputerFactory[] { firstKeyNormalizerFactory }
                         : null,
                 comparatorFactories, partialAggregatorFactory, mergeAggregatorFactory, partialAggRecordDesc,
-                outRecordDesc, finalStage);
+                outRecordDesc, finalStage,isOptimized);
     }
 
     /**
@@ -121,7 +122,7 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
             int[] groupFields, INormalizedKeyComputerFactory[] keyNormalizerFactories,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory partialAggregatorFactory,
             IAggregatorDescriptorFactory mergeAggregatorFactory, RecordDescriptor partialAggRecordDesc,
-            RecordDescriptor outRecordDesc, boolean finalStage) {
+            RecordDescriptor outRecordDesc, boolean finalStage,boolean isOptimized) {
         super(spec, framesLimit, sortFields, keyNormalizerFactories, comparatorFactories, outRecordDesc);
         if (framesLimit <= 1) {
             throw new IllegalStateException(); // minimum of 2 frames (1 in,1 out)
@@ -133,6 +134,7 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
         this.partialAggRecordDesc = partialAggRecordDesc;
         this.outputRecordDesc = outRecordDesc;
         this.finalStage = finalStage;
+        this.isOptimized = isOptimized;
     }
 
     @Override
@@ -147,7 +149,7 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
                 IRunGenerator runGen = new ExternalSortGroupByRunGenerator(ctx, sortFields,
                         recordDescriptorProvider.getInputRecordDescriptor(this.getActivityId(), 0), framesLimit,
                         groupFields, keyNormalizerFactories, comparatorFactories, partialAggregatorFactory,
-                        partialAggRecordDesc, ALG);
+                        partialAggRecordDesc, ALG,isOptimized);
                 return profile ? ProfiledRunGenerator.time(runGen, ctx, "GroupBy (Sort Runs)", this.getActivityId())
                         : runGen;
             }

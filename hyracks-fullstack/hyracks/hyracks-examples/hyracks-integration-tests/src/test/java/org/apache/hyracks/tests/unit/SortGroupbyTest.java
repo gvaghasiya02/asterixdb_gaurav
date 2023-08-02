@@ -44,7 +44,7 @@ public class SortGroupbyTest extends AbstractExternalGroupbyTest {
     protected void initial(final IHyracksTaskContext ctx, int tableSize, final int numFrames)
             throws HyracksDataException {
         builder = new ExternalSortGroupByRunGenerator(ctx, keyFields, inRecordDesc, numFrames, keyFields,
-                normalizedKeyComputerFactory, comparatorFactories, partialAggrInState, outputRec, Algorithm.QUICK_SORT);
+                normalizedKeyComputerFactory, comparatorFactories, partialAggrInState, outputRec, Algorithm.QUICK_SORT,false);
 
         mergerOperator = new AbstractUnaryOutputSourceOperatorNodePushable() {
             @Override

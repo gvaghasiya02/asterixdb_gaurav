@@ -66,10 +66,12 @@ import org.apache.hyracks.dataflow.std.group.sort.SortGroupByOperatorDescriptor;
 public class SortGroupByPOperator extends AbstractGroupByPOperator {
 
     private final OrderColumn[] orderColumns;
+    private boolean isOptimized;
 
-    public SortGroupByPOperator(List<LogicalVariable> columnList, OrderColumn[] orderColumns) {
+    public SortGroupByPOperator(List<LogicalVariable> columnList, OrderColumn[] orderColumns,boolean isOptimized) {
         super(columnList);
         this.orderColumns = orderColumns;
+        this.isOptimized= isOptimized;
     }
 
     @Override
@@ -240,7 +242,7 @@ public class SortGroupByPOperator extends AbstractGroupByPOperator {
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
         SortGroupByOperatorDescriptor gbyOpDesc = new SortGroupByOperatorDescriptor(spec, framesLimit, keys,
                 keyAndDecFields, normalizedKeyFactory, compFactories, aggregatorFactory, mergeFactory,
-                partialAggRecordDescriptor, recordDescriptor, false);
+                partialAggRecordDescriptor, recordDescriptor, false,isOptimized);
         gbyOpDesc.setSourceLocation(gby.getSourceLocation());
 
         contributeOpDesc(builder, gby, gbyOpDesc);

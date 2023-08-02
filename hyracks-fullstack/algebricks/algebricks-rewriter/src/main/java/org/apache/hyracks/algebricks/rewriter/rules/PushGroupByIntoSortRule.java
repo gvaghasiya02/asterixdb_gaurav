@@ -36,7 +36,6 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogi
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.AbstractStableSortPOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.physical.OptimizedGroupByPOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.SortGroupByPOperator;
 import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
 
@@ -104,13 +103,13 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
 
                         //replace preclustered gby with sort gby
                         if (!groupByOperator.isGroupAll()) {
-                            if (context.getPhysicalOptimizationConfig().isOptimizationGroupBy()) {
-                                op.setPhysicalOperator(new OptimizedGroupByPOperator(
-                                        groupByOperator.getGroupByVarList(), sortPhysicalOperator.getSortColumns()));
-                            } else {
-                                op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
-                                        sortPhysicalOperator.getSortColumns()));
-                            }
+                          //  if (context.getPhysicalOptimizationConfig().isOptimizationGroupBy()) {
+                                op.setPhysicalOperator(new SortGroupByPOperator(
+                                        groupByOperator.getGroupByVarList(), sortPhysicalOperator.getSortColumns(), context.getPhysicalOptimizationConfig().isOptimizationGroupBy()));
+//                            } else {
+//                                op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
+//                                        sortPhysicalOperator.getSortColumns()));
+//                            }
                         }
                         // remove the stable sort operator
                         op.getInputs().clear();

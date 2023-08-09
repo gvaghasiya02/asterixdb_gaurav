@@ -30,9 +30,14 @@ import org.apache.hyracks.dataflow.common.io.RunFileWriter;
 public abstract class AbstractSortRunGenerator implements IRunGenerator {
 
     private final List<GeneratedRunFileReader> generatedRunFileReaders;
+    private boolean isOptimized;
 
     public AbstractSortRunGenerator() {
         generatedRunFileReaders = new LinkedList<>();
+    }
+    public AbstractSortRunGenerator(boolean isOptimized) {
+        generatedRunFileReaders = new LinkedList<>();
+        this.isOptimized=isOptimized;
     }
 
     /**
@@ -48,12 +53,24 @@ public abstract class AbstractSortRunGenerator implements IRunGenerator {
 
     @Override
     public void close() throws HyracksDataException {
-        ISorter sorter = getSorter();
-        if (sorter != null && sorter.hasRemaining()) {
-            if (generatedRunFileReaders.size() <= 0) {
-                sorter.sort();
-            } else {
-                flushFramesToRun();
+        if(isOptimized){
+            ISorter sorter = getSorter();
+            if (sorter != null && sorter.hasRemaining()) {
+                if (generatedRunFileReaders.size() <= 0) {
+                    sorter.sort();
+                } else {
+                    flushFramesToRun();
+                }
+            }
+        }
+        else {
+            ISorter sorter = getSorter();
+            if (sorter != null && sorter.hasRemaining()) {
+                if (generatedRunFileReaders.size() <= 0) {
+                    sorter.sort();
+                } else {
+                    flushFramesToRun();
+                }
             }
         }
     }

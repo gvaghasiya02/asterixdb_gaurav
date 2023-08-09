@@ -45,7 +45,6 @@ public class ExternalSortGroupByRunGenerator extends AbstractExternalSortRunGene
     private final IAggregatorDescriptorFactory aggregatorFactory;
     private final RecordDescriptor inRecordDesc;
     private final RecordDescriptor outRecordDesc;
-    private boolean isOptimized;
 
     public ExternalSortGroupByRunGenerator(IHyracksTaskContext ctx, int[] sortFields, RecordDescriptor inputRecordDesc,
             int framesLimit, int[] groupFields, INormalizedKeyComputerFactory firstKeyNormalizerFactory,
@@ -69,14 +68,13 @@ public class ExternalSortGroupByRunGenerator extends AbstractExternalSortRunGene
             int framesLimit, int[] groupFields, INormalizedKeyComputerFactory[] keyNormalizerFactories,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory aggregatorFactory,
             RecordDescriptor outRecordDesc, Algorithm alg,boolean isOptimized, EnumFreeSlotPolicy policy) throws HyracksDataException {
-        super(ctx, sortFields, keyNormalizerFactories, comparatorFactories, inputRecordDesc, alg, policy, framesLimit);
+        super(ctx, sortFields, keyNormalizerFactories, comparatorFactories, inputRecordDesc, alg, policy, framesLimit, isOptimized);
 
         this.groupFields = groupFields;
         this.comparatorFactories = comparatorFactories;
         this.aggregatorFactory = aggregatorFactory;
         this.inRecordDesc = inputRecordDesc;
         this.outRecordDesc = outRecordDesc;
-        this.isOptimized=isOptimized;
     }
 
     @Override

@@ -50,7 +50,7 @@ public class ExternalSortRunGenerator extends AbstractExternalSortRunGenerator {
             RecordDescriptor recordDesc, Algorithm alg, EnumFreeSlotPolicy policy, int framesLimit, int outputLimit)
             throws HyracksDataException {
         super(ctx, sortFields, keyNormalizerFactories, comparatorFactories, recordDesc, alg, policy, framesLimit,
-                outputLimit);
+                outputLimit,false);
     }
 
     @Override

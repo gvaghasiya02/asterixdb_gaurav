@@ -150,7 +150,7 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
                         recordDescriptorProvider.getInputRecordDescriptor(this.getActivityId(), 0), framesLimit,
                         groupFields, keyNormalizerFactories, comparatorFactories, partialAggregatorFactory,
                         partialAggRecordDesc, ALG,isOptimized);
-                return profile ? ProfiledRunGenerator.time(runGen, ctx, "GroupBy (Sort Runs)", this.getActivityId())
+                return profile ? ProfiledRunGenerator.time(runGen, ctx, isOptimized?"GroupBy (Optimize Sort Runs)":"GroupBy (Sort Runs)", this.getActivityId())
                         : runGen;
             }
         };
@@ -175,6 +175,8 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
 
     @Override
     public String getDisplayName() {
+        if(isOptimized)
+            return "GroupBy (Optimize)";
         return "GroupBy (Sort)";
     }
 

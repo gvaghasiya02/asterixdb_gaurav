@@ -43,6 +43,7 @@ import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.common.exceptions.CompilationException;
 import org.apache.asterix.common.exceptions.ErrorCode;
 import org.apache.asterix.common.external.IDataSourceAdapter;
+import org.apache.asterix.common.external.IExternalFilterEvaluatorFactory;
 import org.apache.asterix.common.functions.FunctionSignature;
 import org.apache.asterix.common.metadata.DataverseName;
 import org.apache.asterix.common.metadata.LockList;
@@ -490,11 +491,10 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
             List<LogicalVariable> projectVariables, boolean projectPushed, List<LogicalVariable> minFilterVars,
             List<LogicalVariable> maxFilterVars, ITupleFilterFactory tupleFilterFactory, long outputLimit,
             IOperatorSchema opSchema, IVariableTypeEnvironment typeEnv, JobGenContext context, JobSpecification jobSpec,
-            Object implConfig, IProjectionFiltrationInfo<?> projectionInfo,
-            IProjectionFiltrationInfo<?> metaProjectionInfo) throws AlgebricksException {
+            Object implConfig, IProjectionFiltrationInfo projectionFiltrationInfo) throws AlgebricksException {
         return ((DataSource) dataSource).buildDatasourceScanRuntime(this, dataSource, scanVariables, projectVariables,
                 projectPushed, minFilterVars, maxFilterVars, tupleFilterFactory, outputLimit, opSchema, typeEnv,
-                context, jobSpec, implConfig, projectionInfo, metaProjectionInfo);
+                context, jobSpec, implConfig, projectionFiltrationInfo);
     }
 
     protected Pair<IOperatorDescriptor, AlgebricksPartitionConstraint> getLoadableDatasetScanRuntime(
@@ -900,13 +900,13 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
     }
 
     protected ITypedAdapterFactory getConfiguredAdapterFactory(Dataset dataset, String adapterName,
-            Map<String, String> configuration, ARecordType itemType, ARecordType metaType,
-            IWarningCollector warningCollector) throws AlgebricksException {
+            Map<String, String> configuration, ARecordType itemType, IWarningCollector warningCollector,
+            IExternalFilterEvaluatorFactory filterEvaluatorFactory) throws AlgebricksException {
         try {
             configuration.put(ExternalDataConstants.KEY_DATASET_DATAVERSE,
                     dataset.getDataverseName().getCanonicalForm());
             return AdapterFactoryProvider.getAdapterFactory(getApplicationContext().getServiceContext(), adapterName,
-                    configuration, itemType, metaType, warningCollector);
+                    configuration, itemType, null, warningCollector, filterEvaluatorFactory);
         } catch (Exception e) {
             throw new AlgebricksException("Unable to create adapter", e);
         }

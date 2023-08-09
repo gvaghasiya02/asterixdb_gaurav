@@ -18,22 +18,33 @@
  */
 package org.apache.hyracks.algebricks.core.algebra.metadata;
 
-import org.apache.hyracks.algebricks.core.algebra.base.ILogicalExpression;
+import java.io.IOException;
+
+import org.apache.hyracks.algebricks.core.algebra.prettyprint.AlgebricksStringBuilderWriter;
+
+import com.fasterxml.jackson.core.JsonGenerator;
 
 /**
  * Generic interface to include the projection information for
  * {@link org.apache.hyracks.algebricks.core.algebra.operators.logical.DataSourceScanOperator}
  */
-public interface IProjectionFiltrationInfo<T> {
-    /**
-     * @return projected values' information
-     */
-    T getProjectionInfo();
-
-    ILogicalExpression getFilterExpression();
-
+public interface IProjectionFiltrationInfo {
     /**
      * @return a copy of the {@link IProjectionFiltrationInfo}
      */
-    IProjectionFiltrationInfo<T> createCopy();
+    IProjectionFiltrationInfo createCopy();
+
+    /**
+     * Write the information in text query plan
+     *
+     * @param writer plan writer
+     */
+    void print(AlgebricksStringBuilderWriter writer);
+
+    /**
+     * Write the information in json query plan
+     *
+     * @param generator json plan generator
+     */
+    void print(JsonGenerator generator) throws IOException;
 }

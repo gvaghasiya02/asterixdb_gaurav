@@ -75,7 +75,7 @@ import org.apache.asterix.om.types.EnumDeserializer;
 import org.apache.asterix.om.types.IAType;
 import org.apache.asterix.om.types.TypeTagUtil;
 import org.apache.asterix.runtime.evaluators.common.NumberUtils;
-import org.apache.asterix.runtime.projection.DataProjectionFiltrationInfo;
+import org.apache.asterix.runtime.projection.ExternalDatasetProjectionFiltrationInfo;
 import org.apache.asterix.runtime.projection.FunctionCallInformation;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
@@ -752,12 +752,22 @@ public class ExternalDataUtils {
     }
 
     public static String getPrefix(Map<String, String> configuration, boolean appendSlash) {
+        String root = configuration.get(ExternalDataPrefix.PREFIX_ROOT_FIELD_NAME);
         String definition = configuration.get(ExternalDataConstants.DEFINITION_FIELD_NAME);
         String subPath = configuration.get(ExternalDataConstants.SUBPATH);
+
+        boolean hasRoot = root != null && !root.isEmpty();
         boolean hasDefinition = definition != null && !definition.isEmpty();
         boolean hasSubPath = subPath != null && !subPath.isEmpty();
+
+        // if computed fields are used, subpath will not take effect. we can tell if we're using a computed field or
+        // not by checking if the root matches the definition or not, they never match if computed fields are used
+        if (hasRoot && hasDefinition && !root.equals(definition)) {
+            return appendSlash(root, appendSlash);
+        }
+
         if (hasDefinition && !hasSubPath) {
-            return appendSlash ? definition + (!definition.endsWith("/") ? "/" : "") : definition;
+            return appendSlash(definition, appendSlash);
         }
         String fullPath = "";
         if (hasSubPath) {
@@ -772,9 +782,13 @@ public class ExternalDataUtils {
                 }
                 fullPath = definition + subPath;
             }
-            fullPath = appendSlash ? fullPath + (!fullPath.endsWith("/") ? "/" : "") : fullPath;
+            fullPath = appendSlash(fullPath, appendSlash);
         }
         return fullPath;
+    }
+
+    public static String appendSlash(String string, boolean appendSlash) {
+        return appendSlash ? string + (!string.endsWith("/") ? "/" : "") : string;
     }
 
     /**
@@ -886,10 +900,10 @@ public class ExternalDataUtils {
                 || ExternalDataConstants.FORMAT_PARQUET.equals(properties.get(ExternalDataConstants.KEY_FORMAT));
     }
 
-    public static void setExternalDataProjectionInfo(DataProjectionFiltrationInfo projectionInfo,
+    public static void setExternalDataProjectionInfo(ExternalDatasetProjectionFiltrationInfo projectionInfo,
             Map<String, String> properties) throws IOException {
         properties.put(ExternalDataConstants.KEY_REQUESTED_FIELDS,
-                serializeExpectedTypeToString(projectionInfo.getProjectionInfo()));
+                serializeExpectedTypeToString(projectionInfo.getProjectedType()));
         properties.put(ExternalDataConstants.KEY_HADOOP_ASTERIX_FUNCTION_CALL_INFORMATION,
                 serializeFunctionCallInfoToString(projectionInfo.getFunctionCallInfoMap()));
     }
@@ -908,7 +922,7 @@ public class ExternalDataUtils {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         DataOutputStream dataOutputStream = new DataOutputStream(byteArrayOutputStream);
         Base64.Encoder encoder = Base64.getEncoder();
-        DataProjectionFiltrationInfo.writeTypeField(expectedType, dataOutputStream);
+        ExternalDatasetProjectionFiltrationInfo.writeTypeField(expectedType, dataOutputStream);
         return encoder.encodeToString(byteArrayOutputStream.toByteArray());
     }
 
@@ -924,7 +938,8 @@ public class ExternalDataUtils {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         DataOutputStream dataOutputStream = new DataOutputStream(byteArrayOutputStream);
         Base64.Encoder encoder = Base64.getEncoder();
-        DataProjectionFiltrationInfo.writeFunctionCallInformationMapField(functionCallInfoMap, dataOutputStream);
+        ExternalDatasetProjectionFiltrationInfo.writeFunctionCallInformationMapField(functionCallInfoMap,
+                dataOutputStream);
         return encoder.encodeToString(byteArrayOutputStream.toByteArray());
     }
 

@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.asterix.common.config.DatasetConfig.DatasetType;
+import org.apache.asterix.common.external.IExternalFilterEvaluatorFactory;
 import org.apache.asterix.common.metadata.DataverseName;
 import org.apache.asterix.external.api.ITypedAdapterFactory;
 import org.apache.asterix.external.util.ExternalDataUtils;
@@ -41,10 +42,11 @@ import org.apache.asterix.metadata.utils.IndexUtil;
 import org.apache.asterix.metadata.utils.KeyFieldTypeUtil;
 import org.apache.asterix.om.types.ARecordType;
 import org.apache.asterix.om.types.IAType;
-import org.apache.asterix.runtime.projection.DataProjectionFiltrationInfo;
+import org.apache.asterix.runtime.projection.ExternalDatasetProjectionFiltrationInfo;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksPartitionConstraint;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.utils.Pair;
+import org.apache.hyracks.algebricks.core.algebra.base.DefaultProjectionFiltrationInfo;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalVariable;
 import org.apache.hyracks.algebricks.core.algebra.expressions.IVariableTypeEnvironment;
 import org.apache.hyracks.algebricks.core.algebra.metadata.IDataSource;
@@ -121,8 +123,7 @@ public class DatasetDataSource extends DataSource {
             List<LogicalVariable> minFilterVars, List<LogicalVariable> maxFilterVars,
             ITupleFilterFactory tupleFilterFactory, long outputLimit, IOperatorSchema opSchema,
             IVariableTypeEnvironment typeEnv, JobGenContext context, JobSpecification jobSpec, Object implConfig,
-            IProjectionFiltrationInfo<?> projectionInfo, IProjectionFiltrationInfo<?> metaProjectionInfo)
-            throws AlgebricksException {
+            IProjectionFiltrationInfo projectionFiltrationInfo) throws AlgebricksException {
         String itemTypeName = dataset.getItemTypeName();
         IAType itemType = MetadataManager.INSTANCE
                 .getDatatype(metadataProvider.getMetadataTxnContext(), dataset.getItemTypeDataverseName(), itemTypeName)
@@ -134,11 +135,15 @@ public class DatasetDataSource extends DataSource {
                 ExternalDatasetDetails edd = (ExternalDatasetDetails) externalDataset.getDatasetDetails();
                 PhysicalOptimizationConfig physicalOptimizationConfig = context.getPhysicalOptimizationConfig();
                 int externalScanBufferSize = physicalOptimizationConfig.getExternalScanBufferSize();
-                Map<String, String> properties = addExternalProjectionInfo(projectionInfo, edd.getProperties());
+                Map<String, String> properties =
+                        addExternalProjectionInfo(projectionFiltrationInfo, edd.getProperties());
                 properties = addSubPath(externalDataSource.getProperties(), properties);
                 properties.put(KEY_EXTERNAL_SCAN_BUFFER_SIZE, String.valueOf(externalScanBufferSize));
-                ITypedAdapterFactory adapterFactory = metadataProvider.getConfiguredAdapterFactory(externalDataset,
-                        edd.getAdapter(), properties, (ARecordType) itemType, null, context.getWarningCollector());
+                IExternalFilterEvaluatorFactory filterEvaluatorFactory = IndexUtil
+                        .createExternalFilterEvaluatorFactory(context, typeEnv, projectionFiltrationInfo, properties);
+                ITypedAdapterFactory adapterFactory =
+                        metadataProvider.getConfiguredAdapterFactory(externalDataset, edd.getAdapter(), properties,
+                                (ARecordType) itemType, context.getWarningCollector(), filterEvaluatorFactory);
                 return metadataProvider.getExternalDatasetScanRuntime(jobSpec, itemType, adapterFactory,
                         tupleFilterFactory, outputLimit);
             case INTERNAL:
@@ -158,8 +163,8 @@ public class DatasetDataSource extends DataSource {
                 }
                 int numberOfPrimaryKeys = dataset.getPrimaryKeys().size();
                 ITupleProjectorFactory tupleProjectorFactory =
-                        IndexUtil.createTupleProjectorFactory(context, dataset.getDatasetFormatInfo(), projectionInfo,
-                                metaProjectionInfo, datasetType, metaItemType, numberOfPrimaryKeys);
+                        IndexUtil.createTupleProjectorFactory(context, typeEnv, dataset.getDatasetFormatInfo(),
+                                projectionFiltrationInfo, datasetType, metaItemType, numberOfPrimaryKeys);
 
                 int[] minFilterFieldIndexes = createFilterIndexes(minFilterVars, opSchema);
                 int[] maxFilterFieldIndexes = createFilterIndexes(maxFilterVars, opSchema);
@@ -172,14 +177,15 @@ public class DatasetDataSource extends DataSource {
         }
     }
 
-    private Map<String, String> addExternalProjectionInfo(IProjectionFiltrationInfo<?> projectionInfo,
+    private Map<String, String> addExternalProjectionInfo(IProjectionFiltrationInfo projectionInfo,
             Map<String, String> properties) {
         Map<String, String> propertiesCopy = properties;
-        if (projectionInfo != null) {
+        if (projectionInfo != DefaultProjectionFiltrationInfo.INSTANCE) {
             //properties could be cached and reused, so we make a copy per query
             propertiesCopy = new HashMap<>(properties);
             try {
-                DataProjectionFiltrationInfo externalProjectionInfo = (DataProjectionFiltrationInfo) projectionInfo;
+                ExternalDatasetProjectionFiltrationInfo externalProjectionInfo =
+                        (ExternalDatasetProjectionFiltrationInfo) projectionInfo;
                 ExternalDataUtils.setExternalDataProjectionInfo(externalProjectionInfo, propertiesCopy);
             } catch (IOException e) {
                 throw new IllegalStateException(e);

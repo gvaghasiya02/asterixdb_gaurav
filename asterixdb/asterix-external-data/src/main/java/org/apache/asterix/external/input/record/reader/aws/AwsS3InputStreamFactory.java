@@ -18,13 +18,17 @@
  */
 package org.apache.asterix.external.input.record.reader.aws;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 
+import org.apache.asterix.common.external.IExternalFilterEvaluator;
+import org.apache.asterix.common.external.IExternalFilterEvaluatorFactory;
 import org.apache.asterix.external.api.AsterixInputStream;
 import org.apache.asterix.external.input.record.reader.abstracts.AbstractExternalInputStreamFactory;
+import org.apache.asterix.external.util.ExternalDataPrefix;
 import org.apache.asterix.external.util.ExternalDataUtils;
 import org.apache.asterix.external.util.aws.s3.S3Utils;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
@@ -45,18 +49,44 @@ public class AwsS3InputStreamFactory extends AbstractExternalInputStreamFactory 
     }
 
     @Override
-    public void configure(IServiceContext ctx, Map<String, String> configuration, IWarningCollector warningCollector)
-            throws AlgebricksException {
-        super.configure(ctx, configuration, warningCollector);
+    public void configure(IServiceContext ctx, Map<String, String> configuration, IWarningCollector warningCollector,
+            IExternalFilterEvaluatorFactory filterEvaluatorFactory) throws AlgebricksException, HyracksDataException {
+        super.configure(ctx, configuration, warningCollector, filterEvaluatorFactory);
 
         // Ensure the validity of include/exclude
         ExternalDataUtils.validateIncludeExclude(configuration);
         IncludeExcludeMatcher includeExcludeMatcher = ExternalDataUtils.getIncludeExcludeMatchers(configuration);
 
         //Get a list of S3 objects
+        ExternalDataPrefix externalDataPrefix = new ExternalDataPrefix(configuration);
+        configuration.put(ExternalDataPrefix.PREFIX_ROOT_FIELD_NAME, externalDataPrefix.getRoot());
+
+        // TODO(htowaileb): Since we're using the root to load the files then start filtering, it might end up being
+        // very expensive since at the root of the prefix we might load millions of files, we should consider (when
+        // possible) to get the value and add it
         List<S3Object> filesOnly = S3Utils.listS3Objects(configuration, includeExcludeMatcher, warningCollector);
+        filterPrefixes(externalDataPrefix, filesOnly, filterEvaluatorFactory.create(ctx, warningCollector));
+
         // Distribute work load amongst the partitions
         distributeWorkLoad(filesOnly, getPartitionsCount());
+    }
+
+    private List<S3Object> filterPrefixes(ExternalDataPrefix prefix, List<S3Object> filesOnly,
+            IExternalFilterEvaluator evaluator) throws HyracksDataException {
+
+        // if no computed fields or empty files list, return the original list
+        if (filesOnly.isEmpty() || !prefix.hasComputedFields() || evaluator.isEmpty()) {
+            return filesOnly;
+        }
+
+        List<S3Object> filteredList = new ArrayList<>();
+        for (S3Object file : filesOnly) {
+            if (prefix.evaluate(file.key(), evaluator)) {
+                filteredList.add(file);
+            }
+        }
+
+        return filteredList;
     }
 
     /**

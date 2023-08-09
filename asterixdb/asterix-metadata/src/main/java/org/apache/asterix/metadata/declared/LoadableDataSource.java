@@ -26,6 +26,7 @@ import java.util.Map;
 import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.common.exceptions.CompilationException;
 import org.apache.asterix.common.exceptions.ErrorCode;
+import org.apache.asterix.common.external.NoOpExternalFilterEvaluatorFactory;
 import org.apache.asterix.common.metadata.DataverseName;
 import org.apache.asterix.external.api.ITypedAdapterFactory;
 import org.apache.asterix.metadata.entities.Dataset;
@@ -136,8 +137,7 @@ public class LoadableDataSource extends DataSource {
             List<LogicalVariable> minFilterVars, List<LogicalVariable> maxFilterVars,
             ITupleFilterFactory tupleFilterFactory, long outputLimit, IOperatorSchema opSchema,
             IVariableTypeEnvironment typeEnv, JobGenContext context, JobSpecification jobSpec, Object implConfig,
-            IProjectionFiltrationInfo<?> projectionInfo, IProjectionFiltrationInfo<?> metaProjectionInfo)
-            throws AlgebricksException {
+            IProjectionFiltrationInfo projectionFiltrationInfo) throws AlgebricksException {
         if (tupleFilterFactory != null || outputLimit >= 0) {
             throw CompilationException.create(ErrorCode.COMPILATION_ILLEGAL_STATE,
                     "tuple filter and limit are not supported by LoadableDataSource");
@@ -145,7 +145,8 @@ public class LoadableDataSource extends DataSource {
         LoadableDataSource alds = (LoadableDataSource) dataSource;
         ARecordType itemType = (ARecordType) alds.getLoadedType();
         ITypedAdapterFactory adapterFactory = metadataProvider.getConfiguredAdapterFactory(alds.getTargetDataset(),
-                alds.getAdapter(), alds.getAdapterProperties(), itemType, null, context.getWarningCollector());
+                alds.getAdapter(), alds.getAdapterProperties(), itemType, context.getWarningCollector(),
+                NoOpExternalFilterEvaluatorFactory.INSTANCE);
         RecordDescriptor rDesc = JobGenHelper.mkRecordDescriptor(typeEnv, opSchema, context);
         return metadataProvider.getLoadableDatasetScanRuntime(jobSpec, adapterFactory, rDesc);
     }

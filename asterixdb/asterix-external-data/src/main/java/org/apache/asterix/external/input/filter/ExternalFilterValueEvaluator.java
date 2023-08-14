@@ -61,6 +61,7 @@ class ExternalFilterValueEvaluator implements IExternalFilterValueEvaluator {
     private void writeValue(ATypeTag typeTag, String stringValue) throws HyracksDataException {
         DataOutput output = value.getDataOutput();
         SerializerDeserializerUtil.serializeTag(typeTag, output);
+
         switch (typeTag) {
             case TINYINT:
             case SMALLINT:

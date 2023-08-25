@@ -946,6 +946,7 @@
     <module>asterix-spidersilk</module>
     <module>asterix-column</module>
     <module>asterix-cloud</module>
+    <module>asterix-codegen</module>
   </modules>
 
   <dependencyManagement>

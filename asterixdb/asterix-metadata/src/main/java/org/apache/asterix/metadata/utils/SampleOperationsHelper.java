@@ -297,7 +297,7 @@ public class SampleOperationsHelper implements ISecondaryIndexOperationsHelper {
                 new SimpleAlgebricksAccumulatingAggregatorFactory(aggFactories, groupFields);
 
         targetOp = new SortGroupByOperatorDescriptor(spec, groupbyNumFrames, sortFields, groupFields, normKeyFactories,
-                raggCmpFactories, aggregatorFactory, aggregatorFactory, raggRecordDesc, raggRecordDesc, false,false);
+                raggCmpFactories, aggregatorFactory, aggregatorFactory, raggRecordDesc, raggRecordDesc, false, false);
         spec.connect(new OneToOneConnectorDescriptor(spec), sourceOp, 0, targetOp, 0);
         sourceOp = targetOp;
 

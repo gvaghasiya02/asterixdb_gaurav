@@ -33,12 +33,18 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.dataflow.common.io.GeneratedRunFileReader;
 import org.apache.hyracks.dataflow.common.io.RunFileWriter;
-import org.apache.hyracks.dataflow.std.buffermanager.*;
+// import org.apache.hyracks.dataflow.std.buffermanager.*;
+import org.apache.hyracks.dataflow.std.buffermanager.EnumFreeSlotPolicy;
+import org.apache.hyracks.dataflow.std.buffermanager.FrameFreeSlotPolicyFactory;
+import org.apache.hyracks.dataflow.std.buffermanager.IFrameBufferManager;
+import org.apache.hyracks.dataflow.std.buffermanager.IFrameFreeSlotPolicy;
+import org.apache.hyracks.dataflow.std.buffermanager.VariableFrameMemoryManager;
+import org.apache.hyracks.dataflow.std.buffermanager.VariableFramePool;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupWriter;
 import org.apache.hyracks.dataflow.std.group.sort.ExternalSortGroupByRunGenerator;
 
-public class OptimizeGroupByRunGenerator  implements IRunGenerator{
+public class OptimizeGroupByRunGenerator implements IRunGenerator {
 
     private final int[] groupFields;
     private final IBinaryComparatorFactory[] comparatorFactories;
@@ -61,11 +67,12 @@ public class OptimizeGroupByRunGenerator  implements IRunGenerator{
         this.aggregatorFactory = aggregatorFactory;
         this.inRecordDesc = inputRecordDesc;
         this.outRecordDesc = outRecordDesc;
-        this.ctx=ctx;
+        this.ctx = ctx;
         this.generatedRunFileReaders = new LinkedList<>();
         maxSortFrames = framesLimit - 1;
 
-        IFrameFreeSlotPolicy freeSlotPolicy = FrameFreeSlotPolicyFactory.createFreeSlotPolicy(EnumFreeSlotPolicy.LAST_FIT, maxSortFrames);
+        IFrameFreeSlotPolicy freeSlotPolicy =
+                FrameFreeSlotPolicyFactory.createFreeSlotPolicy(EnumFreeSlotPolicy.LAST_FIT, maxSortFrames);
         IFrameBufferManager bufferManager = new VariableFrameMemoryManager(
                 new VariableFramePool(ctx, maxSortFrames * ctx.getInitialFrameSize()), freeSlotPolicy);
         if (alg == Algorithm.MERGE_SORT) {
@@ -94,6 +101,7 @@ public class OptimizeGroupByRunGenerator  implements IRunGenerator{
             }
         }
     }
+
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         if (!frameSorter.insertFrame(buffer)) {
             flushFramesToRun();
@@ -102,8 +110,8 @@ public class OptimizeGroupByRunGenerator  implements IRunGenerator{
             }
         }
     }
-    protected RunFileWriter getRunFileWriter() throws HyracksDataException
-    {
+
+    protected RunFileWriter getRunFileWriter() throws HyracksDataException {
         FileReference file = ctx.getJobletContext()
                 .createManagedWorkspaceFile(ExternalSortGroupByRunGenerator.class.getSimpleName());
         return new RunFileWriter(file, ctx.getIoManager());

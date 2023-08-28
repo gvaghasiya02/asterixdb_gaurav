@@ -167,7 +167,7 @@ public class Groupby {
                             new IFieldAggregateDescriptorFactory[] { new CountFieldAggregatorFactory(true) }),
                     new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {
                             new IntSumFieldAggregatorFactory(keys.length, true) }),
-                    outDesc, outDesc, false,false);
+                    outDesc, outDesc, false, false);
 
             createPartitionConstraint(spec, grouper, outSplits);
         } else {

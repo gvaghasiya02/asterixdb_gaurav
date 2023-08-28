@@ -33,7 +33,14 @@ import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
 import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.dataflow.common.io.GeneratedRunFileReader;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
-import org.apache.hyracks.dataflow.std.sort.*;
+import org.apache.hyracks.dataflow.std.sort.AbstractExternalSortRunMerger;
+import org.apache.hyracks.dataflow.std.sort.AbstractSorterOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.sort.Algorithm;
+import org.apache.hyracks.dataflow.std.sort.IRunGenerator;
+import org.apache.hyracks.dataflow.std.sort.OptimizeGroupByRunGenerator;
+import org.apache.hyracks.dataflow.std.sort.ProfiledRunGenerator;
+
+//import org.apache.hyracks.dataflow.std.sort.*;
 
 /**
  * This Operator pushes group-by aggregation into the external sort.
@@ -82,12 +89,12 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
             int[] groupFields, INormalizedKeyComputerFactory firstKeyNormalizerFactory,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory partialAggregatorFactory,
             IAggregatorDescriptorFactory mergeAggregatorFactory, RecordDescriptor partialAggRecordDesc,
-            RecordDescriptor outRecordDesc, boolean finalStage,boolean isOptimized) {
+            RecordDescriptor outRecordDesc, boolean finalStage, boolean isOptimized) {
         this(spec, framesLimit, sortFields, groupFields,
                 firstKeyNormalizerFactory != null ? new INormalizedKeyComputerFactory[] { firstKeyNormalizerFactory }
                         : null,
                 comparatorFactories, partialAggregatorFactory, mergeAggregatorFactory, partialAggRecordDesc,
-                outRecordDesc, finalStage,isOptimized);
+                outRecordDesc, finalStage, isOptimized);
     }
 
     /**
@@ -118,7 +125,7 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
             int[] groupFields, INormalizedKeyComputerFactory[] keyNormalizerFactories,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory partialAggregatorFactory,
             IAggregatorDescriptorFactory mergeAggregatorFactory, RecordDescriptor partialAggRecordDesc,
-            RecordDescriptor outRecordDesc, boolean finalStage,boolean isOptimized) {
+            RecordDescriptor outRecordDesc, boolean finalStage, boolean isOptimized) {
         super(spec, framesLimit, sortFields, keyNormalizerFactories, comparatorFactories, outRecordDesc);
         if (framesLimit <= 1) {
             throw new IllegalStateException(); // minimum of 2 frames (1 in,1 out)
@@ -142,25 +149,22 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
             protected IRunGenerator getRunGenerator(IHyracksTaskContext ctx,
                     IRecordDescriptorProvider recordDescriptorProvider) throws HyracksDataException {
                 final boolean profile = ctx.getJobFlags().contains(JobFlag.PROFILE_RUNTIME);
-                if(isOptimized)
-                {
+                if (isOptimized) {
                     IRunGenerator runGen = new OptimizeGroupByRunGenerator(ctx, sortFields,
                             recordDescriptorProvider.getInputRecordDescriptor(this.getActivityId(), 0), framesLimit,
                             groupFields, keyNormalizerFactories, comparatorFactories, partialAggregatorFactory,
                             partialAggRecordDesc, ALG) {
                     };
-                    return profile ?
-                            ProfiledRunGenerator.time(runGen, ctx, "Optimize GroupBy (Runs)", this.getActivityId()) :
-                            runGen;
-                }
-                else {
+                    return profile
+                            ? ProfiledRunGenerator.time(runGen, ctx, "Optimize GroupBy (Runs)", this.getActivityId())
+                            : runGen;
+                } else {
                     IRunGenerator runGen = new ExternalSortGroupByRunGenerator(ctx, sortFields,
                             recordDescriptorProvider.getInputRecordDescriptor(this.getActivityId(), 0), framesLimit,
                             groupFields, keyNormalizerFactories, comparatorFactories, partialAggregatorFactory,
                             partialAggRecordDesc, ALG);
-                    return profile ?
-                            ProfiledRunGenerator.time(runGen, ctx, "GroupBy (Sort Runs)", this.getActivityId()) :
-                            runGen;
+                    return profile ? ProfiledRunGenerator.time(runGen, ctx, "GroupBy (Sort Runs)", this.getActivityId())
+                            : runGen;
                 }
             }
         };

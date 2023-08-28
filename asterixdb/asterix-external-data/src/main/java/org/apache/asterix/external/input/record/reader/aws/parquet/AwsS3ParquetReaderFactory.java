@@ -18,6 +18,8 @@
  */
 package org.apache.asterix.external.input.record.reader.aws.parquet;
 
+import static org.apache.asterix.external.util.aws.s3.S3Utils.configureAwsS3HdfsJobConf;
+import static org.apache.asterix.external.util.aws.s3.S3Utils.listS3Objects;
 import static org.apache.hyracks.api.util.ExceptionUtils.getMessageOrToString;
 
 import java.util.Collections;
@@ -25,16 +27,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.asterix.common.exceptions.CompilationException;
 import org.apache.asterix.common.exceptions.ErrorCode;
 import org.apache.asterix.common.exceptions.RuntimeDataException;
+import org.apache.asterix.common.external.IExternalFilterEvaluator;
 import org.apache.asterix.common.external.IExternalFilterEvaluatorFactory;
 import org.apache.asterix.external.input.HDFSDataSourceFactory;
 import org.apache.asterix.external.input.record.reader.abstracts.AbstractExternalInputStreamFactory.IncludeExcludeMatcher;
 import org.apache.asterix.external.util.ExternalDataConstants;
+import org.apache.asterix.external.util.ExternalDataPrefix;
 import org.apache.asterix.external.util.ExternalDataUtils;
 import org.apache.asterix.external.util.aws.s3.S3Constants;
-import org.apache.asterix.external.util.aws.s3.S3Utils;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.api.application.IServiceContext;
@@ -56,17 +58,34 @@ public class AwsS3ParquetReaderFactory extends HDFSDataSourceFactory {
     public void configure(IServiceContext serviceCtx, Map<String, String> configuration,
             IWarningCollector warningCollector, IExternalFilterEvaluatorFactory filterEvaluatorFactory)
             throws AlgebricksException, HyracksDataException {
-        //Get path
-        String path = configuration.containsKey(ExternalDataConstants.KEY_PATH)
-                ? configuration.get(ExternalDataConstants.KEY_PATH) : buildPathURIs(configuration, warningCollector);
-        //Put S3 configurations to AsterixDB's Hadoop configuration
+
+        // get path
+        String path;
+        if (configuration.containsKey(ExternalDataConstants.KEY_PATH)) {
+            path = configuration.get(ExternalDataConstants.KEY_PATH);
+        } else {
+            // get include/exclude matchers
+            IncludeExcludeMatcher includeExcludeMatcher = ExternalDataUtils.getIncludeExcludeMatchers(configuration);
+
+            // prepare prefix for computed field calculations
+            IExternalFilterEvaluator evaluator = filterEvaluatorFactory.create(serviceCtx, warningCollector);
+            ExternalDataPrefix externalDataPrefix = new ExternalDataPrefix(configuration, warningCollector);
+            configuration.put(ExternalDataPrefix.PREFIX_ROOT_FIELD_NAME, externalDataPrefix.getRoot());
+
+            String container = configuration.get(ExternalDataConstants.CONTAINER_NAME_FIELD_NAME);
+            List<S3Object> filesOnly = listS3Objects(configuration, includeExcludeMatcher, warningCollector,
+                    externalDataPrefix, evaluator);
+            path = buildPathURIs(container, filesOnly);
+        }
+
+        // put S3 configurations to AsterixDB's Hadoop configuration
         putS3ConfToHadoopConf(configuration, path);
 
         //Configure Hadoop S3 input splits
         try {
             JobConf conf = createHdfsConf(serviceCtx, configuration);
             int numberOfPartitions = getPartitionConstraint().getLocations().length;
-            S3Utils.configureAwsS3HdfsJobConf(conf, configuration, numberOfPartitions);
+            configureAwsS3HdfsJobConf(conf, configuration, numberOfPartitions);
             configureHdfsConf(conf, configuration);
         } catch (SdkException | SdkBaseException ex) {
             throw new RuntimeDataException(ErrorCode.EXTERNAL_SOURCE_ERROR, getMessageOrToString(ex));
@@ -103,16 +122,12 @@ public class AwsS3ParquetReaderFactory extends HDFSDataSourceFactory {
     /**
      * Build S3 path-style for the requested files
      *
-     * @param configuration    properties
-     * @param warningCollector warning collector
+     * @param container container
+     * @param filesOnly files
+     *
      * @return Comma-delimited paths (e.g., "s3a://bucket/file1.parquet,s3a://bucket/file2.parquet")
-     * @throws CompilationException Compilation exception
      */
-    private static String buildPathURIs(Map<String, String> configuration, IWarningCollector warningCollector)
-            throws CompilationException {
-        String container = configuration.get(ExternalDataConstants.CONTAINER_NAME_FIELD_NAME);
-        IncludeExcludeMatcher includeExcludeMatcher = ExternalDataUtils.getIncludeExcludeMatchers(configuration);
-        List<S3Object> filesOnly = S3Utils.listS3Objects(configuration, includeExcludeMatcher, warningCollector);
+    private static String buildPathURIs(String container, List<S3Object> filesOnly) {
         StringBuilder builder = new StringBuilder();
 
         if (!filesOnly.isEmpty()) {

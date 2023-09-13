@@ -56,16 +56,17 @@ public class OptimizeGroupByRunGenerator implements IRunGenerator {
     private final List<GeneratedRunFileReader> generatedRunFileReaders;
 
     protected final IHyracksTaskContext ctx;
-//    protected final IFrameSorter frameSorter;
-//    protected final int maxSortFrames;
+    protected final IFrameSorter frameSorter;
+    protected final int maxSortFrames;
 
     protected final BytesToBytesMap hashmap;
 
     private static final long BUDGET = 8 << 20;
+
     public OptimizeGroupByRunGenerator(IHyracksTaskContext ctx, int[] sortFields, RecordDescriptor inputRecordDesc,
             int framesLimit, int[] groupFields, INormalizedKeyComputerFactory[] keyNormalizerFactories,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory aggregatorFactory,
-            RecordDescriptor outRecordDesc) throws HyracksDataException {
+            RecordDescriptor outRecordDesc, Algorithm alg) throws HyracksDataException {
 
         this.groupFields = groupFields;
         this.comparatorFactories = comparatorFactories;
@@ -74,21 +75,20 @@ public class OptimizeGroupByRunGenerator implements IRunGenerator {
         this.outRecordDesc = outRecordDesc;
         this.ctx = ctx;
         this.generatedRunFileReaders = new LinkedList<>();
-//        maxSortFrames = framesLimit - 1;
+        maxSortFrames = framesLimit - 1;
 
-//        IFrameFreeSlotPolicy freeSlotPolicy =
-//                FrameFreeSlotPolicyFactory.createFreeSlotPolicy(EnumFreeSlotPolicy.LAST_FIT, maxSortFrames);
-//        IFrameBufferManager bufferManager = new VariableFrameMemoryManager(
-//                new VariableFramePool(ctx, maxSortFrames * ctx.getInitialFrameSize()), freeSlotPolicy);
-//        if (alg == Algorithm.MERGE_SORT) {
-//            frameSorter = new FrameSorterMergeSort(ctx, bufferManager, maxSortFrames, sortFields,
-//                    keyNormalizerFactories, comparatorFactories, inRecordDesc, Integer.MAX_VALUE);
-//        } else {
-//            frameSorter = new FrameSorterQuickSort(ctx, bufferManager, maxSortFrames, sortFields,
-//                    keyNormalizerFactories, comparatorFactories, inRecordDesc, Integer.MAX_VALUE);
-//        }
-            hashmap=new BytesToBytesMap(MemoryAllocator.HEAP, 64 << 20, 1 << 20, null);
-
+        IFrameFreeSlotPolicy freeSlotPolicy =
+                FrameFreeSlotPolicyFactory.createFreeSlotPolicy(EnumFreeSlotPolicy.LAST_FIT, maxSortFrames);
+        IFrameBufferManager bufferManager = new VariableFrameMemoryManager(
+                new VariableFramePool(ctx, maxSortFrames * ctx.getInitialFrameSize()), freeSlotPolicy);
+        if (alg == Algorithm.MERGE_SORT) {
+            frameSorter = new FrameSorterMergeSort(ctx, bufferManager, maxSortFrames, sortFields,
+                    keyNormalizerFactories, comparatorFactories, inRecordDesc, Integer.MAX_VALUE);
+        } else {
+            frameSorter = new FrameSorterQuickSort(ctx, bufferManager, maxSortFrames, sortFields,
+                    keyNormalizerFactories, comparatorFactories, inRecordDesc, Integer.MAX_VALUE);
+        }
+        hashmap = new BytesToBytesMap(MemoryAllocator.HEAP, 64 << 20, 1 << 20, null);
 
     }
 

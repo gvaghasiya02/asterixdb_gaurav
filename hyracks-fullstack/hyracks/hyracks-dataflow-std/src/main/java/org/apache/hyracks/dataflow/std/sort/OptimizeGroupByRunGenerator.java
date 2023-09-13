@@ -33,7 +33,6 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.dataflow.common.io.GeneratedRunFileReader;
 import org.apache.hyracks.dataflow.common.io.RunFileWriter;
-// import org.apache.hyracks.dataflow.std.buffermanager.*;
 import org.apache.hyracks.dataflow.std.buffermanager.EnumFreeSlotPolicy;
 import org.apache.hyracks.dataflow.std.buffermanager.FrameFreeSlotPolicyFactory;
 import org.apache.hyracks.dataflow.std.buffermanager.IFrameBufferManager;
@@ -43,8 +42,6 @@ import org.apache.hyracks.dataflow.std.buffermanager.VariableFramePool;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupWriter;
 import org.apache.hyracks.dataflow.std.group.sort.ExternalSortGroupByRunGenerator;
-import org.apache.hyracks.unsafe.BytesToBytesMap;
-import org.apache.spark.unsafe.memory.MemoryAllocator;
 
 public class OptimizeGroupByRunGenerator implements IRunGenerator {
 
@@ -59,9 +56,6 @@ public class OptimizeGroupByRunGenerator implements IRunGenerator {
     protected final IFrameSorter frameSorter;
     protected final int maxSortFrames;
 
-    protected final BytesToBytesMap hashmap;
-
-    private static final long BUDGET = 8 << 20;
 
     public OptimizeGroupByRunGenerator(IHyracksTaskContext ctx, int[] sortFields, RecordDescriptor inputRecordDesc,
             int framesLimit, int[] groupFields, INormalizedKeyComputerFactory[] keyNormalizerFactories,
@@ -81,14 +75,8 @@ public class OptimizeGroupByRunGenerator implements IRunGenerator {
                 FrameFreeSlotPolicyFactory.createFreeSlotPolicy(EnumFreeSlotPolicy.LAST_FIT, maxSortFrames);
         IFrameBufferManager bufferManager = new VariableFrameMemoryManager(
                 new VariableFramePool(ctx, maxSortFrames * ctx.getInitialFrameSize()), freeSlotPolicy);
-        if (alg == Algorithm.MERGE_SORT) {
-            frameSorter = new FrameSorterMergeSort(ctx, bufferManager, maxSortFrames, sortFields,
-                    keyNormalizerFactories, comparatorFactories, inRecordDesc, Integer.MAX_VALUE);
-        } else {
-            frameSorter = new FrameSorterQuickSort(ctx, bufferManager, maxSortFrames, sortFields,
-                    keyNormalizerFactories, comparatorFactories, inRecordDesc, Integer.MAX_VALUE);
-        }
-        hashmap = new BytesToBytesMap(MemoryAllocator.HEAP, 64 << 20, 1 << 20, null);
+        frameSorter = new FrameIterator(ctx, bufferManager, maxSortFrames, sortFields, keyNormalizerFactories,
+                    comparatorFactories, inRecordDesc, Integer.MAX_VALUE);
 
     }
 

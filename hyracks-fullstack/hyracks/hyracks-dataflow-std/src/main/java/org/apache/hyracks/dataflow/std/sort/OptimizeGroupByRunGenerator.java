@@ -42,6 +42,8 @@ import org.apache.hyracks.dataflow.std.buffermanager.VariableFramePool;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupWriter;
 import org.apache.hyracks.dataflow.std.group.sort.ExternalSortGroupByRunGenerator;
+import org.apache.hyracks.unsafe.BytesToBytesMap;
+import org.apache.spark.unsafe.memory.MemoryAllocator;
 
 public class OptimizeGroupByRunGenerator implements IRunGenerator {
 
@@ -76,6 +78,7 @@ public class OptimizeGroupByRunGenerator implements IRunGenerator {
                 new VariableFramePool(ctx, maxSortFrames * ctx.getInitialFrameSize()), freeSlotPolicy);
         frameSorter = new FrameIterator(ctx, bufferManager, maxSortFrames, sortFields, keyNormalizerFactories,
                 comparatorFactories, inRecordDesc, Integer.MAX_VALUE);
+        BytesToBytesMap hashmap = new BytesToBytesMap(MemoryAllocator.HEAP, 64 << 20, 1 << 20, null);
 
     }
 

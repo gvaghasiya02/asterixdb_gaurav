@@ -48,6 +48,11 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-unsafe_2.12</artifactId>
+      <version>3.2.0</version>
+    </dependency>
+    <dependency>
       <groupId>org.apache.hyracks</groupId>
       <artifactId>hyracks-data-std</artifactId>
       <version>${project.version}</version>

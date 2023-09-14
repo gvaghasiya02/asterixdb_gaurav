@@ -56,11 +56,10 @@ public class OptimizeGroupByRunGenerator implements IRunGenerator {
     protected final IFrameSorter frameSorter;
     protected final int maxSortFrames;
 
-
     public OptimizeGroupByRunGenerator(IHyracksTaskContext ctx, int[] sortFields, RecordDescriptor inputRecordDesc,
             int framesLimit, int[] groupFields, INormalizedKeyComputerFactory[] keyNormalizerFactories,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory aggregatorFactory,
-            RecordDescriptor outRecordDesc, Algorithm alg) throws HyracksDataException {
+            RecordDescriptor outRecordDesc) throws HyracksDataException {
 
         this.groupFields = groupFields;
         this.comparatorFactories = comparatorFactories;
@@ -76,7 +75,7 @@ public class OptimizeGroupByRunGenerator implements IRunGenerator {
         IFrameBufferManager bufferManager = new VariableFrameMemoryManager(
                 new VariableFramePool(ctx, maxSortFrames * ctx.getInitialFrameSize()), freeSlotPolicy);
         frameSorter = new FrameIterator(ctx, bufferManager, maxSortFrames, sortFields, keyNormalizerFactories,
-                    comparatorFactories, inRecordDesc, Integer.MAX_VALUE);
+                comparatorFactories, inRecordDesc, Integer.MAX_VALUE);
 
     }
 

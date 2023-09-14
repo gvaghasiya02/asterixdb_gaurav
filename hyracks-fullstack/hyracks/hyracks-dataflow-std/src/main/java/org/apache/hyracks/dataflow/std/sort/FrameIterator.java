@@ -206,7 +206,6 @@ public class FrameIterator implements IFrameSorter {
         sort(0, tupleCount);
     }
 
-
     void sort(int offset, int length) throws HyracksDataException {
         int step = 1;
         int end = offset + length;

@@ -153,7 +153,7 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
                     IRunGenerator runGen = new OptimizeGroupByRunGenerator(ctx, sortFields,
                             recordDescriptorProvider.getInputRecordDescriptor(this.getActivityId(), 0), framesLimit,
                             groupFields, keyNormalizerFactories, comparatorFactories, partialAggregatorFactory,
-                            partialAggRecordDesc, ALG) {
+                            partialAggRecordDesc) {
                     };
                     return profile
                             ? ProfiledRunGenerator.time(runGen, ctx, "Optimize GroupBy (Runs)", this.getActivityId())

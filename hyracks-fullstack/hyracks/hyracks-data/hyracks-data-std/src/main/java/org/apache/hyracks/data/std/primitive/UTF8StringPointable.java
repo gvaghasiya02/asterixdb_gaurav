@@ -142,7 +142,8 @@ public final class UTF8StringPointable extends AbstractPointable implements IHas
 
     /**
      * Gets the length of the string in characters.
-     * The first time call will need to go through the entire string, the following call will just return the pre-caculated result
+     * The first time call will need to go through the entire string, the following call will just return the
+     * pre-caculated result
      *
      * @return length of string in characters
      */
@@ -221,6 +222,12 @@ public final class UTF8StringPointable extends AbstractPointable implements IHas
     public static int compare(IValueReference valueA, IValueReference valueB) {
         return UTF8StringUtil.compareTo(valueA.getByteArray(), valueA.getStartOffset(), valueB.getByteArray(),
                 valueB.getStartOffset());
+    }
+
+    public static boolean areEqual(IValueReference valueA, IValueReference valueB) {
+        return valueA.getLength() == valueB.getLength()
+                && UTF8StringUtil.rawByteEquals(valueA.getByteArray(), valueA.getStartOffset(), valueA.getLength(),
+                        valueB.getByteArray(), valueB.getStartOffset(), valueB.getLength());
     }
 
     /**
@@ -315,7 +322,7 @@ public final class UTF8StringPointable extends AbstractPointable implements IHas
             }
 
             // The result is counted in code point instead of bytes
-            if (!resultInByte) {
+            if (resultInByte == false) {
                 char ch = src.charAt(srcStart + startMatchPos);
                 if (Character.isHighSurrogate(ch)) {
                     prevHighSurrogate = true;
@@ -709,7 +716,7 @@ public final class UTF8StringPointable extends AbstractPointable implements IHas
                         cursorIndex--;
                         if (UTF8StringUtil.isCharStart(srcPtr.bytes, cursorIndex)) {
                             ch = UTF8StringUtil.charAt(srcPtr.bytes, cursorIndex);
-                            if (!Character.isHighSurrogate(ch)) {
+                            if (Character.isHighSurrogate(ch) == false) {
                                 throw new IllegalArgumentException(
                                         "Decoding Error: no corresponding high surrogate found for the following low surrogate");
                             }

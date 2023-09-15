@@ -248,13 +248,12 @@ public class UTF8StringUtil {
      * consistent with the comparison result.
      */
     public static int normalize(byte[] bytes, int start) {
-        long nk = 0;
         int len = getUTFLength(bytes, start);
+        long nk = 0;
         int offset = start + getNumBytesToStoreLength(len);
-        int end = offset + len;
         for (int i = 0; i < 2; ++i) {
             nk <<= 16;
-            if (offset < end) {
+            if (i < len) {
                 nk += (charAt(bytes, offset)) & 0xffff;
                 offset += charSize(bytes, offset);
             }
@@ -274,7 +273,8 @@ public class UTF8StringUtil {
 
     /**
      * This function provides the raw bytes-based comparison for UTF8 strings.
-     * Note that the comparison may not deliver the correct ordering for certain languages that include 2 or 3 bytes characters.
+     * Note that the comparison may not deliver the correct ordering for certain languages that include 2 or 3 bytes
+     * characters.
      * But it works for single-byte character languages.
      */
     public static int rawByteCompareTo(byte[] thisBytes, int thisStart, byte[] thatBytes, int thatStart) {
@@ -308,7 +308,8 @@ public class UTF8StringUtil {
 
     /**
      * This function provides the raw bytes-based hash function for UTF8 strings.
-     * Note that the hash values may not deliver the correct ordering for certain languages that include 2 or 3 bytes characters.
+     * Note that the hash values may not deliver the correct ordering for certain languages that include 2 or 3 bytes
+     * characters.
      * But it works for single-byte character languages.
      */
     public static int rawBytehash(byte[] bytes, int start) {
@@ -328,6 +329,19 @@ public class UTF8StringUtil {
     public static String toString(byte[] bytes, int start) {
         StringBuilder builder = new StringBuilder();
         return toString(builder, bytes, start).toString();
+    }
+
+    public static boolean rawByteEquals(byte[] a1, int s1, int l1, byte[] a2, int s2, int l2) {
+        if (l1 != l2) {
+            return false;
+        }
+
+        for (int i = 0; i < l1; i++) {
+            if (a1[i + s1] != a2[i + s2]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static StringBuilder toString(StringBuilder builder, byte[] bytes, int start) {

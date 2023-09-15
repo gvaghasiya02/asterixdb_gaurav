@@ -30,7 +30,7 @@ import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.dataflow.common.io.GeneratedRunFileReader;
 import org.apache.hyracks.dataflow.common.io.RunFileWriter;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
-import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupWriter;
+import org.apache.hyracks.dataflow.std.group.preclustered.OptimizeGroupWriter;
 import org.apache.hyracks.dataflow.std.sort.AbstractExternalSortRunMerger;
 
 /**
@@ -88,7 +88,7 @@ public class OptimizeGroupByRunMerger extends AbstractExternalSortRunMerger {
 
     public IFrameWriter prepareSkipMergingFinalResultWriter(IFrameWriter nextWriter) throws HyracksDataException {
         IAggregatorDescriptorFactory aggregatorFactory = localSide ? partialAggregatorFactory : mergeAggregatorFactory;
-        return new PreclusteredGroupWriter(ctx, groupFields, groupByComparators, aggregatorFactory, inputRecordDesc,
+        return new OptimizeGroupWriter(ctx, groupFields, groupByComparators, aggregatorFactory, inputRecordDesc,
                 outRecordDesc, nextWriter, false);
     }
 
@@ -100,12 +100,12 @@ public class OptimizeGroupByRunMerger extends AbstractExternalSortRunMerger {
     protected IFrameWriter prepareIntermediateMergeResultWriter(RunFileWriter mergeFileWriter)
             throws HyracksDataException {
         IAggregatorDescriptorFactory aggregatorFactory = localSide ? mergeAggregatorFactory : partialAggregatorFactory;
-        return new PreclusteredGroupWriter(ctx, mergeGroupFields, groupByComparators, aggregatorFactory,
+        return new OptimizeGroupWriter(ctx, mergeGroupFields, groupByComparators, aggregatorFactory,
                 partialAggRecordDesc, partialAggRecordDesc, mergeFileWriter, true);
     }
 
     public IFrameWriter prepareFinalMergeResultWriter(IFrameWriter nextWriter) throws HyracksDataException {
-        return new PreclusteredGroupWriter(ctx, mergeGroupFields, groupByComparators, mergeAggregatorFactory,
+        return new OptimizeGroupWriter(ctx, mergeGroupFields, groupByComparators, mergeAggregatorFactory,
                 partialAggRecordDesc, outRecordDesc, nextWriter, false);
     }
 

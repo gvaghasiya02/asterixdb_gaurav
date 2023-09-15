@@ -40,7 +40,7 @@ import org.apache.hyracks.dataflow.std.buffermanager.IFrameFreeSlotPolicy;
 import org.apache.hyracks.dataflow.std.buffermanager.VariableFrameMemoryManager;
 import org.apache.hyracks.dataflow.std.buffermanager.VariableFramePool;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
-import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupWriter;
+import org.apache.hyracks.dataflow.std.group.preclustered.OptimizeGroupWriter;
 import org.apache.hyracks.dataflow.std.sort.FrameIterator;
 import org.apache.hyracks.dataflow.std.sort.IFrameSorter;
 import org.apache.hyracks.dataflow.std.sort.IRunGenerator;
@@ -120,7 +120,7 @@ public class OptimizeGroupByRunGenerator implements IRunGenerator {
         for (int i = 0; i < comparators.length; i++) {
             comparators[i] = comparatorFactories[i].createBinaryComparator();
         }
-        return new PreclusteredGroupWriter(ctx, groupFields, comparators, aggregatorFactory, this.inRecordDesc,
+        return new OptimizeGroupWriter(ctx, groupFields, comparators, aggregatorFactory, this.inRecordDesc,
                 this.outRecordDesc, writer, true);
     }
 

@@ -37,7 +37,6 @@ import org.apache.hyracks.dataflow.std.sort.AbstractExternalSortRunMerger;
 import org.apache.hyracks.dataflow.std.sort.AbstractSorterOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.sort.Algorithm;
 import org.apache.hyracks.dataflow.std.sort.IRunGenerator;
-import org.apache.hyracks.dataflow.std.sort.OptimizeGroupByRunGenerator;
 import org.apache.hyracks.dataflow.std.sort.ProfiledRunGenerator;
 
 //import org.apache.hyracks.dataflow.std.sort.*;
@@ -179,10 +178,17 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
             protected AbstractExternalSortRunMerger getSortRunMerger(IHyracksTaskContext ctx,
                     IRecordDescriptorProvider recordDescProvider, List<GeneratedRunFileReader> runs,
                     IBinaryComparator[] comparators, INormalizedKeyComputer nmkComputer, int necessaryFrames) {
-                return new ExternalSortGroupByRunMerger(ctx, runs, sortFields,
-                        recordDescProvider.getInputRecordDescriptor(new ActivityId(odId, SORT_ACTIVITY_ID), 0),
-                        partialAggRecordDesc, outputRecordDesc, necessaryFrames, groupFields, nmkComputer, comparators,
-                        partialAggregatorFactory, mergeAggregatorFactory, !finalStage);
+                if (isOptimized) {
+                    return new OptimizeGroupByRunMerger(ctx, runs, sortFields,
+                            recordDescProvider.getInputRecordDescriptor(new ActivityId(odId, SORT_ACTIVITY_ID), 0),
+                            partialAggRecordDesc, outputRecordDesc, necessaryFrames, groupFields, nmkComputer,
+                            comparators, partialAggregatorFactory, mergeAggregatorFactory, !finalStage);
+                } else {
+                    return new ExternalSortGroupByRunMerger(ctx, runs, sortFields,
+                            recordDescProvider.getInputRecordDescriptor(new ActivityId(odId, SORT_ACTIVITY_ID), 0),
+                            partialAggRecordDesc, outputRecordDesc, necessaryFrames, groupFields, nmkComputer,
+                            comparators, partialAggregatorFactory, mergeAggregatorFactory, !finalStage);
+                }
             }
         };
     }

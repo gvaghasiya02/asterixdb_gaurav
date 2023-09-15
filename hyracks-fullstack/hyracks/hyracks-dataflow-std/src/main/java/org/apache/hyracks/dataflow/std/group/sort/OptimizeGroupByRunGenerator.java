@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.hyracks.dataflow.std.sort;
+package org.apache.hyracks.dataflow.std.group.sort;
 
 import java.nio.ByteBuffer;
 import java.util.LinkedList;
@@ -41,7 +41,10 @@ import org.apache.hyracks.dataflow.std.buffermanager.VariableFrameMemoryManager;
 import org.apache.hyracks.dataflow.std.buffermanager.VariableFramePool;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupWriter;
-import org.apache.hyracks.dataflow.std.group.sort.ExternalSortGroupByRunGenerator;
+import org.apache.hyracks.dataflow.std.sort.FrameIterator;
+import org.apache.hyracks.dataflow.std.sort.IFrameSorter;
+import org.apache.hyracks.dataflow.std.sort.IRunGenerator;
+import org.apache.hyracks.dataflow.std.sort.ISorter;
 
 public class OptimizeGroupByRunGenerator implements IRunGenerator {
 

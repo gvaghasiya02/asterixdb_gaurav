@@ -123,6 +123,7 @@ public class CompilerProperties extends AbstractProperties {
                 BOOLEAN,
                 AlgebricksConfig.COLUMN_FILTER_DEFAULT,
                 "Enable/disable the use of column min/max filters");
+        COMPILER_OPTIMIZE_GROUPBY(BOOLEAN, false, "Enable/disable optimize groupby");
 
         private final IOptionType type;
         private final Object defaultValue;
@@ -203,6 +204,8 @@ public class CompilerProperties extends AbstractProperties {
     public static final String COMPILER_QUERY_PLAN_SHAPE_KEY = Option.COMPILER_QUERYPLANSHAPE.ini();
 
     public static final String COMPILER_COLUMN_FILTER_KEY = Option.COMPILER_COLUMN_FILTER.ini();
+
+    public static final String COMPILER_OPTIMIZE_GROUPBY = Option.COMPILER_OPTIMIZE_GROUPBY.ini();
 
     public static final int COMPILER_PARALLELISM_AS_STORAGE = 0;
 
@@ -305,5 +308,9 @@ public class CompilerProperties extends AbstractProperties {
 
     public boolean isColumnFilter() {
         return accessor.getBoolean(Option.COMPILER_COLUMN_FILTER);
+    }
+
+    public boolean isOptimizeGroupBy() {
+        return accessor.getBoolean(Option.COMPILER_OPTIMIZE_GROUPBY);
     }
 }

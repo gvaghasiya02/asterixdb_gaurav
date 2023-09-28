@@ -122,7 +122,7 @@ public class CompilerProperties extends AbstractProperties {
         COMPILER_COLUMN_FILTER(
                 BOOLEAN,
                 AlgebricksConfig.COLUMN_FILTER_DEFAULT,
-                "Enable/disable the use of column min/max filters");
+                "Enable/disable the use of column min/max filters"),
         COMPILER_OPTIMIZE_GROUPBY(BOOLEAN, false, "Enable/disable optimize groupby");
 
         private final IOptionType type;

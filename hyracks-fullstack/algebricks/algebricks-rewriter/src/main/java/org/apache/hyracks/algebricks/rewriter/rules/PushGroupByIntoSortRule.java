@@ -36,8 +36,8 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogi
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.AbstractStableSortPOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.physical.OptimizeGroupByLOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.OptimizeGroupByGOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.physical.OptimizeGroupByLOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.SortGroupByPOperator;
 import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
 
@@ -61,23 +61,23 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
             return false;
         }
         boolean changed = false;
-        if(context.getPhysicalOptimizationConfig().isOptimizationGroupBy()) {
+        if (context.getPhysicalOptimizationConfig().isOptimizationGroupBy()) {
             for (Mutable<ILogicalOperator> childRef : op1.getInputs()) {
                 AbstractLogicalOperator op = (AbstractLogicalOperator) childRef.getValue();
                 if (op.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.PRE_CLUSTERED_GROUP_BY) {
                     GroupByOperator groupByOperator = (GroupByOperator) op;
-                    Mutable<ILogicalOperator> op2Ref=op.getInputs().get(0).getValue().getInputs().get(0);
+                    Mutable<ILogicalOperator> op2Ref = op.getInputs().get(0).getValue().getInputs().get(0);
                     AbstractLogicalOperator op2 = (AbstractLogicalOperator) op2Ref.getValue();
-                    if (op2.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.STABLE_SORT)
-                    {
-                        AbstractLogicalOperator op3 = (AbstractLogicalOperator) op2Ref.getValue().getInputs().get(0).getValue();
-                        if (op3.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.HASH_PARTITION_EXCHANGE && groupByOperator.isGlobal())
-                        {
+                    if (op2.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.STABLE_SORT) {
+                        AbstractLogicalOperator op3 =
+                                (AbstractLogicalOperator) op2Ref.getValue().getInputs().get(0).getValue();
+                        if (op3.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.HASH_PARTITION_EXCHANGE
+                                && groupByOperator.isGlobal()) {
                             if (!groupByOperator.isGroupAll()) {
-                                op.setPhysicalOperator(new OptimizeGroupByGOperator(groupByOperator.getGroupByVarList(),groupByOperator.isGroupAll()));
+                                op.setPhysicalOperator(new OptimizeGroupByGOperator(groupByOperator.getGroupByVarList(),
+                                        groupByOperator.isGroupAll()));
                             }
-                        }
-                        else {
+                        } else {
                             if (!groupByOperator.isGroupAll()) {
                                 op.setPhysicalOperator(new OptimizeGroupByLOperator(groupByOperator.getGroupByVarList(),
                                         groupByOperator.isGroupAll()));
@@ -91,8 +91,7 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                 } else
                     continue;
             }
-        }
-        else {
+        } else {
             for (Mutable<ILogicalOperator> childRef : op1.getInputs()) {
                 AbstractLogicalOperator op = (AbstractLogicalOperator) childRef.getValue();
                 if (op.getOperatorTag() == LogicalOperatorTag.GROUP) {
@@ -102,7 +101,8 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                         Mutable<ILogicalOperator> op2Ref = op.getInputs().get(0).getValue().getInputs().get(0);
                         AbstractLogicalOperator op2 = (AbstractLogicalOperator) op2Ref.getValue();
                         if (op2.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.STABLE_SORT) {
-                            AbstractStableSortPOperator sortPhysicalOperator = (AbstractStableSortPOperator) op2.getPhysicalOperator();
+                            AbstractStableSortPOperator sortPhysicalOperator =
+                                    (AbstractStableSortPOperator) op2.getPhysicalOperator();
                             if (groupByOperator.getNestedPlans().size() != 1) {
                                 //Sort group-by currently works only for one nested plan with one root containing
                                 //an aggregate and a nested-tuple-source.
@@ -122,12 +122,14 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                                 continue;
                             }
                             AggregateOperator aggOp = (AggregateOperator) r0.getValue();
-                            AbstractLogicalOperator aggInputOp = (AbstractLogicalOperator) aggOp.getInputs().get(0).getValue();
+                            AbstractLogicalOperator aggInputOp =
+                                    (AbstractLogicalOperator) aggOp.getInputs().get(0).getValue();
                             if (aggInputOp.getOperatorTag() != LogicalOperatorTag.NESTEDTUPLESOURCE) {
                                 continue;
                             }
 
-                            boolean hasIntermediateAggregate = generateMergeAggregationExpressions(groupByOperator, context);
+                            boolean hasIntermediateAggregate =
+                                    generateMergeAggregationExpressions(groupByOperator, context);
                             if (!hasIntermediateAggregate) {
                                 continue;
                             }

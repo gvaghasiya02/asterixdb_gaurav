@@ -43,6 +43,7 @@ import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupOpera
 public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperator {
 
     private final boolean groupAll;
+    private final boolean isOptimize=true;
 
     public OptimizeGroupByLOperator(List<LogicalVariable> columnList, boolean groupAll) {
         super(columnList);
@@ -76,7 +77,7 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
                 .getOperatorTag() == LogicalOperatorTag.RUNNINGAGGREGATE) {
             aggregatorFactory = new NestedPlansRunningAggregatorFactory(subplans, keys, fdColumns);
         } else {
-            aggregatorFactory = new NestedPlansAccumulatingAggregatorFactory(subplans, keys, fdColumns);
+                aggregatorFactory = new NestedPlansAccumulatingAggregatorFactory(subplans, keys, fdColumns);
         }
         aggregatorFactory.setSourceLocation(gby.getSourceLocation());
 
@@ -88,7 +89,7 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
 
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
         PreclusteredGroupOperatorDescriptor opDesc = new PreclusteredGroupOperatorDescriptor(spec, keys,
-                comparatorFactories, aggregatorFactory, recordDescriptor, groupAll, framesLimit);
+                comparatorFactories, aggregatorFactory, recordDescriptor, groupAll, true,framesLimit);
         opDesc.setSourceLocation(gby.getSourceLocation());
 
         contributeOpDesc(builder, gby, opDesc);

@@ -36,6 +36,7 @@ class PreclusteredGroupOperatorNodePushable extends AbstractUnaryInputUnaryOutpu
     private final RecordDescriptor inRecordDescriptor;
     private final RecordDescriptor outRecordDescriptor;
     private final boolean groupAll;
+    private final boolean isOptimized;
     private final int frameLimit;
 
     private PreclusteredGroupWriter pgw;
@@ -43,7 +44,7 @@ class PreclusteredGroupOperatorNodePushable extends AbstractUnaryInputUnaryOutpu
     PreclusteredGroupOperatorNodePushable(IHyracksTaskContext ctx, int[] groupFields,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory aggregatorFactory,
             RecordDescriptor inRecordDescriptor, RecordDescriptor outRecordDescriptor, boolean groupAll,
-            int frameLimit) {
+            int frameLimit, boolean isOptimized) {
         this.ctx = ctx;
         this.groupFields = groupFields;
         this.comparatorFactories = comparatorFactories;
@@ -52,6 +53,7 @@ class PreclusteredGroupOperatorNodePushable extends AbstractUnaryInputUnaryOutpu
         this.outRecordDescriptor = outRecordDescriptor;
         this.groupAll = groupAll;
         this.frameLimit = frameLimit;
+        this.isOptimized=isOptimized;
     }
 
     @Override
@@ -60,7 +62,11 @@ class PreclusteredGroupOperatorNodePushable extends AbstractUnaryInputUnaryOutpu
         for (int i = 0; i < comparatorFactories.length; ++i) {
             comparators[i] = comparatorFactories[i].createBinaryComparator();
         }
-        pgw = new PreclusteredGroupWriter(ctx, groupFields, comparators, aggregatorFactory, inRecordDescriptor,
+        if(isOptimized)
+            pgw = new PreclusteredGroupWriter(ctx, groupFields, comparators, aggregatorFactory, inRecordDescriptor,
+                    outRecordDescriptor, writer, false, groupAll, frameLimit);
+        else
+            pgw = new PreclusteredGroupWriter(ctx, groupFields, comparators, aggregatorFactory, inRecordDescriptor,
                 outRecordDescriptor, writer, false, groupAll, frameLimit);
         pgw.open();
     }

@@ -1,7 +1,7 @@
 ## Optimization of Group By Queries
 
 Optimizing group by queries in Apache AsterixDB, a scalable Big data management system for semi-structured data,
-using hash tables in memory-based sort to enhance query performance and reduce execution time by 6x.
+using hash tables and memory-based sort to enhance query performance and reduce execution time by 6x.
 
 ### Contributors:
 

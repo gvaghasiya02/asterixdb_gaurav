@@ -38,6 +38,7 @@ import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
 import org.apache.hyracks.dataflow.std.group.AbstractAggregatorDescriptorFactory;
+import org.apache.hyracks.dataflow.std.group.optimize.OptimizeGroupLOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupOperatorDescriptor;
 
 public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperator {
@@ -88,7 +89,7 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), opSchema, context);
 
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-        PreclusteredGroupOperatorDescriptor opDesc = new PreclusteredGroupOperatorDescriptor(spec, keys,
+        OptimizeGroupLOperatorDescriptor opDesc = new OptimizeGroupLOperatorDescriptor(spec, keys,
                 comparatorFactories, aggregatorFactory, recordDescriptor, groupAll, true,framesLimit);
         opDesc.setSourceLocation(gby.getSourceLocation());
 

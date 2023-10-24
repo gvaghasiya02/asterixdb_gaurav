@@ -16,19 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.hyracks.dataflow.std.group.preclustered;
+package org.apache.hyracks.dataflow.std.group.optimize;
 
-import org.apache.hyracks.api.context.IHyracksTaskContext;
-import org.apache.hyracks.api.dataflow.IOperatorNodePushable;
-import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
-import org.apache.hyracks.api.dataflow.value.IRecordDescriptorProvider;
-import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
-import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
-import org.apache.hyracks.dataflow.std.base.AbstractSingleActivityOperatorDescriptor;
-import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
+        import org.apache.hyracks.api.context.IHyracksTaskContext;
+        import org.apache.hyracks.api.dataflow.IOperatorNodePushable;
+        import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
+        import org.apache.hyracks.api.dataflow.value.IRecordDescriptorProvider;
+        import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
+        import org.apache.hyracks.api.exceptions.HyracksDataException;
+        import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+        import org.apache.hyracks.dataflow.std.base.AbstractSingleActivityOperatorDescriptor;
+        import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 
-public class PreclusteredGroupOperatorDescriptor extends AbstractSingleActivityOperatorDescriptor {
+public class OptimizeGroupLOperatorDescriptor extends AbstractSingleActivityOperatorDescriptor {
     private static final long serialVersionUID = 1L;
 
     private final int[] groupFields;
@@ -38,20 +38,8 @@ public class PreclusteredGroupOperatorDescriptor extends AbstractSingleActivityO
     private final int framesLimit;
     private final boolean isOptimize;
 
-    public PreclusteredGroupOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] groupFields,
-            IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory aggregatorFactory,
-            RecordDescriptor recordDescriptor, boolean groupAll, int framesLimit) {
-        super(spec, 1, 1);
-        this.groupFields = groupFields;
-        this.comparatorFactories = comparatorFactories;
-        this.aggregatorFactory = aggregatorFactory;
-        outRecDescs[0] = recordDescriptor;
-        this.groupAll = groupAll;
-        this.framesLimit = framesLimit;
-        this.isOptimize=false;
-    }
 
-    public PreclusteredGroupOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] groupFields,
+    public OptimizeGroupLOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] groupFields,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory aggregatorFactory,
             RecordDescriptor recordDescriptor, boolean groupAll,boolean isOptimize, int framesLimit) {
         super(spec, 1, 1);
@@ -68,7 +56,7 @@ public class PreclusteredGroupOperatorDescriptor extends AbstractSingleActivityO
     public IOperatorNodePushable createPushRuntime(final IHyracksTaskContext ctx,
             final IRecordDescriptorProvider recordDescProvider, int partition, int nPartitions)
             throws HyracksDataException {
-        return new PreclusteredGroupOperatorNodePushable(ctx, groupFields, comparatorFactories, aggregatorFactory,
+        return new OptimizeGroupLOperatorNodePushable(ctx, groupFields, comparatorFactories, aggregatorFactory,
                 recordDescProvider.getInputRecordDescriptor(getActivityId(), 0), outRecDescs[0], groupAll, framesLimit);
     }
 }

@@ -25,6 +25,7 @@ import java.util.Arrays;
 import org.apache.hyracks.data.std.api.IValueReference;
 import org.apache.hyracks.data.std.primitive.UTF8StringPointable;
 import org.apache.hyracks.data.std.util.ArrayBackedValueStorage;
+import org.apache.hyracks.data.std.util.GrowableArray;
 import org.apache.hyracks.dataflow.std.wailhashmap.Types;
 import org.apache.hyracks.unsafe.BytesToBytesMap.Location;
 import org.apache.hyracks.unsafe.entry.IEntry;
@@ -40,6 +41,10 @@ public class StringEntry implements IEntry {
 
     public StringEntry() {
         storage = new ArrayBackedValueStorage();
+    }
+    public StringEntry(GrowableArray dd) {
+        storage = new ArrayBackedValueStorage(dd);
+        value=storage;
     }
 
     public void reset(IValueReference value) {

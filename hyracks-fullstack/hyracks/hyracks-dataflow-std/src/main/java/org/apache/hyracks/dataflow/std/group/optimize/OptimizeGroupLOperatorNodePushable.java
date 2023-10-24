@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.hyracks.dataflow.std.group.preclustered;
+package org.apache.hyracks.dataflow.std.group.optimize;
 
 import java.nio.ByteBuffer;
 
@@ -28,7 +28,7 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputUnaryOutputOperatorNodePushable;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 
-class PreclusteredGroupOperatorNodePushable extends AbstractUnaryInputUnaryOutputOperatorNodePushable {
+class OptimizeGroupLOperatorNodePushable extends AbstractUnaryInputUnaryOutputOperatorNodePushable {
     private final IHyracksTaskContext ctx;
     private final int[] groupFields;
     private final IBinaryComparatorFactory[] comparatorFactories;
@@ -38,9 +38,9 @@ class PreclusteredGroupOperatorNodePushable extends AbstractUnaryInputUnaryOutpu
     private final boolean groupAll;
     private final int frameLimit;
 
-    private PreclusteredGroupWriter pgw;
+    private OptimizeGroupWriter ogw;
 
-    PreclusteredGroupOperatorNodePushable(IHyracksTaskContext ctx, int[] groupFields,
+    OptimizeGroupLOperatorNodePushable(IHyracksTaskContext ctx, int[] groupFields,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory aggregatorFactory,
             RecordDescriptor inRecordDescriptor, RecordDescriptor outRecordDescriptor, boolean groupAll,
             int frameLimit) {
@@ -60,28 +60,28 @@ class PreclusteredGroupOperatorNodePushable extends AbstractUnaryInputUnaryOutpu
         for (int i = 0; i < comparatorFactories.length; ++i) {
             comparators[i] = comparatorFactories[i].createBinaryComparator();
         }
-        pgw = new PreclusteredGroupWriter(ctx, groupFields, comparators, aggregatorFactory, inRecordDescriptor,
+        ogw = new OptimizeGroupWriter(ctx, groupFields, comparators, aggregatorFactory, inRecordDescriptor,
                 outRecordDescriptor, writer, false, groupAll, frameLimit);
-        pgw.open();
+        ogw.open();
     }
 
     @Override
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
-        pgw.nextFrame(buffer);
+        ogw.nextFrame(buffer);
     }
 
     @Override
     public void fail() throws HyracksDataException {
-        pgw.fail();
+        ogw.fail();
     }
 
     @Override
     public void close() throws HyracksDataException {
-        pgw.close();
+        ogw.close();
     }
 
     @Override
     public void flush() throws HyracksDataException {
-        pgw.flush();
+//        pgw.flush();
     }
 }

@@ -48,12 +48,12 @@ public class PreclusteredGroupOperatorDescriptor extends AbstractSingleActivityO
         outRecDescs[0] = recordDescriptor;
         this.groupAll = groupAll;
         this.framesLimit = framesLimit;
-        this.isOptimize=false;
+        this.isOptimize = false;
     }
 
     public PreclusteredGroupOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] groupFields,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory aggregatorFactory,
-            RecordDescriptor recordDescriptor, boolean groupAll,boolean isOptimize, int framesLimit) {
+            RecordDescriptor recordDescriptor, boolean groupAll, boolean isOptimize, int framesLimit) {
         super(spec, 1, 1);
         this.groupFields = groupFields;
         this.comparatorFactories = comparatorFactories;
@@ -61,7 +61,7 @@ public class PreclusteredGroupOperatorDescriptor extends AbstractSingleActivityO
         outRecDescs[0] = recordDescriptor;
         this.groupAll = groupAll;
         this.framesLimit = framesLimit;
-        this.isOptimize=true;
+        this.isOptimize = true;
     }
 
     @Override

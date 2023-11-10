@@ -39,12 +39,11 @@ import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
 import org.apache.hyracks.dataflow.std.group.AbstractAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.optimize.OptimizeGroupLOperatorDescriptor;
-import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupOperatorDescriptor;
 
 public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperator {
 
     private final boolean groupAll;
-    private final boolean isOptimize=true;
+    private final boolean isOptimize = true;
 
     public OptimizeGroupByLOperator(List<LogicalVariable> columnList, boolean groupAll) {
         super(columnList);
@@ -72,14 +71,14 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
         // compile subplans and set the gby op. schema accordingly
         AlgebricksPipeline[] subplans = compileSubplans(inputSchemas[0], gby, opSchema, context);
         AbstractAggregatorDescriptorFactory aggregatorFactory;
-
         List<ILogicalPlan> nestedPlans = gby.getNestedPlans();
         if (!nestedPlans.isEmpty() && nestedPlans.get(0).getRoots().get(0).getValue()
                 .getOperatorTag() == LogicalOperatorTag.RUNNINGAGGREGATE) {
             aggregatorFactory = new NestedPlansRunningAggregatorFactory(subplans, keys, fdColumns);
         } else {
-                aggregatorFactory = new NestedPlansAccumulatingAggregatorFactory(subplans, keys, fdColumns);
+            aggregatorFactory = new NestedPlansAccumulatingAggregatorFactory(subplans, keys, fdColumns);
         }
+        //        IAggregateEvaluatorFactory[] temp=subplans[0].getRuntimeFactories()[1].aggregFactories;
         aggregatorFactory.setSourceLocation(gby.getSourceLocation());
 
         IOperatorDescriptorRegistry spec = builder.getJobSpec();
@@ -89,8 +88,8 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), opSchema, context);
 
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-        OptimizeGroupLOperatorDescriptor opDesc = new OptimizeGroupLOperatorDescriptor(spec, keys,
-                comparatorFactories, aggregatorFactory, recordDescriptor, groupAll, true,framesLimit);
+        OptimizeGroupLOperatorDescriptor opDesc = new OptimizeGroupLOperatorDescriptor(spec, keys, comparatorFactories,
+                aggregatorFactory, recordDescriptor, groupAll, true, framesLimit);
         opDesc.setSourceLocation(gby.getSourceLocation());
 
         contributeOpDesc(builder, gby, opDesc);

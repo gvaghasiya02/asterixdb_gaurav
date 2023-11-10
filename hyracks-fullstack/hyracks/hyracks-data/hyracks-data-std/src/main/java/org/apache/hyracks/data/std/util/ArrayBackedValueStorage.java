@@ -38,6 +38,7 @@ public class ArrayBackedValueStorage implements IMutableValueStorage, IPointable
     public ArrayBackedValueStorage() {
         data = new GrowableArray();
     }
+
     public ArrayBackedValueStorage(GrowableArray dd) {
         data = dd;
     }

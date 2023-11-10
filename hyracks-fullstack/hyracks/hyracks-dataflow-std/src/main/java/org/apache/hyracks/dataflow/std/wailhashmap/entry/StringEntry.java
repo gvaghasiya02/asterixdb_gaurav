@@ -42,9 +42,15 @@ public class StringEntry implements IEntry {
     public StringEntry() {
         storage = new ArrayBackedValueStorage();
     }
+
     public StringEntry(GrowableArray dd) {
         storage = new ArrayBackedValueStorage(dd);
-        value=storage;
+        //        VoidPointable stringValue=new VoidPointable();
+        //        stringValue.set(dd.getByteArray(), 0, dd.getLength());
+        //        this.value=stringValue;
+        this.value = storage;
+        wastedSpace = storage.getLength() - value.getLength();
+
     }
 
     public void reset(IValueReference value) {
@@ -167,4 +173,5 @@ public class StringEntry implements IEntry {
         storage.set(otherString.value);
         value = storage;
     }
+
 }

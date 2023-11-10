@@ -19,6 +19,7 @@
 package org.apache.hyracks.dataflow.std.group.optimize;
 
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 
 import org.apache.hyracks.api.comm.IFrameTupleAccessor;
 import org.apache.hyracks.api.comm.IFrameWriter;
@@ -45,6 +46,10 @@ import org.apache.hyracks.dataflow.std.wailhashmap.UnsafeComparators;
 import org.apache.hyracks.dataflow.std.wailhashmap.UnsafeHashAggregator;
 import org.apache.hyracks.dataflow.std.wailhashmap.entry.LongEntry;
 import org.apache.hyracks.dataflow.std.wailhashmap.entry.StringEntry;
+import org.apache.hyracks.dataflow.std.wailhashmap.entry.StringEntryUtil;
+import org.apache.hyracks.unsafe.BytesToBytesMap;
+import org.apache.hyracks.util.encoding.VarLenIntEncoderDecoder;
+import org.apache.spark.unsafe.Platform;
 
 public class OptimizeGroupWriter implements IFrameWriter {
     private final int[] groupFields;
@@ -64,6 +69,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private final long memoryLimit;
 
     private UnsafeHashAggregator computer;
+    private int counter;
 
     public OptimizeGroupWriter(IHyracksTaskContext ctx, int[] groupFields, IBinaryComparator[] comparators,
             IAggregatorDescriptorFactory aggregatorFactory, RecordDescriptor inRecordDesc,
@@ -90,7 +96,6 @@ public class OptimizeGroupWriter implements IFrameWriter {
         FrameTupleAppender appender = new FrameTupleAppender();
         appender.reset(outFrame, true);
         appenderWrapper = new FrameTupleAppenderWrapper(appender, writer);
-
         tupleBuilder = new ArrayTupleBuilder(outRecordDesc.getFields().length);
         this.outputPartial = outputPartial;
         this.groupAll = groupAll;
@@ -99,7 +104,9 @@ public class OptimizeGroupWriter implements IFrameWriter {
     @Override
     public void open() throws HyracksDataException {
         appenderWrapper.open();
-        computer=new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator("COUNT"),null, UnsafeComparators.STRING_COMPARATOR,8<<20);
+        computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator("COUNT"), null,
+                UnsafeComparators.STRING_COMPARATOR, 8 << 20);
+        counter = 0;
         first = true;
     }
 
@@ -114,8 +121,11 @@ public class OptimizeGroupWriter implements IFrameWriter {
                     tupleBuilder.addField(inFrameAccessor, i, groupFieldIdx);
                 }
                 LongEntry value = new LongEntry();
-                StringEntry st=new StringEntry(tupleBuilder.getFieldData());
-                                    computer.aggregate(st,value);
+                value.reset(1);
+                StringEntry st = new StringEntry(tupleBuilder.getFieldData());
+
+                computer.aggregate(st, value);
+                counter++;
                 if (first) {
                     aggregator.init(tupleBuilder, inFrameAccessor, i, aggregateState);
                     first = false;
@@ -201,6 +211,38 @@ public class OptimizeGroupWriter implements IFrameWriter {
             throw e;
         } finally {
             appenderWrapper.close();
+            int ss = computer.size();
+
+            Iterator<BytesToBytesMap.Location> iter = computer.sortedIterator();
+            StringEntry key = new StringEntry();
+            while (iter.hasNext()) {
+                BytesToBytesMap.Location location = iter.next();
+
+                Object baseObject = location.getKeyBase();
+                long offset = location.getKeyOffset();
+                long alignedLength = location.getKeyLength();
+                int encodedLength = StringEntryUtil.decode(baseObject, offset, alignedLength);
+                int actualLength = encodedLength + VarLenIntEncoderDecoder.getBytesRequired(encodedLength);
+                long val = Platform.getLong(location.getValueBase(), location.getValueOffset());
+                Object baseObject1 = location.getValueBase();
+
+                //                    key.getValue(location);
+                //                    IValueReference temp= key.getValue();
+                //                        int len=temp.getLength();
+                //                        int sss=len;
+
+                //                    Object baseObject = location.getKeyBase();
+                //                    long offset = location.getKeyOffset();
+                //                    long alignedLength = location.getKeyLength();
+                //                    int encodedLength = StringEntryUtil.decode(baseObject, offset, alignedLength);
+                //                    long offsetofstring = location.getKeyOffset();
+                //                    int actualLength = encodedLength + VarLenIntEncoderDecoder.getBytesRequired(encodedLength);
+                //                    Platform.copyMemory(baseObject, offset, bytes, unsafeOffset, actualLength   );
+                //                    resultWriter.append(ATypeTag.STRING, baseObject, offset, actualLength);
+
+                //                    int length = location.getKeyLength();
+                //                    key.get(baseObject, offset, length);
             }
+        }
     }
 }

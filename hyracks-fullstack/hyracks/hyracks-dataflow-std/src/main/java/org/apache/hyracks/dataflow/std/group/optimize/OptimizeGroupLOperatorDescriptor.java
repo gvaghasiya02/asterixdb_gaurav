@@ -36,11 +36,11 @@ public class OptimizeGroupLOperatorDescriptor extends AbstractSingleActivityOper
     private final IAggregatorDescriptorFactory aggregatorFactory;
     private final boolean groupAll;
     private final int framesLimit;
-    private final boolean isOptimize;
+
 
     public OptimizeGroupLOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] groupFields,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory aggregatorFactory,
-            RecordDescriptor recordDescriptor, boolean groupAll, boolean isOptimize, int framesLimit) {
+            RecordDescriptor recordDescriptor, boolean groupAll, int framesLimit) {
         super(spec, 1, 1);
         this.groupFields = groupFields;
         this.comparatorFactories = comparatorFactories;
@@ -48,7 +48,6 @@ public class OptimizeGroupLOperatorDescriptor extends AbstractSingleActivityOper
         outRecDescs[0] = recordDescriptor;
         this.groupAll = groupAll;
         this.framesLimit = framesLimit;
-        this.isOptimize = true;
     }
 
     @Override

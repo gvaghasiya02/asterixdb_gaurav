@@ -43,7 +43,6 @@ import org.apache.hyracks.dataflow.std.group.optimize.OptimizeGroupLOperatorDesc
 public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperator {
 
     private final boolean groupAll;
-    private final boolean isOptimize = true;
 
     public OptimizeGroupByLOperator(List<LogicalVariable> columnList, boolean groupAll) {
         super(columnList);
@@ -89,7 +88,7 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
 
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
         OptimizeGroupLOperatorDescriptor opDesc = new OptimizeGroupLOperatorDescriptor(spec, keys, comparatorFactories,
-                aggregatorFactory, recordDescriptor, groupAll, true, framesLimit);
+                aggregatorFactory, recordDescriptor, groupAll, framesLimit);
         opDesc.setSourceLocation(gby.getSourceLocation());
 
         contributeOpDesc(builder, gby, opDesc);

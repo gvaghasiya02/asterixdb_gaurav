@@ -84,6 +84,7 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                             }
                         }
                         op.getInputs().clear();
+//                        ((GroupByOperator) op).getNestedPlans().clear();
                         op.getInputs().addAll(op2.getInputs());
                         changed = true;
                     }

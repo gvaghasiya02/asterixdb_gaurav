@@ -36,7 +36,6 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogi
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.AbstractStableSortPOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.physical.OptimizeGroupByGOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.OptimizeGroupByLOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.SortGroupByPOperator;
 import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
@@ -73,9 +72,43 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                                 (AbstractLogicalOperator) op2Ref.getValue().getInputs().get(0).getValue();
                         if (op3.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.HASH_PARTITION_EXCHANGE
                                 && groupByOperator.isGlobal()) {
+                            AbstractStableSortPOperator sortPhysicalOperator =
+                                    (AbstractStableSortPOperator) op2.getPhysicalOperator();
+                            if (groupByOperator.getNestedPlans().size() != 1) {
+                                //Sort group-by currently works only for one nested plan with one root containing
+                                //an aggregate and a nested-tuple-source.
+                                continue;
+                            }
+                            ILogicalPlan p0 = groupByOperator.getNestedPlans().get(0);
+                            if (p0.getRoots().size() != 1) {
+                                //Sort group-by currently works only for one nested plan with one root containing
+                                //an aggregate and a nested-tuple-source.
+                                continue;
+                            }
+
+                            Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
+                            AbstractLogicalOperator r0Logical = (AbstractLogicalOperator) r0.getValue();
+                            if (r0Logical.getOperatorTag() != LogicalOperatorTag.AGGREGATE) {
+                                //we only rewrite aggregation function; do nothing for running aggregates
+                                continue;
+                            }
+                            AggregateOperator aggOp = (AggregateOperator) r0.getValue();
+                            AbstractLogicalOperator aggInputOp =
+                                    (AbstractLogicalOperator) aggOp.getInputs().get(0).getValue();
+                            if (aggInputOp.getOperatorTag() != LogicalOperatorTag.NESTEDTUPLESOURCE) {
+                                continue;
+                            }
+
+                            boolean hasIntermediateAggregate =
+                                    generateMergeAggregationExpressions(groupByOperator, context);
+                            if (!hasIntermediateAggregate) {
+                                continue;
+                            }
+
+                            //replace preclustered gby with sort gby
                             if (!groupByOperator.isGroupAll()) {
-                                op.setPhysicalOperator(new OptimizeGroupByGOperator(groupByOperator.getGroupByVarList(),
-                                        groupByOperator.isGroupAll()));
+                                op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
+                                        sortPhysicalOperator.getSortColumns()));
                             }
                         } else {
                             if (!groupByOperator.isGroupAll()) {
@@ -84,7 +117,7 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                             }
                         }
                         op.getInputs().clear();
-//                        ((GroupByOperator) op).getNestedPlans().clear();
+                        //                        ((GroupByOperator) op).getNestedPlans().clear();
                         op.getInputs().addAll(op2.getInputs());
                         changed = true;
                     }

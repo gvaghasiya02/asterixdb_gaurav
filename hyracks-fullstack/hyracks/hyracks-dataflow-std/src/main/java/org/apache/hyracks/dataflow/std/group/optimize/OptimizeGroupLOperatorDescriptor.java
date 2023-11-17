@@ -37,7 +37,6 @@ public class OptimizeGroupLOperatorDescriptor extends AbstractSingleActivityOper
     private final boolean groupAll;
     private final int framesLimit;
 
-
     public OptimizeGroupLOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] groupFields,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory aggregatorFactory,
             RecordDescriptor recordDescriptor, boolean groupAll, int framesLimit) {

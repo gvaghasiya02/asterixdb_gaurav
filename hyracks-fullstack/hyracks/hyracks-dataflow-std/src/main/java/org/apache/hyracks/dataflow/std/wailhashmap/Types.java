@@ -26,7 +26,7 @@ import java.util.List;
  * There is a unique tag for each primitive type and for each kind of
  * non-primitive type in the object model
  */
-public enum Types implements TypesIEnumSerializer {
+public enum Types implements TypesIEnumSerializer, IEnumSerializeropt {
     TINYINT(1),
     SMALLINT(2),
     INTEGER(3),

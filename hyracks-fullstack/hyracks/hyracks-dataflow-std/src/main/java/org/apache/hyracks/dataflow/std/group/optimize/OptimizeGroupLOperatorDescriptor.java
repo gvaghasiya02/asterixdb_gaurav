@@ -36,10 +36,11 @@ public class OptimizeGroupLOperatorDescriptor extends AbstractSingleActivityOper
     private final IAggregatorDescriptorFactory aggregatorFactory;
     private final boolean groupAll;
     private final int framesLimit;
+    private final String aggType;
 
     public OptimizeGroupLOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] groupFields,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory aggregatorFactory,
-            RecordDescriptor recordDescriptor, boolean groupAll, int framesLimit) {
+            RecordDescriptor recordDescriptor, boolean groupAll, int framesLimit, String aggType) {
         super(spec, 1, 1);
         this.groupFields = groupFields;
         this.comparatorFactories = comparatorFactories;
@@ -47,6 +48,7 @@ public class OptimizeGroupLOperatorDescriptor extends AbstractSingleActivityOper
         outRecDescs[0] = recordDescriptor;
         this.groupAll = groupAll;
         this.framesLimit = framesLimit;
+        this.aggType = aggType;
     }
 
     @Override
@@ -54,6 +56,7 @@ public class OptimizeGroupLOperatorDescriptor extends AbstractSingleActivityOper
             final IRecordDescriptorProvider recordDescProvider, int partition, int nPartitions)
             throws HyracksDataException {
         return new OptimizeGroupLOperatorNodePushable(ctx, groupFields, comparatorFactories, aggregatorFactory,
-                recordDescProvider.getInputRecordDescriptor(getActivityId(), 0), outRecDescs[0], groupAll, framesLimit);
+                recordDescProvider.getInputRecordDescriptor(getActivityId(), 0), outRecDescs[0], groupAll, framesLimit,
+                aggType);
     }
 }

@@ -20,6 +20,7 @@ package org.apache.hyracks.algebricks.core.algebra.operators.physical;
 
 import java.util.List;
 
+import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.core.algebra.base.IHyracksJobBuilder;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
@@ -27,6 +28,7 @@ import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalVariable;
 import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
+import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.IOperatorSchema;
 import org.apache.hyracks.algebricks.core.jobgen.impl.JobGenContext;
@@ -65,6 +67,16 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
             throws AlgebricksException {
         GroupByOperator gby = (GroupByOperator) op;
         checkGroupAll(gby);
+        ILogicalPlan p0 = gby.getNestedPlans().get(0);
+        if (p0.getRoots().size() != 1) {
+            throw new AlgebricksException(
+                    "Optimize group-by currently works only for one nested plan with one root containing"
+                            + "an aggregate and a nested-tuple-source.");
+        }
+        Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
+        AggregateOperator aggOp = (AggregateOperator) r0.getValue();
+        String aggType = aggOp.getExpressions().get(0).getValue().toString().equals("agg-sql-count(1)")? "COUNT" : "SUM";
+
         int keys[] = JobGenHelper.variablesToFieldIndexes(columnList, inputSchemas[0]);
         int fdColumns[] = getFdColumns(gby, inputSchemas[0]);
         // compile subplans and set the gby op. schema accordingly
@@ -77,7 +89,6 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
         } else {
             aggregatorFactory = new NestedPlansAccumulatingAggregatorFactory(subplans, keys, fdColumns);
         }
-        //        IAggregateEvaluatorFactory[] temp=subplans[0].getRuntimeFactories()[1].aggregFactories;
         aggregatorFactory.setSourceLocation(gby.getSourceLocation());
 
         IOperatorDescriptorRegistry spec = builder.getJobSpec();
@@ -85,10 +96,9 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
                 .variablesToAscBinaryComparatorFactories(columnList, context.getTypeEnvironment(op), context);
         RecordDescriptor recordDescriptor =
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), opSchema, context);
-
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
         OptimizeGroupLOperatorDescriptor opDesc = new OptimizeGroupLOperatorDescriptor(spec, keys, comparatorFactories,
-                aggregatorFactory, recordDescriptor, groupAll, framesLimit);
+                aggregatorFactory, recordDescriptor, groupAll, framesLimit, aggType);
         opDesc.setSourceLocation(gby.getSourceLocation());
 
         contributeOpDesc(builder, gby, opDesc);

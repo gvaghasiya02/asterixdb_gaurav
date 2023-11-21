@@ -37,13 +37,14 @@ class OptimizeGroupLOperatorNodePushable extends AbstractUnaryInputUnaryOutputOp
     private final RecordDescriptor outRecordDescriptor;
     private final boolean groupAll;
     private final int frameLimit;
+    private final String aggType;
 
     private OptimizeGroupWriter ogw;
 
     OptimizeGroupLOperatorNodePushable(IHyracksTaskContext ctx, int[] groupFields,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory aggregatorFactory,
-            RecordDescriptor inRecordDescriptor, RecordDescriptor outRecordDescriptor, boolean groupAll,
-            int frameLimit) {
+            RecordDescriptor inRecordDescriptor, RecordDescriptor outRecordDescriptor, boolean groupAll, int frameLimit,
+            String aggType) {
         this.ctx = ctx;
         this.groupFields = groupFields;
         this.comparatorFactories = comparatorFactories;
@@ -52,6 +53,7 @@ class OptimizeGroupLOperatorNodePushable extends AbstractUnaryInputUnaryOutputOp
         this.outRecordDescriptor = outRecordDescriptor;
         this.groupAll = groupAll;
         this.frameLimit = frameLimit;
+        this.aggType = aggType;
     }
 
     @Override
@@ -61,7 +63,7 @@ class OptimizeGroupLOperatorNodePushable extends AbstractUnaryInputUnaryOutputOp
             comparators[i] = comparatorFactories[i].createBinaryComparator();
         }
         ogw = new OptimizeGroupWriter(ctx, groupFields, comparators, aggregatorFactory, inRecordDescriptor,
-                outRecordDescriptor, writer, false, groupAll, frameLimit);
+                outRecordDescriptor, writer, false, groupAll, frameLimit, aggType);
         ogw.open();
     }
 

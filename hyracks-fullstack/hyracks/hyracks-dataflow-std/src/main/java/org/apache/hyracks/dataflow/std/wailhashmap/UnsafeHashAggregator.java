@@ -76,5 +76,8 @@ public final class UnsafeHashAggregator extends AbstractUnsafeHashAggregator {
         map.sort();
         return map.sortedIterator();
     }
+    public Iterator<Location> aIterator(){
+        return map.iterator();
+    }
 
 }

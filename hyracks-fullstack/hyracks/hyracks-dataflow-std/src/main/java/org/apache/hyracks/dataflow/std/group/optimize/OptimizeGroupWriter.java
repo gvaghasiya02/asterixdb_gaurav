@@ -83,8 +83,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
         }
 
         // Deducts input/output frames.
-//        this.memoryLimit = framesLimit <= 0 ? -1 : ((long) (framesLimit - 2)) * ctx.getInitialFrameSize();
-        this.memoryLimit = 40000;
+        this.memoryLimit = framesLimit <= 0 ? -1 : ((long) (framesLimit - 2)) * ctx.getInitialFrameSize();
+//        this.memoryLimit = 12000;
         this.aggregateType = aggregateType;
         inFrameAccessor = new FrameTupleAccessor(inRecordDesc);
         VSizeFrame outFrame = new VSizeFrame(ctx);

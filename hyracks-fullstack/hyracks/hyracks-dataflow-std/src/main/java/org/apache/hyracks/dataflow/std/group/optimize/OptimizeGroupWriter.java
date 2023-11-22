@@ -84,7 +84,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
 
         // Deducts input/output frames.
 //        this.memoryLimit = framesLimit <= 0 ? -1 : ((long) (framesLimit - 2)) * ctx.getInitialFrameSize();
-        this.memoryLimit=10000;
+        this.memoryLimit = 40000;
         this.aggregateType = aggregateType;
         inFrameAccessor = new FrameTupleAccessor(inRecordDesc);
         VSizeFrame outFrame = new VSizeFrame(ctx);
@@ -146,15 +146,17 @@ public class OptimizeGroupWriter implements IFrameWriter {
 
                         this.agt = typeTag;
 
-                        if (typeTag == Types.TINYINT || typeTag == Types.SMALLINT || typeTag == Types.BIGINT || typeTag == Types.INTEGER) {
-                            computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType), null,
-                                    UnsafeComparators.STRING_COMPARATOR, memoryLimit);
+                        if (typeTag == Types.TINYINT || typeTag == Types.SMALLINT || typeTag == Types.BIGINT
+                                || typeTag == Types.INTEGER) {
+                            computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType),
+                                    null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             LongEntry value = new LongEntry();
                             if (typeTag == Types.TINYINT) {
                                 byte val = data[offset + 1];
                                 value.reset(val);
                             } else if (typeTag == Types.SMALLINT) {
-                                short val = (short) (((data[offset + 1] & 0xff) << 8) + ((data[offset + 2] & 0xff) << 0));
+                                short val =
+                                        (short) (((data[offset + 1] & 0xff) << 8) + ((data[offset + 2] & 0xff) << 0));
                                 value.reset(val);
                             } else if (typeTag == Types.INTEGER) {
                                 int val = IntegerPointable.getInteger(data, offset + 1);
@@ -165,9 +167,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             }
                             computer.aggregate(st, value);
                         } else {
-                            computer =
-                                    new UnsafeHashAggregator(UnsafeAggregators.getDoubleAggregator(aggregateType), null,
-                                            UnsafeComparators.STRING_COMPARATOR, memoryLimit);
+                            computer = new UnsafeHashAggregator(UnsafeAggregators.getDoubleAggregator(aggregateType),
+                                    null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             DoubleEntry value = new DoubleEntry();
                             if (typeTag == Types.FLOAT) {
                                 float val = FloatPointable.getFloat(data, offset + 1);
@@ -196,13 +197,15 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         byte[] data = res.getByteArray();
                         int offset = res.getStartOffset();
 
-                        if (agt == Types.TINYINT || agt == Types.SMALLINT || agt == Types.BIGINT || agt == Types.INTEGER) {
+                        if (agt == Types.TINYINT || agt == Types.SMALLINT || agt == Types.BIGINT
+                                || agt == Types.INTEGER) {
                             LongEntry value = new LongEntry();
                             if (agt == Types.TINYINT) {
                                 byte val = data[offset + 1];
                                 value.reset(val);
                             } else if (agt == Types.SMALLINT) {
-                                short val = (short) (((data[offset + 1] & 0xff) << 8) + ((data[offset + 2] & 0xff) << 0));
+                                short val =
+                                        (short) (((data[offset + 1] & 0xff) << 8) + ((data[offset + 2] & 0xff) << 0));
                                 value.reset(val);
                             } else if (agt == Types.INTEGER) {
                                 int val = IntegerPointable.getInteger(data, offset + 1);
@@ -225,7 +228,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         }
                     }
                 }
-                if(!computer.canGrowMore()) {
+                if (!computer.canGrowMore()) {
                     writeHashmap();
                     computer.reset();
                 }
@@ -233,64 +236,61 @@ public class OptimizeGroupWriter implements IFrameWriter {
         }
     }
 
+    private void writeHashmap() {
+        try {
+            if (!isFailed && (!first || groupAll)) {
+                int ss = computer.size();
+                ArrayTupleBuilder tb = new ArrayTupleBuilder(outRecordDesc.getFields().length);
+                DataOutput dos = tb.getDataOutput();
+                Iterator<BytesToBytesMap.Location> iter = computer.aIterator();
+                while (iter.hasNext()) {
+                    BytesToBytesMap.Location location = iter.next();
+                    tb.reset();
+                    Object baseObject = location.getKeyBase();
+                    long offset = location.getKeyOffset();
+                    long alignedLength = location.getKeyLength();
+                    GrowableArray fieldArray = tb.getFieldData();
+                    int writeOffset = fieldArray.getLength();
+                    fieldArray.setSize((int) (writeOffset + alignedLength));
 
-        private void writeHashmap() {
-            try {
-                if (!isFailed && (!first || groupAll)) {
-                    int ss = computer.size();
-                    ArrayTupleBuilder tb = new ArrayTupleBuilder(outRecordDesc.getFields().length);
-                    DataOutput dos = tb.getDataOutput();
-                    Iterator<BytesToBytesMap.Location> iter = computer.aIterator();
-                    while (iter.hasNext()) {
-                        BytesToBytesMap.Location location = iter.next();
-                        tb.reset();
-                        Object baseObject = location.getKeyBase();
-                        long offset = location.getKeyOffset();
-                        long alignedLength = location.getKeyLength();
-                        GrowableArray fieldArray = tb.getFieldData();
-                        int writeOffset = fieldArray.getLength();
-                        fieldArray.setSize((int) (writeOffset + alignedLength));
-
-                        byte[] bytes = fieldArray.getByteArray();
-                        int unsafeOffset = writeOffset + Platform.BYTE_ARRAY_OFFSET;
-                        //                bytes[typeTagOffset] = Types.STRING.serialize();
-                        Platform.copyMemory(baseObject, offset, bytes, unsafeOffset, alignedLength);
-                        tb.addFieldEndOffset();
-                        if (agt == Types.TINYINT || agt == Types.SMALLINT || agt == Types.BIGINT || agt == Types.INTEGER) {
-                            long val = Platform.getLong(location.getValueBase(), location.getValueOffset());
-                            try {
-                                dos.writeByte(Types.BIGINT.serialize());
-                                dos.writeLong(val);
-                                tb.addFieldEndOffset();
-                            } catch (IOException e) {
-                                throw new AILRuntimeException();
-                            }
-                        }
-                        else
-                        {
-                            double val = Platform.getDouble(location.getValueBase(), location.getValueOffset());
-                            try {
-                                dos.writeByte(Types.DOUBLE.serialize());
-                                dos.writeDouble(val);
-                                tb.addFieldEndOffset();
-                            } catch (IOException e) {
-                                throw new AILRuntimeException();
-                            }
-                        }
+                    byte[] bytes = fieldArray.getByteArray();
+                    int unsafeOffset = writeOffset + Platform.BYTE_ARRAY_OFFSET;
+                    //                bytes[typeTagOffset] = Types.STRING.serialize();
+                    Platform.copyMemory(baseObject, offset, bytes, unsafeOffset, alignedLength);
+                    tb.addFieldEndOffset();
+                    if (agt == Types.TINYINT || agt == Types.SMALLINT || agt == Types.BIGINT || agt == Types.INTEGER) {
+                        long val = Platform.getLong(location.getValueBase(), location.getValueOffset());
                         try {
-                            if (tb.getSize() > 0) {
-                                FrameUtils.appendSkipEmptyFieldToWriter(writer, appender, tb.getFieldEndOffsets(), tb.getByteArray(), 0, tb.getSize());
-                            }
-                        } catch (HyracksDataException e) {
+                            dos.writeByte(Types.BIGINT.serialize());
+                            dos.writeLong(val);
+                            tb.addFieldEndOffset();
+                        } catch (IOException e) {
+                            throw new AILRuntimeException();
+                        }
+                    } else {
+                        double val = Platform.getDouble(location.getValueBase(), location.getValueOffset());
+                        try {
+                            dos.writeByte(Types.DOUBLE.serialize());
+                            dos.writeDouble(val);
+                            tb.addFieldEndOffset();
+                        } catch (IOException e) {
                             throw new AILRuntimeException();
                         }
                     }
+                    try {
+                        if (tb.getSize() > 0) {
+                            FrameUtils.appendSkipEmptyFieldToWriter(writer, appender, tb.getFieldEndOffsets(),
+                                    tb.getByteArray(), 0, tb.getSize());
+                        }
+                    } catch (HyracksDataException e) {
+                        throw new AILRuntimeException();
+                    }
                 }
             }
-            catch (Exception e) {
-                throw e;
-            }
+        } catch (Exception e) {
+            throw e;
         }
+    }
 
     @Override
     public void fail() throws HyracksDataException {

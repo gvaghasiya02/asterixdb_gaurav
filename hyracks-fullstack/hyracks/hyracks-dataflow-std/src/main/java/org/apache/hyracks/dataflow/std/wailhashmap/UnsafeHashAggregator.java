@@ -76,15 +76,16 @@ public final class UnsafeHashAggregator extends AbstractUnsafeHashAggregator {
         map.sort();
         return map.sortedIterator();
     }
-    public Iterator<Location> aIterator(){
+
+    public Iterator<Location> aIterator() {
         return map.iterator();
     }
-    public boolean canGrowMore()
-    {
+
+    public boolean canGrowMore() {
         return map.getcanGrowArray();
     }
-    public void reset()
-    {
+
+    public void reset() {
         map.reset();
     }
 

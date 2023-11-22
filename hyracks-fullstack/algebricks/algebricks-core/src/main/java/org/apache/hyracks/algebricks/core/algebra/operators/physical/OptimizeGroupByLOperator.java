@@ -75,7 +75,8 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
         }
         Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
         AggregateOperator aggOp = (AggregateOperator) r0.getValue();
-        String aggType = aggOp.getExpressions().get(0).getValue().toString().equals("agg-sql-count(1)")? "COUNT" : "SUM";
+        String aggType =
+                aggOp.getExpressions().get(0).getValue().toString().equals("agg-sql-count(1)") ? "COUNT" : "SUM";
 
         int keys[] = JobGenHelper.variablesToFieldIndexes(columnList, inputSchemas[0]);
         int fdColumns[] = getFdColumns(gby, inputSchemas[0]);

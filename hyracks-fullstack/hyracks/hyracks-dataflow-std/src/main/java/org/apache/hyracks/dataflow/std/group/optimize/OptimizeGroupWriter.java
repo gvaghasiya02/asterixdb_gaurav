@@ -251,13 +251,26 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         //                bytes[typeTagOffset] = Types.STRING.serialize();
                         Platform.copyMemory(baseObject, offset, bytes, unsafeOffset, alignedLength);
                         tb.addFieldEndOffset();
-                        long val = Platform.getLong(location.getValueBase(), location.getValueOffset());
-                        try {
-                            dos.writeByte(Types.BIGINT.serialize());
-                            dos.writeLong(val);
-                            tb.addFieldEndOffset();
-                        } catch (IOException e) {
-                            throw new AILRuntimeException();
+                        if (agt == Types.TINYINT || agt == Types.SMALLINT || agt == Types.BIGINT || agt == Types.INTEGER) {
+                            long val = Platform.getLong(location.getValueBase(), location.getValueOffset());
+                            try {
+                                dos.writeByte(Types.BIGINT.serialize());
+                                dos.writeLong(val);
+                                tb.addFieldEndOffset();
+                            } catch (IOException e) {
+                                throw new AILRuntimeException();
+                            }
+                        }
+                        else
+                        {
+                            double val = Platform.getDouble(location.getValueBase(), location.getValueOffset());
+                            try {
+                                dos.writeByte(Types.DOUBLE.serialize());
+                                dos.writeDouble(val);
+                                tb.addFieldEndOffset();
+                            } catch (IOException e) {
+                                throw new AILRuntimeException();
+                            }
                         }
                         try {
                             if (tb.getSize() > 0) {

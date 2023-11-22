@@ -66,7 +66,7 @@ public class UnsafeAggregators {
     private abstract static class AbstractDoubleAggregator implements IUnsafeAggregator {
         @Override
         public final IEntry createValueEntry() {
-            return new LongEntry();
+            return new DoubleEntry();
         }
 
         @Override

@@ -75,31 +75,21 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
         }
         Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
         AggregateOperator aggOp = (AggregateOperator) r0.getValue();
+        if(aggOp.getExpressions().size()>1){
+            throw new AlgebricksException(
+                    "Optimize group-by currently works only for one aggregate on projection");
+        }
         String aggType =
                 aggOp.getExpressions().get(0).getValue().toString().equals("agg-sql-count(1)") ? "COUNT" : "SUM";
 
         int keys[] = JobGenHelper.variablesToFieldIndexes(columnList, inputSchemas[0]);
-        int fdColumns[] = getFdColumns(gby, inputSchemas[0]);
         // compile subplans and set the gby op. schema accordingly
-        AlgebricksPipeline[] subplans = compileSubplans(inputSchemas[0], gby, opSchema, context);
-        AbstractAggregatorDescriptorFactory aggregatorFactory;
-        List<ILogicalPlan> nestedPlans = gby.getNestedPlans();
-        if (!nestedPlans.isEmpty() && nestedPlans.get(0).getRoots().get(0).getValue()
-                .getOperatorTag() == LogicalOperatorTag.RUNNINGAGGREGATE) {
-            aggregatorFactory = new NestedPlansRunningAggregatorFactory(subplans, keys, fdColumns);
-        } else {
-            aggregatorFactory = new NestedPlansAccumulatingAggregatorFactory(subplans, keys, fdColumns);
-        }
-        aggregatorFactory.setSourceLocation(gby.getSourceLocation());
-
+        compileSubplans(inputSchemas[0], gby, opSchema, context);
         IOperatorDescriptorRegistry spec = builder.getJobSpec();
-        IBinaryComparatorFactory[] comparatorFactories = JobGenHelper
-                .variablesToAscBinaryComparatorFactories(columnList, context.getTypeEnvironment(op), context);
         RecordDescriptor recordDescriptor =
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), opSchema, context);
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-        OptimizeGroupLOperatorDescriptor opDesc = new OptimizeGroupLOperatorDescriptor(spec, keys, comparatorFactories,
-                aggregatorFactory, recordDescriptor, groupAll, framesLimit, aggType);
+        OptimizeGroupLOperatorDescriptor opDesc = new OptimizeGroupLOperatorDescriptor(spec, keys, recordDescriptor, groupAll, framesLimit, aggType);
         opDesc.setSourceLocation(gby.getSourceLocation());
 
         contributeOpDesc(builder, gby, opDesc);

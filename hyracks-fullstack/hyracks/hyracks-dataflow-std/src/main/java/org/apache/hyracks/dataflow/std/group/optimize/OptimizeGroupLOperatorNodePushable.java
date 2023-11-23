@@ -31,8 +31,6 @@ import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 class OptimizeGroupLOperatorNodePushable extends AbstractUnaryInputUnaryOutputOperatorNodePushable {
     private final IHyracksTaskContext ctx;
     private final int[] groupFields;
-    private final IBinaryComparatorFactory[] comparatorFactories;
-    private final IAggregatorDescriptorFactory aggregatorFactory;
     private final RecordDescriptor inRecordDescriptor;
     private final RecordDescriptor outRecordDescriptor;
     private final boolean groupAll;
@@ -42,13 +40,10 @@ class OptimizeGroupLOperatorNodePushable extends AbstractUnaryInputUnaryOutputOp
     private OptimizeGroupWriter ogw;
 
     OptimizeGroupLOperatorNodePushable(IHyracksTaskContext ctx, int[] groupFields,
-            IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory aggregatorFactory,
             RecordDescriptor inRecordDescriptor, RecordDescriptor outRecordDescriptor, boolean groupAll, int frameLimit,
             String aggType) {
         this.ctx = ctx;
         this.groupFields = groupFields;
-        this.comparatorFactories = comparatorFactories;
-        this.aggregatorFactory = aggregatorFactory;
         this.inRecordDescriptor = inRecordDescriptor;
         this.outRecordDescriptor = outRecordDescriptor;
         this.groupAll = groupAll;
@@ -58,12 +53,8 @@ class OptimizeGroupLOperatorNodePushable extends AbstractUnaryInputUnaryOutputOp
 
     @Override
     public void open() throws HyracksDataException {
-        final IBinaryComparator[] comparators = new IBinaryComparator[comparatorFactories.length];
-        for (int i = 0; i < comparatorFactories.length; ++i) {
-            comparators[i] = comparatorFactories[i].createBinaryComparator();
-        }
-        ogw = new OptimizeGroupWriter(ctx, groupFields, comparators, aggregatorFactory, inRecordDescriptor,
-                outRecordDescriptor, writer, false, groupAll, frameLimit, aggType);
+        ogw = new OptimizeGroupWriter(ctx, groupFields, inRecordDescriptor,
+                outRecordDescriptor, writer, groupAll, frameLimit, aggType);
         ogw.open();
     }
 

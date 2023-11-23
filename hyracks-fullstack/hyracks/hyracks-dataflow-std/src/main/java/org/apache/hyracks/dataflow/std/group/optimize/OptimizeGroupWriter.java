@@ -71,9 +71,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private Types agt;
     //    private int counter;
 
-    public OptimizeGroupWriter(IHyracksTaskContext ctx, int[] groupFields, IBinaryComparator[] comparators,
-            IAggregatorDescriptorFactory aggregatorFactory, RecordDescriptor inRecordDesc,
-            RecordDescriptor outRecordDesc, IFrameWriter writer, boolean outputPartial, boolean groupAll,
+    public OptimizeGroupWriter(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDesc,
+            RecordDescriptor outRecordDesc, IFrameWriter writer, boolean groupAll,
             int framesLimit, String aggregateType) throws HyracksDataException {
         this.groupFields = groupFields;
         if (framesLimit >= 0 && framesLimit <= 2) {

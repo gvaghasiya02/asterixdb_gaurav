@@ -79,8 +79,21 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
             throw new AlgebricksException(
                     "Optimize group-by currently works only for one aggregate on projection");
         }
-        String aggType =
-                aggOp.getExpressions().get(0).getValue().toString().equals("agg-sql-count(1)") ? "COUNT" : "SUM";
+        String aggOpType =
+                aggOp.getExpressions().get(0).getValue().toString();
+        String aggType;
+        if(aggOpType.contains("sql-count"))
+            aggType="COUNT";
+        else if(aggOpType.contains("sql-sum"))
+            aggType="SUM";
+        else if(aggOpType.contains("sql-max"))
+            aggType="MAX";
+        else if(aggOpType.contains("sql-min"))
+            aggType="MIN";
+        else {
+            aggType = "COUNT";
+            //need to add AVG
+        }
 
         int keys[] = JobGenHelper.variablesToFieldIndexes(columnList, inputSchemas[0]);
         // compile subplans and set the gby op. schema accordingly

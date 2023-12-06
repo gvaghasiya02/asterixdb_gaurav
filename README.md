@@ -36,7 +36,7 @@ Gaurav Vaghasiya
 
 **2. Local Aggregation**
 
-**Status**:In Progress
+**Status**:Completed
 
 - Develop local aggregation logic.
 - Test and optimize local aggregation.
@@ -174,4 +174,3 @@ are used in the documentation that are generated directly from the grammar.
 - __Developers and contributors__</br>
   mailing list:[dev@asterixdb.apache.org](mailto:dev@asterixdb.apache.org)</br>
   Join the list by sending an email to [dev-subscribe@asterixdb.apache.org](mailto:dev-subscribe@asterixdb.apache.org)
-

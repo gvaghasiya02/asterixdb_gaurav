@@ -24,17 +24,22 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
-public class WriteBufferProvider {
+import org.apache.hyracks.util.annotations.ThreadSafe;
+
+@ThreadSafe
+public class WriteBufferProvider implements IWriteBufferProvider {
     private final BlockingQueue<ByteBuffer> writeBuffers;
 
     public WriteBufferProvider(int ioParallelism) {
         writeBuffers = new ArrayBlockingQueue<>(ioParallelism);
     }
 
+    @Override
     public void recycle(ByteBuffer buffer) {
         writeBuffers.offer(buffer);
     }
 
+    @Override
     public ByteBuffer getBuffer() {
         ByteBuffer writeBuffer = writeBuffers.poll();
         if (writeBuffer == null) {

@@ -130,6 +130,8 @@ public interface IMetadataNode extends Remote, Serializable {
     Dataverse getDataverse(TxnId txnId, String database, DataverseName dataverseName)
             throws AlgebricksException, RemoteException;
 
+    List<Database> getDatabases(TxnId txnId) throws AlgebricksException, RemoteException;
+
     /**
      * Retrieves all dataverses, acquiring local locks on behalf of the given
      * transaction id.
@@ -142,6 +144,8 @@ public interface IMetadataNode extends Remote, Serializable {
      * @throws RemoteException remote exception
      */
     List<Dataverse> getDataverses(TxnId txnId) throws AlgebricksException, RemoteException;
+
+    List<Dataset> getDatabaseDatasets(TxnId txnId, String database) throws AlgebricksException, RemoteException;
 
     /**
      * Retrieves all datasets belonging to the given dataverse, acquiring local
@@ -713,6 +717,8 @@ public interface IMetadataNode extends Remote, Serializable {
      */
     Library getLibrary(TxnId txnId, String database, DataverseName dataverseName, String libraryName)
             throws AlgebricksException, RemoteException;
+
+    List<Library> getDatabaseLibraries(TxnId txnId, String database) throws AlgebricksException, RemoteException;
 
     /**
      * Retireve libraries installed in a given dataverse.

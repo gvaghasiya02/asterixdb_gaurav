@@ -57,6 +57,7 @@ public final class ExternalDataPrefix implements Serializable {
     private final List<String> segments;
 
     private final List<String> computedFieldNames = new ArrayList<>();
+    private final Map<String, ATypeTag> computedFieldsParts = new HashMap<>();
     private final List<IAType> computedFieldTypes = new ArrayList<>();
     private final List<Integer> computedFieldSegmentIndexes = new ArrayList<>();
     private final List<ARecordType> paths = new ArrayList<>();
@@ -154,6 +155,7 @@ public final class ExternalDataPrefix implements Serializable {
                     String namePart = splits[0].substring(1);
                     String typePart = splits[1].substring(0, splits[1].length() - 1);
 
+                    // ensure supported type
                     IAType type = BuiltinTypeMap.getBuiltinType(typePart);
                     if (type == null) {
                         throw new CompilationException(ErrorCode.UNSUPPORTED_COMPUTED_FIELD_TYPE, typePart);
@@ -161,12 +163,16 @@ public final class ExternalDataPrefix implements Serializable {
                     type = getUpdatedType(type);
                     validateSupported(type.getTypeTag());
 
+                    // ensure no issues with the incoming computed field
+                    validateConflictingFields(namePart, type.getTypeTag());
+
                     computedFieldNames.add(namePart);
                     computedFieldTypes.add(type);
                     computedFieldSegmentIndexes.add(i);
                     updateIndexToComputedFieldMap(i, namePart, type);
 
                     List<String> nameParts = List.of(namePart.split("\\."));
+                    addNameParts(nameParts, type.getTypeTag());
                     paths.add(ProjectionFiltrationTypeUtil.getPathRecordType(nameParts));
 
                     expression.append("(.+)");
@@ -177,6 +183,58 @@ public final class ExternalDataPrefix implements Serializable {
                     expression.append(segments.get(i).substring(end));
                     indexToComputedFieldsMap.get(i).setExpression(expression.toString());
                 }
+            }
+        }
+    }
+
+    /**
+     * Adds the computed field parts with their respective types.
+     * Given the following computed field: {person.name.first:string}, the following is added to the map:
+     * person            -> object
+     * person.name       -> object
+     * person.name.first -> string
+     *
+     * @param nameParts name parts of the computed field
+     * @param type type of the computed field
+     * @throws CompilationException CompilationException
+     */
+    private void addNameParts(List<String> nameParts, ATypeTag type) throws CompilationException {
+        String concat = "";
+        for (int i = 0; i < nameParts.size() - 1; i++) {
+            concat += nameParts.get(i);
+
+            ATypeTag existingType = computedFieldsParts.get(concat);
+            if (existingType != null && existingType != ATypeTag.OBJECT) {
+                throw new CompilationException(ErrorCode.COMPUTED_FIELD_CONFLICTING_TYPE, concat, existingType);
+            }
+            computedFieldsParts.putIfAbsent(concat, ATypeTag.OBJECT);
+            concat += ".";
+        }
+
+        concat += nameParts.get(nameParts.size() - 1);
+        computedFieldsParts.put(concat, type);
+    }
+
+    /**
+     * This will ensure that the incoming computed field is not conflicting with an existing computed field. For example:
+     * existing computed field: {person.name:string}
+     * incoming computed field: {person.name.first:string}
+     * <p>
+     * This should fail as person.name.first is expecting person.name to be an object, but it is a string
+     *
+     * @param name computed field name
+     * @param type computed field type
+     * @throws CompilationException CompilationException
+     */
+    private void validateConflictingFields(String name, ATypeTag type) throws CompilationException {
+        ATypeTag existingType = computedFieldsParts.get(name);
+
+        // the provided computed field already exists, check if duplicate or conflicting
+        if (existingType != null) {
+            if (existingType == ATypeTag.OBJECT) {
+                throw new CompilationException(ErrorCode.COMPUTED_FIELD_CONFLICTING_TYPE, name, type);
+            } else {
+                throw new CompilationException(ErrorCode.DUPLICATE_FIELD_NAME, name);
             }
         }
     }
@@ -277,12 +335,14 @@ public final class ExternalDataPrefix implements Serializable {
         String computedFieldName = null;
         IAType computedFieldType = null;
         String computedFieldValue = null;
+
         try {
             for (int i = 0; i < computedFieldNames.size(); i++) {
                 computedFieldName = computedFieldNames.get(i);
                 computedFieldType = computedFieldTypes.get(i);
                 computedFieldValue = values.get(i);
 
+                ensureParsable(computedFieldType, computedFieldValue);
                 if (evaluator.isComputedFieldUsed(i)) {
                     evaluator.setValue(i, computedFieldValue);
                 }
@@ -297,6 +357,26 @@ public final class ExternalDataPrefix implements Serializable {
         }
 
         return evaluator.evaluate();
+    }
+
+    /**
+     * Ensures that the computed field value is of the expected computed field type before setting any values
+     *
+     * @param computedFieldType computed field type
+     * @param computedFieldValue computed field value
+     */
+    private static void ensureParsable(IAType computedFieldType, String computedFieldValue) {
+        switch (computedFieldType.getTypeTag()) {
+            case TINYINT:
+            case SMALLINT:
+            case INTEGER:
+            case BIGINT:
+                Long.parseLong(computedFieldValue);
+                break;
+            case DOUBLE:
+                Double.parseDouble(computedFieldValue);
+                break;
+        }
     }
 
     public String removeProtocolContainerPair(String path) {

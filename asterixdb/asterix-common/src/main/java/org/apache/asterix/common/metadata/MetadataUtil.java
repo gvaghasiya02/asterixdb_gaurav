@@ -18,6 +18,9 @@
  */
 package org.apache.asterix.common.metadata;
 
+import org.apache.asterix.common.functions.FunctionConstants;
+import org.apache.hyracks.algebricks.core.algebra.functions.AlgebricksBuiltinFunctions;
+
 public class MetadataUtil {
     public static final int PENDING_NO_OP = 0;
     public static final int PENDING_ADD_OP = 1;
@@ -39,16 +42,32 @@ public class MetadataUtil {
         }
     }
 
+    public static String dataverseName(String databaseName, DataverseName dataverseName, boolean useDb) {
+        return useDb ? databaseName + "." + dataverseName : String.valueOf(dataverseName);
+    }
+
     public static String getFullyQualifiedDisplayName(DataverseName dataverseName, String objectName) {
         return dataverseName + "." + objectName;
+    }
+
+    public static String getFullyQualifiedDisplayName(String databaseName, DataverseName dataverseName,
+            String objectName) {
+        return databaseName + "." + dataverseName + "." + objectName;
     }
 
     public static String databaseFor(DataverseName dataverse) {
         if (dataverse == null) {
             return null;
         }
-        return MetadataConstants.METADATA_DATAVERSE_NAME.equals(dataverse) ? MetadataConstants.SYSTEM_DATABASE
-                : MetadataConstants.DEFAULT_DATABASE;
+        if (MetadataConstants.METADATA_DATAVERSE_NAME.equals(dataverse)) {
+            return MetadataConstants.SYSTEM_DATABASE;
+        } else if (FunctionConstants.ASTERIX_DV.equals(dataverse)) {
+            return FunctionConstants.ASTERIX_DB;
+        } else if (FunctionConstants.ALGEBRICKS_DV.equals(dataverse)) {
+            return AlgebricksBuiltinFunctions.ALGEBRICKS_DB;
+        } else {
+            return MetadataConstants.DEFAULT_DATABASE;
+        }
     }
 
     public static String resolveDatabase(String database, DataverseName dataverse) {

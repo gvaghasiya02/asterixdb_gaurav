@@ -18,13 +18,16 @@
  */
 package org.apache.asterix.cloud.clients.aws.s3;
 
+import java.util.Map;
+
 import org.apache.asterix.common.config.CloudProperties;
+import org.apache.asterix.external.util.aws.s3.S3Constants;
 
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 
-public class S3ClientConfig {
+public final class S3ClientConfig {
     // The maximum number of file that can be deleted (AWS restriction)
     static final int DELETE_BATCH_SIZE = 1000;
     private final String region;
@@ -48,6 +51,20 @@ public class S3ClientConfig {
                 cloudProperties.getProfilerLogInterval());
     }
 
+    public static S3ClientConfig of(Map<String, String> configuration) {
+        // Used to determine local vs. actual S3
+        String endPoint = configuration.getOrDefault(S3Constants.SERVICE_END_POINT_FIELD_NAME, "");
+        // Disabled
+        long profilerLogInterval = 0;
+
+        // Dummy values;
+        String region = "";
+        String prefix = "";
+        boolean anonymousAuth = false;
+
+        return new S3ClientConfig(region, endPoint, prefix, anonymousAuth, profilerLogInterval);
+    }
+
     public String getRegion() {
         return region;
     }
@@ -66,7 +83,7 @@ public class S3ClientConfig {
     }
 
     public AwsCredentialsProvider createCredentialsProvider() {
-        return anonymousAuth ? AnonymousCredentialsProvider.create() : DefaultCredentialsProvider.create();
+        return anonymousAuth ? AnonymousCredentialsProvider.create() : DefaultCredentialsProvider.builder().build();
     }
 
     public long getProfilerLogInterval() {

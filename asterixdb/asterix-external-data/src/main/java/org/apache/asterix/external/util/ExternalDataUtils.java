@@ -209,6 +209,10 @@ public class ExternalDataUtils {
         }
     }
 
+    public static String getDatasetDatabase(Map<String, String> configuration) throws AsterixException {
+        return configuration.get(ExternalDataConstants.KEY_DATABASE_DATAVERSE);
+    }
+
     public static DataverseName getDatasetDataverse(Map<String, String> configuration) throws AsterixException {
         return DataverseName.createFromCanonicalForm(configuration.get(ExternalDataConstants.KEY_DATASET_DATAVERSE));
     }
@@ -342,11 +346,13 @@ public class ExternalDataUtils {
         }
     }
 
-    public static void prepareFeed(Map<String, String> configuration, DataverseName dataverseName, String feedName) {
+    public static void prepareFeed(Map<String, String> configuration, String databaseName, DataverseName dataverseName,
+            String feedName) {
         if (!configuration.containsKey(ExternalDataConstants.KEY_IS_FEED)) {
             configuration.put(ExternalDataConstants.KEY_IS_FEED, ExternalDataConstants.TRUE);
         }
         configuration.computeIfAbsent(ExternalDataConstants.KEY_LOG_INGESTION_EVENTS, k -> ExternalDataConstants.TRUE);
+        configuration.put(ExternalDataConstants.KEY_DATABASE_DATAVERSE, databaseName);
         configuration.put(ExternalDataConstants.KEY_DATASET_DATAVERSE, dataverseName.getCanonicalForm());
         configuration.put(ExternalDataConstants.KEY_FEED_NAME, feedName);
     }
@@ -1041,5 +1047,27 @@ public class ExternalDataUtils {
         }
 
         return protocol + "://" + container + "/";
+    }
+
+    public static void validateType(Map<String, String> properties, ARecordType itemType) throws CompilationException {
+        boolean embedValues = Boolean.parseBoolean(
+                properties.getOrDefault(ExternalDataConstants.KEY_EMBED_FILTER_VALUES, ExternalDataConstants.FALSE));
+        if (ExternalDataPrefix.containsComputedFields(properties) && embedValues && !itemType.isOpen()) {
+            throw new CompilationException(ErrorCode.COMPILATION_ERROR, "A closed type cannot be used when '"
+                    + ExternalDataConstants.KEY_EMBED_FILTER_VALUES + "' is enabled");
+        }
+    }
+
+    public static String getPathKey(String adapter) {
+        String normalizedAdapter = adapter.toUpperCase();
+        switch (normalizedAdapter) {
+            case ExternalDataConstants.KEY_ADAPTER_NAME_AWS_S3:
+            case ExternalDataConstants.KEY_ADAPTER_NAME_AZURE_BLOB:
+            case ExternalDataConstants.KEY_ADAPTER_NAME_AZURE_DATA_LAKE:
+            case ExternalDataConstants.KEY_ADAPTER_NAME_GCS:
+                return ExternalDataConstants.DEFINITION_FIELD_NAME;
+            default:
+                return ExternalDataConstants.KEY_PATH;
+        }
     }
 }

@@ -18,10 +18,14 @@
  */
 package org.apache.asterix.cloud;
 
+import static org.apache.asterix.cloud.lazy.ParallelCacher.METADATA_FILTER;
+import static org.apache.asterix.common.utils.StorageConstants.PARTITION_DIR_PREFIX;
 import static org.apache.asterix.common.utils.StorageConstants.STORAGE_ROOT_DIR_NAME;
 
+import java.io.File;
 import java.io.FilenameFilter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -35,6 +39,7 @@ import org.apache.asterix.cloud.lazy.accessor.ILazyAccessorReplacer;
 import org.apache.asterix.cloud.lazy.accessor.InitialCloudAccessor;
 import org.apache.asterix.cloud.lazy.accessor.LocalAccessor;
 import org.apache.asterix.cloud.lazy.accessor.ReplaceableCloudAccessor;
+import org.apache.asterix.common.api.INamespacePathResolver;
 import org.apache.asterix.common.config.CloudProperties;
 import org.apache.asterix.common.utils.StoragePathUtil;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
@@ -56,8 +61,9 @@ final class LazyCloudIOManager extends AbstractCloudIOManager {
     private final ILazyAccessorReplacer replacer;
     private ILazyAccessor accessor;
 
-    public LazyCloudIOManager(IOManager ioManager, CloudProperties cloudProperties) throws HyracksDataException {
-        super(ioManager, cloudProperties);
+    public LazyCloudIOManager(IOManager ioManager, CloudProperties cloudProperties,
+            INamespacePathResolver nsPathResolver) throws HyracksDataException {
+        super(ioManager, cloudProperties, nsPathResolver);
         accessor = new InitialCloudAccessor(cloudClient, bucket, localIoManager);
         replacer = () -> {
             synchronized (this) {
@@ -76,7 +82,8 @@ final class LazyCloudIOManager extends AbstractCloudIOManager {
      */
 
     @Override
-    protected void downloadPartitions() throws HyracksDataException {
+    protected synchronized void downloadPartitions(boolean metadataNode, int metadataPartition)
+            throws HyracksDataException {
         // Get the files in all relevant partitions from the cloud
         Set<String> cloudFiles = cloudClient.listObjects(bucket, STORAGE_ROOT_DIR_NAME, IoUtil.NO_OP_FILTER).stream()
                 .filter(f -> partitions.contains(StoragePathUtil.getPartitionNumFromRelativePath(f)))
@@ -96,8 +103,16 @@ final class LazyCloudIOManager extends AbstractCloudIOManager {
         cloudFiles.removeAll(localFiles);
         int remainingUncachedFiles = cloudFiles.size();
         if (remainingUncachedFiles > 0) {
+            LOGGER.debug("The number of uncached files: {}. Uncached files: {}", remainingUncachedFiles, cloudFiles);
+            // Get list of FileReferences from the list of cloud (i.e., resolve each path's string to FileReference)
             List<FileReference> uncachedFiles = resolve(cloudFiles);
+            // Create a parallel downloader using the given cloudClient
             IParallelDownloader downloader = cloudClient.createParallelDownloader(bucket, localIoManager);
+            // Download metadata partition (if this node is a metadata node)
+            downloadMetadataPartition(downloader, uncachedFiles, metadataNode, metadataPartition);
+            // Download all metadata files to avoid (List) calls to the cloud when listing/reading these files
+            downloadMetadataFiles(downloader, uncachedFiles);
+            // Create a parallel cacher which download and monitor all uncached files
             ParallelCacher cacher = new ParallelCacher(downloader, uncachedFiles);
             // Local cache misses some files, cloud-based accessor is needed for read operations
             accessor = new ReplaceableCloudAccessor(cloudClient, bucket, localIoManager, partitions, replacer, cacher);
@@ -105,8 +120,19 @@ final class LazyCloudIOManager extends AbstractCloudIOManager {
             // Everything is cached, no need to invoke cloud-based accessor for read operations
             accessor = new LocalAccessor(cloudClient, bucket, localIoManager);
         }
+    }
 
-        LOGGER.info("The number of uncached files: {}. Uncached files: {}", remainingUncachedFiles, cloudFiles);
+    private void downloadMetadataPartition(IParallelDownloader downloader, List<FileReference> uncachedFiles,
+            boolean metadataNode, int metadataPartition) throws HyracksDataException {
+        String partitionDir = PARTITION_DIR_PREFIX + metadataPartition;
+        if (metadataNode && uncachedFiles.stream().anyMatch(f -> f.getRelativePath().contains(partitionDir))) {
+            LOGGER.debug("Downloading metadata partition {}, Current uncached files: {}", metadataPartition,
+                    uncachedFiles);
+            FileReference metadataDir = resolve(STORAGE_ROOT_DIR_NAME + File.separator + partitionDir);
+            downloader.downloadDirectories(Collections.singleton(metadataDir));
+            uncachedFiles.removeIf(f -> f.getRelativePath().contains(partitionDir));
+            LOGGER.debug("Finished downloading metadata partition. Current uncached files: {}", uncachedFiles);
+        }
     }
 
     @Override
@@ -169,6 +195,21 @@ final class LazyCloudIOManager extends AbstractCloudIOManager {
     private void log(String op, FileReference fileReference) {
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug("{} {}", op, fileReference.getRelativePath());
+        }
+    }
+
+    private void downloadMetadataFiles(IParallelDownloader downloader, List<FileReference> uncachedFiles)
+            throws HyracksDataException {
+        Set<FileReference> uncachedMetadataFiles = ParallelCacher.getFiles(uncachedFiles, METADATA_FILTER);
+        if (!uncachedMetadataFiles.isEmpty()) {
+            LOGGER.debug("Downloading metadata files for all partitions; current uncached files: {}", uncachedFiles);
+            downloader.downloadFiles(uncachedMetadataFiles);
+            uncachedFiles.removeAll(uncachedMetadataFiles);
+            LOGGER.debug("Finished downloading metadata files for all partitions. Current uncached files: {}",
+                    uncachedFiles);
+        } else {
+            LOGGER.debug("all metadata files for all partitions are already cached; current uncached files: {} ",
+                    uncachedFiles);
         }
     }
 }

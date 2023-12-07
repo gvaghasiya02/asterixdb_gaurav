@@ -23,5 +23,10 @@ import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
 
 public interface ISerializerDeserializerProvider {
     @SuppressWarnings("unchecked")
-    public ISerializerDeserializer getSerializerDeserializer(Object type) throws AlgebricksException;
+    ISerializerDeserializer getSerializerDeserializer(Object type) throws AlgebricksException;
+
+    @SuppressWarnings("unchecked")
+    ISerializerDeserializer getSerializerDeserializer(Object type,
+            ISerializerDeserializer nonTaggedSerializerDeserializer) throws AlgebricksException;
+
 }

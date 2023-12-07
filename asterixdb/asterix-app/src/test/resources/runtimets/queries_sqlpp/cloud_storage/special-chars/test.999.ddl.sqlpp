@@ -17,4 +17,5 @@
  * under the License.
  */
 
-DROP DATAVERSE `part1`.`p%r t2` IF EXISTS;
+DROP DATAVERSE `part_1-`.`p_r-t2` IF EXISTS;
+DROP DATABASE `part_1-`;

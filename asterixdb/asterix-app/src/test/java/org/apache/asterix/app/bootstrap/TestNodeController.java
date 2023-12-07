@@ -37,6 +37,8 @@ import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.common.dataflow.LSMInsertDeleteOperatorNodePushable;
 import org.apache.asterix.common.exceptions.ACIDException;
 import org.apache.asterix.common.metadata.MetadataUtil;
+import org.apache.asterix.common.metadata.Namespace;
+import org.apache.asterix.common.metadata.NamespacePathResolver;
 import org.apache.asterix.common.transactions.ITransactionManager;
 import org.apache.asterix.common.transactions.TxnId;
 import org.apache.asterix.dataflow.data.nontagged.MissingWriterFactory;
@@ -46,7 +48,6 @@ import org.apache.asterix.formats.nontagged.SerializerDeserializerProvider;
 import org.apache.asterix.formats.nontagged.TypeTraitProvider;
 import org.apache.asterix.metadata.MetadataManager;
 import org.apache.asterix.metadata.MetadataTransactionContext;
-import org.apache.asterix.metadata.bootstrap.MetadataBuiltinEntities;
 import org.apache.asterix.metadata.declared.MetadataProvider;
 import org.apache.asterix.metadata.entities.Dataset;
 import org.apache.asterix.metadata.entities.Dataverse;
@@ -237,7 +238,7 @@ public class TestNodeController {
             throws AlgebricksException, HyracksDataException, RemoteException, ACIDException {
         CcApplicationContext appCtx =
                 (CcApplicationContext) ExecutionTestUtil.integrationUtil.cc.getApplicationContext();
-        MetadataProvider mdProvider = MetadataProvider.create(appCtx, null);
+        MetadataProvider mdProvider = MetadataProvider.createWithDefaultNamespace(appCtx);
         try {
             MetadataTransactionContext mdTxnCtx = MetadataManager.INSTANCE.beginTransaction();
             org.apache.hyracks.algebricks.common.utils.Pair<ILSMMergePolicyFactory, Map<String, String>> mergePolicy =
@@ -356,7 +357,7 @@ public class TestNodeController {
             throws AlgebricksException, HyracksDataException, RemoteException, ACIDException {
         CcApplicationContext appCtx =
                 (CcApplicationContext) ExecutionTestUtil.integrationUtil.cc.getApplicationContext();
-        MetadataProvider mdProvider = MetadataProvider.create(appCtx, null);
+        MetadataProvider mdProvider = MetadataProvider.createWithDefaultNamespace(appCtx);
         try {
             MetadataTransactionContext mdTxnCtx = MetadataManager.INSTANCE.beginTransaction();
             org.apache.hyracks.algebricks.common.utils.Pair<ILSMMergePolicyFactory, Map<String, String>> mergePolicy =
@@ -487,22 +488,6 @@ public class TestNodeController {
         return new JobId(jobCounter++);
     }
 
-    public IResourceFactory getPrimaryResourceFactory(IHyracksTaskContext ctx, PrimaryIndexInfo primaryIndexInfo,
-            IStorageComponentProvider storageComponentProvider, Dataset dataset) throws AlgebricksException {
-        Dataverse dataverse = new Dataverse(dataset.getDatabaseName(), dataset.getDataverseName(),
-                NonTaggedDataFormat.class.getName(), MetadataUtil.PENDING_NO_OP);
-        Index index = primaryIndexInfo.getIndex();
-        CcApplicationContext appCtx =
-                (CcApplicationContext) ExecutionTestUtil.integrationUtil.cc.getApplicationContext();
-        MetadataProvider mdProvider = MetadataProvider.create(appCtx, dataverse);
-        try {
-            return dataset.getResourceFactory(mdProvider, index, primaryIndexInfo.recordType, primaryIndexInfo.metaType,
-                    primaryIndexInfo.mergePolicyFactory, primaryIndexInfo.mergePolicyProperties);
-        } finally {
-            mdProvider.getLocks().unlock();
-        }
-    }
-
     public PrimaryIndexInfo createPrimaryIndex(Dataset dataset, IAType[] primaryKeyTypes, ARecordType recordType,
             ARecordType metaType, int[] filterFields, IStorageComponentProvider storageComponentProvider,
             int[] primaryKeyIndexes, List<Integer> primaryKeyIndicators, int partition)
@@ -515,8 +500,9 @@ public class TestNodeController {
                 mergePolicy.first, mergePolicy.second, filterFields, primaryKeyIndexes, primaryKeyIndicators);
         Dataverse dataverse = new Dataverse(dataset.getDatabaseName(), dataset.getDataverseName(),
                 NonTaggedDataFormat.class.getName(), MetadataUtil.PENDING_NO_OP);
+        Namespace namespace = new Namespace(dataverse.getDatabaseName(), dataverse.getDataverseName());
         MetadataProvider mdProvider = MetadataProvider.create(
-                (ICcApplicationContext) ExecutionTestUtil.integrationUtil.cc.getApplicationContext(), dataverse);
+                (ICcApplicationContext) ExecutionTestUtil.integrationUtil.cc.getApplicationContext(), namespace);
         try {
             IResourceFactory resourceFactory = dataset.getResourceFactory(mdProvider, primaryIndexInfo.index,
                     recordType, metaType, mergePolicy.first, mergePolicy.second);
@@ -542,8 +528,9 @@ public class TestNodeController {
         Dataverse dataverse =
                 new Dataverse(primaryIndexInfo.dataset.getDatabaseName(), primaryIndexInfo.dataset.getDataverseName(),
                         NonTaggedDataFormat.class.getName(), MetadataUtil.PENDING_NO_OP);
+        Namespace namespace = new Namespace(dataverse.getDatabaseName(), dataverse.getDataverseName());
         MetadataProvider mdProvider = MetadataProvider.create(
-                (ICcApplicationContext) ExecutionTestUtil.integrationUtil.cc.getApplicationContext(), dataverse);
+                (ICcApplicationContext) ExecutionTestUtil.integrationUtil.cc.getApplicationContext(), namespace);
         SecondaryIndexInfo secondaryIndexInfo = new SecondaryIndexInfo(primaryIndexInfo, secondaryIndex);
         try {
             IResourceFactory resourceFactory = primaryIndexInfo.dataset.getResourceFactory(mdProvider, secondaryIndex,
@@ -673,8 +660,10 @@ public class TestNodeController {
             List<String> nodes = Collections.singletonList(ExecutionTestUtil.integrationUtil.ncs[0].getId());
             CcApplicationContext appCtx =
                     (CcApplicationContext) ExecutionTestUtil.integrationUtil.cc.getApplicationContext();
+            String dvPath = new NamespacePathResolver(false).resolve(primaryIndexInfo.dataset.getDatabaseName(),
+                    primaryIndexInfo.dataset.getDataverseName());
             FileSplit[] splits = SplitsAndConstraintsUtil.getIndexSplits(appCtx.getClusterStateManager(),
-                    primaryIndexInfo.dataset, secondaryIndex.getIndexName(), nodes);
+                    primaryIndexInfo.dataset, secondaryIndex.getIndexName(), nodes, dvPath);
             fileSplitProvider = new ConstantFileSplitProvider(splits);
             secondaryIndexTypeTraits = createSecondaryIndexTypeTraits(primaryIndexInfo.recordType,
                     primaryIndexInfo.metaType, primaryIndexInfo.primaryKeyTypes, secondaryIndexDetails
@@ -760,8 +749,10 @@ public class TestNodeController {
             List<String> nodes = Collections.singletonList(ExecutionTestUtil.integrationUtil.ncs[0].getId());
             CcApplicationContext appCtx =
                     (CcApplicationContext) ExecutionTestUtil.integrationUtil.cc.getApplicationContext();
+            String dvPath =
+                    new NamespacePathResolver(false).resolve(dataset.getDatabaseName(), dataset.getDataverseName());
             FileSplit[] splits = SplitsAndConstraintsUtil.getIndexSplits(appCtx.getClusterStateManager(), dataset,
-                    index.getIndexName(), nodes);
+                    index.getIndexName(), nodes, dvPath);
             fileSplitProvider = new ConstantFileSplitProvider(splits);
         }
 
@@ -825,9 +816,8 @@ public class TestNodeController {
             int[] keyIndexes, List<Integer> keyIndicators, StorageComponentProvider storageComponentProvider,
             IFrameOperationCallbackFactory frameOpCallbackFactory, boolean hasSecondaries) throws Exception {
         MetadataTransactionContext mdTxnCtx = MetadataManager.INSTANCE.beginTransaction();
-        MetadataProvider mdProvider = MetadataProvider.create(
-                (ICcApplicationContext) ExecutionTestUtil.integrationUtil.cc.getApplicationContext(),
-                MetadataBuiltinEntities.DEFAULT_DATAVERSE);
+        MetadataProvider mdProvider = MetadataProvider.createWithDefaultNamespace(
+                (ICcApplicationContext) ExecutionTestUtil.integrationUtil.cc.getApplicationContext());
         org.apache.hyracks.algebricks.common.utils.Pair<ILSMMergePolicyFactory, Map<String, String>> mergePolicy =
                 DatasetUtil.getMergePolicyFactory(dataset, mdTxnCtx);
         MetadataManager.INSTANCE.commitTransaction(mdTxnCtx);

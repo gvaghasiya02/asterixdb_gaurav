@@ -38,9 +38,11 @@ import org.apache.asterix.optimizer.rules.CancelUnnestWithNestedListifyRule;
 import org.apache.asterix.optimizer.rules.CheckFilterExpressionTypeRule;
 import org.apache.asterix.optimizer.rules.CheckFullParallelSortRule;
 import org.apache.asterix.optimizer.rules.CheckInsertUpsertReturningRule;
+import org.apache.asterix.optimizer.rules.CleanupWriteOperatorRule;
 import org.apache.asterix.optimizer.rules.ConstantFoldingRule;
 import org.apache.asterix.optimizer.rules.CountVarToCountOneRule;
 import org.apache.asterix.optimizer.rules.DisjunctivePredicateToJoinRule;
+import org.apache.asterix.optimizer.rules.EnsureColumnarSupportedTypesRule;
 import org.apache.asterix.optimizer.rules.ExtractBatchableExternalFunctionCallsRule;
 import org.apache.asterix.optimizer.rules.ExtractDistinctByExpressionsRule;
 import org.apache.asterix.optimizer.rules.ExtractOrderExpressionsRule;
@@ -70,6 +72,7 @@ import org.apache.asterix.optimizer.rules.ListifyUnnestingFunctionRule;
 import org.apache.asterix.optimizer.rules.LoadRecordFieldsRule;
 import org.apache.asterix.optimizer.rules.MetaFunctionToMetaVariableRule;
 import org.apache.asterix.optimizer.rules.NestGroupByRule;
+import org.apache.asterix.optimizer.rules.NormalizeWritingPathRule;
 import org.apache.asterix.optimizer.rules.PullSelectOutOfSpatialJoin;
 import org.apache.asterix.optimizer.rules.PushAggFuncIntoStandaloneAggregateRule;
 import org.apache.asterix.optimizer.rules.PushAggregateIntoNestedSubplanRule;
@@ -193,6 +196,7 @@ public final class RuleCollections {
     public static List<IAlgebraicRewriteRule> buildNormalizationRuleCollection(ICcApplicationContext appCtx) {
         List<IAlgebraicRewriteRule> normalization = new LinkedList<>();
         normalization.add(new CheckInsertUpsertReturningRule());
+        normalization.add(new NormalizeWritingPathRule(appCtx));
         normalization.add(new IntroduceUnnestForCollectionToSequenceRule());
         normalization.add(new EliminateSubplanRule());
         // The following rule must run before PushAggregateIntoNestedSubplanRule
@@ -203,6 +207,8 @@ public final class RuleCollections {
         normalization.add(new ExtractDistinctByExpressionsRule());
         normalization.add(new ExtractOrderExpressionsRule());
         normalization.add(new ExtractWindowExpressionsRule());
+        // EnsureColumnarSupportedTypesRule should go before cast rules
+        normalization.add(new EnsureColumnarSupportedTypesRule());
 
         // IntroduceStaticTypeCastRule should go before
         // IntroduceDynamicTypeCastRule to
@@ -357,6 +363,7 @@ public final class RuleCollections {
         // RemoveRedundantBooleanExpressionsInJoinRule has to run first to probably eliminate the need for
         // introducing an assign operator in ExtractSimilarVariablesInJoinRule
         planCleanupRules.add(new ExtractRedundantVariablesInJoinRule());
+        planCleanupRules.add(new CleanupWriteOperatorRule());
 
         // Needs to invoke ByNameToByIndexFieldAccessRule as the last logical optimization rule because
         // some rules can push a FieldAccessByName to a place where the name it tries to access is in the closed part.
@@ -381,13 +388,14 @@ public final class RuleCollections {
         return cbo;
     }
 
-    public static List<IAlgebraicRewriteRule> buildPhysicalRewritesAllLevelsRuleCollection() {
+    public static List<IAlgebraicRewriteRule> buildPhysicalRewritesAllLevelsRuleCollection(
+            SetAsterixPhysicalOperatorsRule.CostMethodsFactory cmf) {
         List<IAlgebraicRewriteRule> physicalRewritesAllLevels = new LinkedList<>();
         physicalRewritesAllLevels.add(new PullSelectOutOfEqJoin());
         physicalRewritesAllLevels.add(new ExtractBatchableExternalFunctionCallsRule());
         //Turned off the following rule for now not to change OptimizerTest results.
         physicalRewritesAllLevels.add(new SetupCommitExtensionOpRule());
-        physicalRewritesAllLevels.add(new SetAsterixPhysicalOperatorsRule());
+        physicalRewritesAllLevels.add(new SetAsterixPhysicalOperatorsRule(cmf));
         physicalRewritesAllLevels.add(new SetAsterixMemoryRequirementsRule());
         // must run after SetMemoryRequirementsRule
         physicalRewritesAllLevels.add(new HybridToInMemoryHashJoinRule());
@@ -403,14 +411,14 @@ public final class RuleCollections {
         physicalRewritesAllLevels.add(new RemoveUnusedAssignAndAggregateRule());
         physicalRewritesAllLevels.add(new ConsolidateAssignsRule(true));
         // After adding projects, we may need to set physical operators again.
-        physicalRewritesAllLevels.add(new SetAsterixPhysicalOperatorsRule());
+        physicalRewritesAllLevels.add(new SetAsterixPhysicalOperatorsRule(cmf));
         // Optimized spatial join's query plan produces more join conditions, so we need to pull out these conditions
         physicalRewritesAllLevels.add(new PullSelectOutOfSpatialJoin());
         return physicalRewritesAllLevels;
     }
 
-    public static List<IAlgebraicRewriteRule> buildPhysicalRewritesTopLevelRuleCollection(
-            ICcApplicationContext appCtx) {
+    public static List<IAlgebraicRewriteRule> buildPhysicalRewritesTopLevelRuleCollection(ICcApplicationContext appCtx,
+            SetAsterixPhysicalOperatorsRule.CostMethodsFactory cmf) {
         List<IAlgebraicRewriteRule> physicalRewritesTopLevel = new LinkedList<>();
         physicalRewritesTopLevel.add(new PushNestedOrderByUnderPreSortedGroupByRule());
         physicalRewritesTopLevel.add(new CopyLimitDownRule());
@@ -429,17 +437,18 @@ public final class RuleCollections {
          * returned if they are projected out
          */
         physicalRewritesTopLevel.add(new PushValueAccessAndFilterDownRule());
-        physicalRewritesTopLevel.add(new SetAsterixPhysicalOperatorsRule());
+        physicalRewritesTopLevel.add(new SetAsterixPhysicalOperatorsRule(cmf));
         physicalRewritesTopLevel.add(new IntroduceRapidFrameFlushProjectAssignRule());
         physicalRewritesTopLevel.add(new SetExecutionModeRule());
         physicalRewritesTopLevel.add(new IntroduceRandomPartitioningFeedComputationRule());
         return physicalRewritesTopLevel;
     }
 
-    public static List<IAlgebraicRewriteRule> prepareForJobGenRuleCollection() {
+    public static List<IAlgebraicRewriteRule> prepareForJobGenRuleCollection(
+            SetAsterixPhysicalOperatorsRule.CostMethodsFactory cmf) {
         List<IAlgebraicRewriteRule> prepareForJobGenRewrites = new LinkedList<>();
         prepareForJobGenRewrites.add(new InsertProjectBeforeUnionRule());
-        prepareForJobGenRewrites.add(new SetAsterixPhysicalOperatorsRule());
+        prepareForJobGenRewrites.add(new SetAsterixPhysicalOperatorsRule(cmf));
         prepareForJobGenRewrites
                 .add(new IsolateHyracksOperatorsRule(HeuristicOptimizer.hyraxOperatorsBelowWhichJobGenIsDisabled));
         prepareForJobGenRewrites.add(new FixReplicateOperatorOutputsRule());

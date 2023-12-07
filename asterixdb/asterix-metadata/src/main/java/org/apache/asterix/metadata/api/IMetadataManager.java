@@ -108,6 +108,8 @@ public interface IMetadataManager extends IMetadataBootstrap {
      */
     void addDataverse(MetadataTransactionContext ctx, Dataverse dataverse) throws AlgebricksException;
 
+    List<Database> getDatabases(MetadataTransactionContext ctx) throws AlgebricksException;
+
     /**
      * Retrieves all dataverses
      *
@@ -131,6 +133,8 @@ public interface IMetadataManager extends IMetadataBootstrap {
      */
     Dataverse getDataverse(MetadataTransactionContext ctx, String database, DataverseName dataverseName)
             throws AlgebricksException;
+
+    List<Dataset> getDatabaseDatasets(MetadataTransactionContext ctx, String database) throws AlgebricksException;
 
     /**
      * Retrieves all datasets belonging to the given dataverse.
@@ -670,6 +674,8 @@ public interface IMetadataManager extends IMetadataBootstrap {
      */
     Library getLibrary(MetadataTransactionContext ctx, String database, DataverseName dataverseName, String libraryName)
             throws AlgebricksException, RemoteException;
+
+    List<Library> getDatabaseLibraries(MetadataTransactionContext ctx, String database) throws AlgebricksException;
 
     /**
      * Retireve libraries installed in a given dataverse.

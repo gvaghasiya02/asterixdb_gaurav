@@ -278,15 +278,22 @@ public class QueryServiceServlet extends AbstractQueryApiServlet {
             if (forceReadOnly) {
                 param.setReadOnly(true);
             }
-            LOGGER.info(() -> "handleRequest: " + LogRedactionUtil.statement(param.toString()));
+            String statement = param.getStatement();
+            statement = statement == null || (!statement.isEmpty() && statement.charAt(statement.length() - 1) == ';')
+                    ? statement : (statement + ";");
+            if (statement != null && (statement.startsWith("UPSERT") || statement.startsWith("INSERT"))
+                    && LOGGER.isDebugEnabled()) {
+                LOGGER.debug("handleRequest: uuid={}, clientContextID={}, {}", requestRef.getUuid(),
+                        param.getClientContextID(), LogRedactionUtil.statement(param.toString()));
+            } else if (LOGGER.isInfoEnabled()) {
+                LOGGER.info("handleRequest: uuid={}, clientContextID={}, {}", requestRef.getUuid(),
+                        param.getClientContextID(), LogRedactionUtil.statement(param.toString()));
+            }
             delivery = param.getMode();
             setSessionConfig(sessionOutput, param, delivery);
             final ResultProperties resultProperties = new ResultProperties(delivery, param.getMaxResultReads());
             buildResponseHeaders(requestRef, sessionOutput, param, responsePrinter, delivery);
             responsePrinter.printHeaders();
-            String statement = param.getStatement();
-            statement = statement == null || (!statement.isEmpty() && statement.charAt(statement.length() - 1) == ';')
-                    ? statement : (statement + ";");
             validateStatement(statement);
             if (param.isParseOnly()) {
                 ResultUtil.ParseOnlyResult parseOnlyResult = parseStatement(statement);
@@ -357,9 +364,10 @@ public class QueryServiceServlet extends AbstractQueryApiServlet {
             // in case of ASYNC delivery, the status is printed by query translator
             responsePrinter.addFooterPrinter(new StatusPrinter(executionState.getResultStatus()));
         }
-        final ResponseMetrics metrics = ResponseMetrics.of(System.nanoTime() - elapsedStart, executionState.duration(),
-                stats.getCount(), stats.getSize(), stats.getProcessedObjects(), errorCount,
-                stats.getTotalWarningsCount(), stats.getCompileTime());
+        final ResponseMetrics metrics =
+                ResponseMetrics.of(System.nanoTime() - elapsedStart, executionState.duration(), stats.getCount(),
+                        stats.getSize(), stats.getProcessedObjects(), errorCount, stats.getTotalWarningsCount(),
+                        stats.getCompileTime(), stats.getQueueWaitTime(), stats.getBufferCacheHitRatio());
         responsePrinter.addFooterPrinter(new MetricsPrinter(metrics, resultCharset));
         if (isPrintingProfile(stats)) {
             responsePrinter.addFooterPrinter(new ProfilePrinter(stats.getJobProfile()));
@@ -438,6 +446,7 @@ public class QueryServiceServlet extends AbstractQueryApiServlet {
                     LOGGER.warn(() -> "handleException: " + ex.getMessage() + ": "
                             + LogRedactionUtil.userData(param.toString()));
                     executionState.setStatus(ResultStatus.FATAL, HttpResponseStatus.SERVICE_UNAVAILABLE);
+                    return true;
                 default:
                     // fall-through
             }

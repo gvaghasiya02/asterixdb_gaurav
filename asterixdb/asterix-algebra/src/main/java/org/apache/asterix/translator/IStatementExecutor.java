@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 import org.apache.asterix.common.api.IResponsePrinter;
 import org.apache.asterix.common.exceptions.ACIDException;
 import org.apache.asterix.common.exceptions.AsterixException;
-import org.apache.asterix.common.metadata.DataverseName;
+import org.apache.asterix.common.metadata.Namespace;
 import org.apache.asterix.lang.common.base.Statement;
 import org.apache.asterix.lang.common.statement.Query;
 import org.apache.asterix.metadata.declared.MetadataProvider;
@@ -106,7 +106,7 @@ public interface IStatementExecutor {
     }
 
     class Stats implements Serializable {
-        private static final long serialVersionUID = 5885273238208454611L;
+        private static final long serialVersionUID = 5885273238208454612L;
 
         public enum ProfileType {
             COUNTS("counts"),
@@ -133,10 +133,12 @@ public interface IStatementExecutor {
         private long count;
         private long size;
         private long processedObjects;
+        private long queueWaitTime;
         private Profile profile;
         private ProfileType profileType;
         private long totalWarningsCount;
         private long compileTime;
+        private double bufferCacheHitRatio;
 
         public long getCount() {
             return count;
@@ -152,6 +154,10 @@ public interface IStatementExecutor {
 
         public void setSize(long size) {
             this.size = size;
+        }
+
+        public long getQueueWaitTime() {
+            return queueWaitTime;
         }
 
         public long getProcessedObjects() {
@@ -170,6 +176,10 @@ public interface IStatementExecutor {
             if (delta <= Long.MAX_VALUE - totalWarningsCount) {
                 totalWarningsCount += delta;
             }
+        }
+
+        public void setQueueWaitTime(long queueWaitTime) {
+            this.queueWaitTime = queueWaitTime;
         }
 
         public void setJobProfile(ObjectNode profile) {
@@ -194,6 +204,14 @@ public interface IStatementExecutor {
 
         public long getCompileTime() {
             return compileTime;
+        }
+
+        public void setBufferCacheHitRatio(double bufferCacheHitRatio) {
+            this.bufferCacheHitRatio = bufferCacheHitRatio;
+        }
+
+        public double getBufferCacheHitRatio() {
+            return bufferCacheHitRatio;
         }
     }
 
@@ -290,15 +308,7 @@ public interface IStatementExecutor {
             Query query, ICompiledDmlStatement dmlStatement, Map<String, IAObject> statementParameters,
             IRequestParameters requestParameters) throws RemoteException, AlgebricksException, ACIDException;
 
-    /**
-     * returns the active dataverse for an entity or a statement
-     *
-     * @param dataverseName:
-     *            the entity or statement dataverse
-     * @return
-     *         returns the passed dataverse if not null, the active dataverse otherwise
-     */
-    DataverseName getActiveDataverseName(DataverseName dataverseName);
+    Namespace getActiveNamespace(Namespace namespace);
 
     /**
      * Gets the execution plans that are generated during query compilation

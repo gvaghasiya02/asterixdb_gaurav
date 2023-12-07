@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 
 import org.apache.asterix.common.api.ILSMComponentIdGeneratorFactory;
+import org.apache.asterix.common.api.INamespacePathResolver;
 import org.apache.asterix.common.api.INcApplicationContext;
 import org.apache.asterix.common.config.DatasetConfig.DatasetType;
 import org.apache.asterix.common.config.MetadataProperties;
@@ -220,9 +221,9 @@ public class MetadataBootstrap {
                     indexes[i].getPartitioningExprType(), false, null, null);
             MetadataManager.INSTANCE.addDataset(mdTxnCtx,
                     new Dataset(indexes[i].getDatabaseName(), indexes[i].getDataverseName(),
-                            indexes[i].getIndexedDatasetName(), indexes[i].getDataverseName(),
-                            indexes[i].getPayloadRecordType().getTypeName(), indexes[i].getNodeGroupName(),
-                            StorageConstants.DEFAULT_COMPACTION_POLICY_NAME,
+                            indexes[i].getIndexedDatasetName(), indexes[i].getDatabaseName(),
+                            indexes[i].getDataverseName(), indexes[i].getPayloadRecordType().getTypeName(),
+                            indexes[i].getNodeGroupName(), StorageConstants.DEFAULT_COMPACTION_POLICY_NAME,
                             StorageConstants.DEFAULT_COMPACTION_POLICY_PROPERTIES, id, new HashMap<>(),
                             DatasetType.INTERNAL, indexes[i].getDatasetId().getId(), MetadataUtil.PENDING_NO_OP));
         }
@@ -392,9 +393,12 @@ public class MetadataBootstrap {
     public static void enlistMetadataDataset(INCServiceContext ncServiceCtx, IMetadataIndex index,
             MetadataIndexesProvider mdIndexesProvider) throws HyracksDataException {
         final int datasetId = index.getDatasetId().getId();
+        INamespacePathResolver namespacePathResolver =
+                ((INcApplicationContext) ncServiceCtx.getApplicationContext()).getNamespacePathResolver();
         String metadataPartitionPath =
                 StoragePathUtil.prepareStoragePartitionPath(MetadataNode.INSTANCE.getMetadataStoragePartition());
-        String resourceName = metadataPartitionPath + File.separator + index.getFileNameRelativePath();
+        String resourceName =
+                metadataPartitionPath + File.separator + index.getFileNameRelativePath(namespacePathResolver);
         FileReference file = ioManager.resolve(resourceName);
         index.setFile(file);
         ITypeTraits[] typeTraits = index.getTypeTraits();
@@ -468,6 +472,8 @@ public class MetadataBootstrap {
      * Perform recovery of DDL operations metadata records
      */
     public static void startDDLRecovery() throws AlgebricksException {
+        //TODO(DB): include database in recovery
+
         // #. clean up any record which has pendingAdd/DelOp flag
         // as traversing all records from DATAVERSE_DATASET to DATASET_DATASET, and then
         // to INDEX_DATASET.

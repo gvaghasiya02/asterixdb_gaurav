@@ -49,8 +49,17 @@ public class StaticDataPartitioningProvider extends DataPartitioningProvider {
     }
 
     @Override
-    public PartitioningProperties getPartitioningProperties(DataverseName dataverseName) {
-        SplitComputeLocations dataverseSplits = getDataverseSplits(dataverseName);
+    public PartitioningProperties getPartitioningProperties(String databaseName) {
+        SplitComputeLocations dataverseSplits = getSplits(databaseName);
+        StorageComputePartitionsMap partitionMap = clusterStateManager.getStorageComputeMap();
+        int[][] partitionsMap = partitionMap.getComputeToStorageMap(false);
+        return PartitioningProperties.of(dataverseSplits.getSplitsProvider(), dataverseSplits.getConstraints(),
+                partitionsMap);
+    }
+
+    @Override
+    public PartitioningProperties getPartitioningProperties(String databaseName, DataverseName dataverseName) {
+        SplitComputeLocations dataverseSplits = getDataverseSplits(databaseName, dataverseName);
         StorageComputePartitionsMap partitionMap = clusterStateManager.getStorageComputeMap();
         int[][] partitionsMap = partitionMap.getComputeToStorageMap(false);
         return PartitioningProperties.of(dataverseSplits.getSplitsProvider(), dataverseSplits.getConstraints(),
@@ -68,14 +77,17 @@ public class StaticDataPartitioningProvider extends DataPartitioningProvider {
                 partitionsMap);
     }
 
-    private SplitComputeLocations getDataverseSplits(DataverseName dataverseName) {
+    private SplitComputeLocations getDataverseSplits(String databaseName, DataverseName dataverseName) {
+        return getSplits(namespacePathResolver.resolve(databaseName, dataverseName));
+    }
+
+    private SplitComputeLocations getSplits(String subPath) {
         List<FileSplit> splits = new ArrayList<>();
         List<String> locations = new ArrayList<>();
         Set<Integer> uniqueLocations = new HashSet<>();
         StorageComputePartitionsMap partitionMap = clusterStateManager.getStorageComputeMap();
         for (int i = 0; i < storagePartitionsCounts; i++) {
-            File f = new File(StoragePathUtil.prepareStoragePartitionPath(i),
-                    StoragePathUtil.prepareDataverseName(dataverseName));
+            File f = new File(StoragePathUtil.prepareStoragePartitionPath(i), subPath);
             ComputePartition computePartition = partitionMap.getComputePartition(i);
             splits.add(new MappedFileSplit(computePartition.getNodeId(), f.getPath(), 0));
             if (!uniqueLocations.contains(computePartition.getId())) {
@@ -93,13 +105,14 @@ public class StaticDataPartitioningProvider extends DataPartitioningProvider {
         List<FileSplit> splits = new ArrayList<>();
         List<String> locations = new ArrayList<>();
         Set<Integer> uniqueLocations = new HashSet<>();
+        String namespacePath = namespacePathResolver.resolve(dataset.getDatabaseName(), dataset.getDataverseName());
         StorageComputePartitionsMap partitionMap = clusterStateManager.getStorageComputeMap();
         final int datasetPartitions = getNumberOfPartitions(dataset);
         boolean metadataDataset = MetadataIndexImmutableProperties.isMetadataDataset(dataset.getDatasetId());
         for (int i = 0; i < datasetPartitions; i++) {
             int storagePartition = metadataDataset ? StorageConstants.METADATA_PARTITION : i;
-            final String relPath = StoragePathUtil.prepareDataverseIndexName(dataset.getDataverseName(),
-                    dataset.getDatasetName(), indexName, dataset.getRebalanceCount());
+            final String relPath = StoragePathUtil.prepareNamespaceIndexName(dataset.getDatasetName(), indexName,
+                    dataset.getRebalanceCount(), namespacePath);
             File f = new File(StoragePathUtil.prepareStoragePartitionPath(storagePartition), relPath);
             ComputePartition computePartition = partitionMap.getComputePartition(storagePartition);
             splits.add(new MappedFileSplit(computePartition.getNodeId(), f.getPath(), 0));

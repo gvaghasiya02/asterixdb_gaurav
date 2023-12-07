@@ -28,6 +28,7 @@ import org.apache.commons.lang3.SystemUtils;
  */
 public class MetadataConstants {
 
+    public static final int DB_SCOPE_PARTS_COUNT = 1;
     public static final int METADATA_OBJECT_NAME_LENGTH_LIMIT_UTF8 = 251;
     public static final int DATAVERSE_NAME_TOTAL_LENGTH_LIMIT_UTF8 = METADATA_OBJECT_NAME_LENGTH_LIMIT_UTF8 * 4;
     public static final Pattern METADATA_OBJECT_NAME_INVALID_CHARS =
@@ -39,6 +40,13 @@ public class MetadataConstants {
 
     // Name of the dataverse the metadata lives in.
     public static final DataverseName METADATA_DATAVERSE_NAME = DataverseName.createBuiltinDataverseName("Metadata");
+
+    // Name of the pre-defined default dataverse
+    public static final DataverseName DEFAULT_DATAVERSE_NAME = DataverseName.createBuiltinDataverseName("Default");
+
+    public static final Namespace METADATA_NAMESPACE = new Namespace(SYSTEM_DATABASE, METADATA_DATAVERSE_NAME);
+    public static final Namespace DEFAULT_NAMESPACE = new Namespace(DEFAULT_DATABASE, DEFAULT_DATAVERSE_NAME);
+
     // Name of the node group where metadata is stored on.
     public static final String METADATA_NODEGROUP_NAME = "MetadataGroup";
 

@@ -148,9 +148,8 @@ public class DatasetRewriter implements IFunctionToDataSourceRewriter, IResultTy
         AbstractFunctionCallExpression datasetFnCall = (AbstractFunctionCallExpression) expression;
         MetadataProvider metadata = (MetadataProvider) mp;
         Dataset dataset = fetchDataset(metadata, datasetFnCall);
-        String itemTypeDatabase = MetadataUtil.resolveDatabase(null, dataset.getItemTypeDataverseName());
-        IAType type =
-                metadata.findType(itemTypeDatabase, dataset.getItemTypeDataverseName(), dataset.getItemTypeName());
+        IAType type = metadata.findType(dataset.getItemTypeDatabaseName(), dataset.getItemTypeDataverseName(),
+                dataset.getItemTypeName());
         if (type == null) {
             throw new CompilationException(ErrorCode.COMPILATION_ERROR, datasetFnCall.getSourceLocation(),
                     "No type for " + dataset() + " " + dataset.getDatasetName());
@@ -162,7 +161,7 @@ public class DatasetRewriter implements IFunctionToDataSourceRewriter, IResultTy
             throws CompilationException {
         DatasetFullyQualifiedName datasetReference = FunctionUtil.parseDatasetFunctionArguments(datasetFnCall);
         DataverseName dataverseName = datasetReference.getDataverseName();
-        String database = MetadataUtil.resolveDatabase(null, dataverseName);
+        String database = datasetReference.getDatabaseName();
         String datasetName = datasetReference.getDatasetName();
         Dataset dataset;
         try {
@@ -175,7 +174,8 @@ public class DatasetRewriter implements IFunctionToDataSourceRewriter, IResultTy
         }
         if (dataset == null) {
             throw new CompilationException(ErrorCode.UNKNOWN_DATASET_IN_DATAVERSE, datasetFnCall.getSourceLocation(),
-                    datasetName, dataverseName);
+                    datasetName,
+                    MetadataUtil.dataverseName(database, dataverseName, metadataProvider.isUsingDatabase()));
         }
         return dataset;
     }

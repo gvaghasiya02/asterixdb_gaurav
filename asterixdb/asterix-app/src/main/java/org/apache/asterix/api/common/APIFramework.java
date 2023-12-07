@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +71,7 @@ import org.apache.asterix.om.base.IAObject;
 import org.apache.asterix.optimizer.base.AsterixOptimizationContext;
 import org.apache.asterix.runtime.job.listener.JobEventListenerFactory;
 import org.apache.asterix.translator.CompiledStatements.ICompiledDmlStatement;
+import org.apache.asterix.translator.CompiledStatements.ICompiledStatement;
 import org.apache.asterix.translator.ExecutionPlans;
 import org.apache.asterix.translator.IRequestParameters;
 import org.apache.asterix.translator.ResultMetadata;
@@ -107,6 +109,7 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.exceptions.HyracksException;
 import org.apache.hyracks.api.exceptions.IWarningCollector;
 import org.apache.hyracks.api.exceptions.SourceLocation;
+import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.api.job.JobSpecification;
 import org.apache.hyracks.api.job.resource.IClusterCapacity;
@@ -202,15 +205,15 @@ public class APIFramework {
     }
 
     public JobSpecification compileQuery(IClusterInfoCollector clusterInfoCollector, MetadataProvider metadataProvider,
-            Query query, int varCounter, String outputDatasetName, SessionOutput output,
-            ICompiledDmlStatement statement, Map<VarIdentifier, IAObject> externalVars, IResponsePrinter printer,
-            IWarningCollector warningCollector, IRequestParameters requestParameters)
+            Query query, int varCounter, String outputDatasetName, SessionOutput output, ICompiledStatement statement,
+            Map<VarIdentifier, IAObject> externalVars, IResponsePrinter printer, IWarningCollector warningCollector,
+            IRequestParameters requestParameters, EnumSet<JobFlag> runtimeFlags)
             throws AlgebricksException, ACIDException {
 
         // establish facts
         final boolean isQuery = query != null;
         final boolean isLoad = statement != null && statement.getKind() == Statement.Kind.LOAD;
-        final boolean isCopy = statement != null && statement.getKind() == Statement.Kind.COPY;
+        final boolean isCopy = statement != null && statement.getKind() == Statement.Kind.COPY_FROM;
         final SourceLocation sourceLoc =
                 query != null ? query.getSourceLocation() : statement != null ? statement.getSourceLocation() : null;
         final boolean isExplainOnly = isQuery && query.isExplain();
@@ -226,7 +229,7 @@ public class APIFramework {
         ILangExpressionToPlanTranslator t =
                 translatorFactory.createExpressionToPlanTranslator(metadataProvider, varCounter, externalVars);
         ResultMetadata resultMetadata = new ResultMetadata(output.config().fmt());
-        ILogicalPlan plan = isLoad || isCopy ? t.translateCopyOrLoad(statement)
+        ILogicalPlan plan = isLoad || isCopy ? t.translateCopyOrLoad((ICompiledDmlStatement) statement)
                 : t.translate(query, outputDatasetName, statement, resultMetadata);
 
         ICcApplicationContext ccAppContext = metadataProvider.getApplicationContext();
@@ -326,19 +329,21 @@ public class APIFramework {
 
         JobEventListenerFactory jobEventListenerFactory =
                 new JobEventListenerFactory(txnId, metadataProvider.isWriteTransaction());
-        JobSpecification spec = compiler.createJob(ccAppContext, jobEventListenerFactory);
+        JobSpecification spec = compiler.createJob(ccAppContext, jobEventListenerFactory, runtimeFlags);
 
         if (isQuery) {
-            if (requestParameters == null || !requestParameters.isSkipAdmissionPolicy()) {
-                // Sets a required capacity, only for read-only queries.
-                // DDLs and DMLs are considered not that frequent.
-                // limit the computation locations to the locations that will be used in the query
-                final INodeJobTracker nodeJobTracker = ccAppContext.getNodeJobTracker();
-                final AlgebricksAbsolutePartitionConstraint jobLocations =
-                        getJobLocations(spec, nodeJobTracker, computationLocations);
-                final IClusterCapacity jobRequiredCapacity =
-                        ResourceUtils.getRequiredCapacity(plan, jobLocations, physOptConf);
-                spec.setRequiredClusterCapacity(jobRequiredCapacity);
+            if (!compiler.skipJobCapacityAssignment()) {
+                if (requestParameters == null || !requestParameters.isSkipAdmissionPolicy()) {
+                    // Sets a required capacity, only for read-only queries.
+                    // DDLs and DMLs are considered not that frequent.
+                    // limit the computation locations to the locations that will be used in the query
+                    final INodeJobTracker nodeJobTracker = ccAppContext.getNodeJobTracker();
+                    final AlgebricksAbsolutePartitionConstraint jobLocations =
+                            getJobLocations(spec, nodeJobTracker, computationLocations);
+                    final IClusterCapacity jobRequiredCapacity =
+                            ResourceUtils.getRequiredCapacity(plan, jobLocations, physOptConf);
+                    spec.setRequiredClusterCapacity(jobRequiredCapacity);
+                }
             }
         }
 
@@ -346,7 +351,10 @@ public class APIFramework {
             if (isQuery || isLoad || isCopy) {
                 generateOptimizedLogicalPlan(plan, spec.getLogical2PhysicalMap(), output.config().getPlanFormat(),
                         cboMode);
-                lastPlan = new PlanInfo(plan, spec.getLogical2PhysicalMap(), cboMode, output.config().getPlanFormat());
+                if (runtimeFlags.contains(JobFlag.PROFILE_RUNTIME)) {
+                    lastPlan =
+                            new PlanInfo(plan, spec.getLogical2PhysicalMap(), cboMode, output.config().getPlanFormat());
+                }
             }
         }
 
@@ -401,8 +409,9 @@ public class APIFramework {
                 : PlanPrettyPrinter.createStringPlanPrettyPrinter();
     }
 
-    private byte getStatementCategory(Query query, ICompiledDmlStatement statement) {
-        return statement != null ? statement.getCategory()
+    private byte getStatementCategory(Query query, ICompiledStatement statement) {
+        return statement != null && statement.getKind() != Statement.Kind.COPY_TO
+                ? ((ICompiledDmlStatement) statement).getCategory()
                 : query != null ? Statement.Category.QUERY : Statement.Category.DDL;
     }
 

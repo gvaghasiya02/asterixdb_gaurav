@@ -27,8 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.apache.asterix.app.result.ResponsePrinter;
-import org.apache.asterix.app.translator.DefaultStatementExecutorFactory;
 import org.apache.asterix.common.cluster.PartitioningProperties;
 import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.common.dataflow.LSMTreeInsertDeleteOperatorDescriptor;
@@ -36,8 +34,8 @@ import org.apache.asterix.common.exceptions.ACIDException;
 import org.apache.asterix.common.exceptions.CompilationException;
 import org.apache.asterix.common.functions.FunctionSignature;
 import org.apache.asterix.common.metadata.DataverseName;
+import org.apache.asterix.common.metadata.Namespace;
 import org.apache.asterix.common.transactions.TxnId;
-import org.apache.asterix.compiler.provider.SqlppCompilationProvider;
 import org.apache.asterix.external.api.ITypedAdapterFactory;
 import org.apache.asterix.external.feed.management.FeedConnectionId;
 import org.apache.asterix.external.feed.policy.FeedPolicyAccessor;
@@ -47,7 +45,6 @@ import org.apache.asterix.external.operators.FeedIntakeOperatorDescriptor;
 import org.apache.asterix.external.operators.FeedMetaOperatorDescriptor;
 import org.apache.asterix.external.util.ExternalDataUtils;
 import org.apache.asterix.external.util.FeedUtils.FeedRuntimeType;
-import org.apache.asterix.file.StorageComponentProvider;
 import org.apache.asterix.lang.common.base.Expression;
 import org.apache.asterix.lang.common.base.IParser;
 import org.apache.asterix.lang.common.base.IParserFactory;
@@ -85,7 +82,6 @@ import org.apache.asterix.runtime.job.listener.MultiTransactionJobletEventListen
 import org.apache.asterix.runtime.utils.RuntimeUtils;
 import org.apache.asterix.translator.CompiledStatements;
 import org.apache.asterix.translator.IStatementExecutor;
-import org.apache.asterix.translator.SessionOutput;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksAbsolutePartitionConstraint;
@@ -178,13 +174,14 @@ public class FeedOperations {
         return argExprs;
     }
 
-    private static Query makeConnectionQuery(FeedConnection feedConnection) throws AlgebricksException {
+    private static Query makeConnectionQuery(FeedConnection feedConnection, MetadataProvider md)
+            throws AlgebricksException {
         // Construct from clause
         VarIdentifier fromVarId = SqlppVariableUtil.toInternalVariableIdentifier(feedConnection.getFeedName());
         VariableExpr fromTermLeftExpr = new VariableExpr(fromVarId);
         // TODO: remove target feedid from args list (xikui)
         // TODO: Get rid of this INTAKE
-        List<Expression> exprList = addArgs(feedConnection.getDataverseName(),
+        List<Expression> exprList = addArgs(feedConnection.getDatabaseName(), feedConnection.getDataverseName(),
                 feedConnection.getFeedId().getEntityName(), feedConnection.getFeedId().getEntityName(),
                 FeedRuntimeType.INTAKE.toString(), feedConnection.getDatasetName(), feedConnection.getOutputType());
         CallExpr datasrouceCallFunction = new CallExpr(new FunctionSignature(BuiltinFunctions.FEED_COLLECT), exprList);
@@ -193,7 +190,7 @@ public class FeedOperations {
         WhereClause whereClause = null;
         if (feedConnection.getWhereClauseBody().length() != 0) {
             String whereClauseExpr = feedConnection.getWhereClauseBody() + ";";
-            IParserFactory sqlppParserFactory = new SqlppParserFactory();
+            IParserFactory sqlppParserFactory = new SqlppParserFactory(md.getNamespaceResolver());
             IParser sqlppParser = sqlppParserFactory.createParser(whereClauseExpr);
             List<Statement> stmts = sqlppParser.parse();
             if (stmts.size() != 1) {
@@ -224,17 +221,19 @@ public class FeedOperations {
             IStatementExecutor statementExecutor, IHyracksClientConnection hcc, Boolean insertFeed)
             throws AlgebricksException, RemoteException, ACIDException {
         metadataProvider.getConfig().put(FeedActivityDetails.FEED_POLICY_NAME, feedConn.getPolicyName());
-        Query feedConnQuery = makeConnectionQuery(feedConn);
+        Query feedConnQuery = makeConnectionQuery(feedConn, metadataProvider);
         CompiledStatements.ICompiledDmlStatement clfrqs;
+        String feedDatabaseName = feedConn.getDatabaseName();
+        DataverseName feedDataverseName = feedConn.getDataverseName();
         if (insertFeed) {
-            InsertStatement stmtUpsert = new InsertStatement(feedConn.getDataverseName(), feedConn.getDatasetName(),
-                    feedConnQuery, -1, null, null);
-            clfrqs = new CompiledStatements.CompiledInsertStatement(feedConn.getDataverseName(),
+            InsertStatement stmtUpsert = new InsertStatement(new Namespace(feedDatabaseName, feedDataverseName),
+                    feedConn.getDatasetName(), feedConnQuery, -1, null, null);
+            clfrqs = new CompiledStatements.CompiledInsertStatement(feedDatabaseName, feedDataverseName,
                     feedConn.getDatasetName(), feedConnQuery, stmtUpsert.getVarCounter(), null, null);
         } else {
-            UpsertStatement stmtUpsert = new UpsertStatement(feedConn.getDataverseName(), feedConn.getDatasetName(),
-                    feedConnQuery, -1, null, null);
-            clfrqs = new CompiledStatements.CompiledUpsertStatement(feedConn.getDataverseName(),
+            UpsertStatement stmtUpsert = new UpsertStatement(new Namespace(feedDatabaseName, feedDataverseName),
+                    feedConn.getDatasetName(), feedConnQuery, -1, null, null);
+            clfrqs = new CompiledStatements.CompiledUpsertStatement(feedDatabaseName, feedDataverseName,
                     feedConn.getDatasetName(), feedConnQuery, stmtUpsert.getVarCounter(), null, null);
         }
         return statementExecutor.rewriteCompileQuery(hcc, metadataProvider, feedConnQuery, clfrqs, null, null);
@@ -419,15 +418,6 @@ public class FeedOperations {
         // connectorAssignmentPolicy
         jobSpec.setConnectorPolicyAssignmentPolicy(jobsList.get(0).getConnectorPolicyAssignmentPolicy());
         return jobSpec;
-    }
-
-    private static IStatementExecutor getSQLPPTranslator(MetadataProvider metadataProvider,
-            SessionOutput sessionOutput) {
-        List<Statement> stmts = new ArrayList<>();
-        DefaultStatementExecutorFactory qtFactory = new DefaultStatementExecutorFactory();
-        IStatementExecutor translator = qtFactory.create(metadataProvider.getApplicationContext(), stmts, sessionOutput,
-                new SqlppCompilationProvider(), new StorageComponentProvider(), new ResponsePrinter(sessionOutput));
-        return translator;
     }
 
     public static Pair<JobSpecification, AlgebricksAbsolutePartitionConstraint> buildStartFeedJob(

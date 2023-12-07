@@ -22,7 +22,6 @@ import static org.apache.asterix.common.api.IIdentifierMapper.Modifier.PLURAL;
 import static org.apache.asterix.common.metadata.MetadataConstants.METADATA_OBJECT_NAME_INVALID_CHARS;
 import static org.apache.asterix.common.utils.IdentifierUtil.dataset;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -32,6 +31,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.apache.asterix.common.api.INamespaceResolver;
 import org.apache.asterix.common.cluster.PartitioningProperties;
 import org.apache.asterix.common.config.DatasetConfig.DatasetType;
 import org.apache.asterix.common.config.DatasetConfig.IndexType;
@@ -49,6 +49,7 @@ import org.apache.asterix.common.metadata.DataverseName;
 import org.apache.asterix.common.metadata.LockList;
 import org.apache.asterix.common.metadata.MetadataConstants;
 import org.apache.asterix.common.metadata.MetadataUtil;
+import org.apache.asterix.common.metadata.Namespace;
 import org.apache.asterix.common.storage.ICompressionManager;
 import org.apache.asterix.common.transactions.ITxnIdFactory;
 import org.apache.asterix.common.transactions.TxnId;
@@ -70,7 +71,6 @@ import org.apache.asterix.formats.nontagged.TypeTraitProvider;
 import org.apache.asterix.metadata.MetadataManager;
 import org.apache.asterix.metadata.MetadataTransactionContext;
 import org.apache.asterix.metadata.api.ICCExtensionManager;
-import org.apache.asterix.metadata.bootstrap.MetadataBuiltinEntities;
 import org.apache.asterix.metadata.dataset.hints.DatasetHints.DatasetCardinalityHint;
 import org.apache.asterix.metadata.entities.Dataset;
 import org.apache.asterix.metadata.entities.DatasourceAdapter;
@@ -85,6 +85,7 @@ import org.apache.asterix.metadata.entities.Function;
 import org.apache.asterix.metadata.entities.Index;
 import org.apache.asterix.metadata.entities.Synonym;
 import org.apache.asterix.metadata.feeds.FeedMetadataUtil;
+import org.apache.asterix.metadata.provider.ExternalWriterProvider;
 import org.apache.asterix.metadata.utils.DataPartitioningProvider;
 import org.apache.asterix.metadata.utils.DatasetUtil;
 import org.apache.asterix.metadata.utils.FullTextUtil;
@@ -95,6 +96,7 @@ import org.apache.asterix.om.functions.IFunctionManager;
 import org.apache.asterix.om.types.ARecordType;
 import org.apache.asterix.om.types.ATypeTag;
 import org.apache.asterix.om.types.IAType;
+import org.apache.asterix.om.utils.ConstantExpressionUtil;
 import org.apache.asterix.om.utils.NonTaggedFormatUtil;
 import org.apache.asterix.runtime.base.AsterixTupleFilterFactory;
 import org.apache.asterix.runtime.formats.FormatUtils;
@@ -104,10 +106,14 @@ import org.apache.asterix.runtime.operators.LSMPrimaryInsertOperatorDescriptor;
 import org.apache.asterix.runtime.operators.LSMSecondaryInsertDeleteWithNestedPlanOperatorDescriptor;
 import org.apache.asterix.runtime.operators.LSMSecondaryUpsertOperatorDescriptor;
 import org.apache.asterix.runtime.operators.LSMSecondaryUpsertWithNestedPlanOperatorDescriptor;
+import org.apache.asterix.runtime.writer.ExternalWriterFactory;
+import org.apache.asterix.runtime.writer.IExternalFilePrinterFactory;
+import org.apache.asterix.runtime.writer.IExternalFileWriterFactory;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksAbsolutePartitionConstraint;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksPartitionConstraint;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.utils.Pair;
+import org.apache.hyracks.algebricks.common.utils.Quadruple;
 import org.apache.hyracks.algebricks.common.utils.Triple;
 import org.apache.hyracks.algebricks.core.algebra.base.Counter;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalExpression;
@@ -121,6 +127,7 @@ import org.apache.hyracks.algebricks.core.algebra.metadata.IDataSource;
 import org.apache.hyracks.algebricks.core.algebra.metadata.IDataSourceIndex;
 import org.apache.hyracks.algebricks.core.algebra.metadata.IMetadataProvider;
 import org.apache.hyracks.algebricks.core.algebra.metadata.IProjectionFiltrationInfo;
+import org.apache.hyracks.algebricks.core.algebra.metadata.IWriteDataSink;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.IOperatorSchema;
 import org.apache.hyracks.algebricks.core.algebra.properties.INodeDomain;
 import org.apache.hyracks.algebricks.core.jobgen.impl.JobGenContext;
@@ -132,8 +139,9 @@ import org.apache.hyracks.algebricks.data.ISerializerDeserializerProvider;
 import org.apache.hyracks.algebricks.runtime.base.AlgebricksPipeline;
 import org.apache.hyracks.algebricks.runtime.base.IPushRuntimeFactory;
 import org.apache.hyracks.algebricks.runtime.base.IScalarEvaluatorFactory;
-import org.apache.hyracks.algebricks.runtime.operators.std.SinkWriterRuntimeFactory;
+import org.apache.hyracks.algebricks.runtime.operators.writer.SinkExternalWriterRuntimeFactory;
 import org.apache.hyracks.api.dataflow.IOperatorDescriptor;
+import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.IBinaryHashFunctionFactory;
 import org.apache.hyracks.api.dataflow.value.ILinearizeComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.IMissingWriterFactory;
@@ -177,7 +185,7 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
     private final LockList locks;
     private final Map<String, Object> config;
 
-    private Dataverse defaultDataverse;
+    private Namespace defaultNamespace;
     private MetadataTransactionContext mdTxnCtx;
     private boolean isWriteTransaction;
     private FileSplit outputFile;
@@ -189,24 +197,35 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
     private boolean blockingOperatorDisabled = false;
 
     private final DataPartitioningProvider dataPartitioningProvider;
+    private final INamespaceResolver namespaceResolver;
     private IDataFormat dataFormat = FormatUtils.getDefaultFormat();
 
-    public static MetadataProvider create(ICcApplicationContext appCtx, Dataverse defaultDataverse) {
+    public static MetadataProvider createWithDefaultNamespace(ICcApplicationContext appCtx) {
         java.util.function.Function<ICcApplicationContext, IMetadataProvider<?, ?>> factory =
                 ((ICCExtensionManager) appCtx.getExtensionManager()).getMetadataProviderFactory();
         MetadataProvider mp = factory != null ? (MetadataProvider) factory.apply(appCtx) : new MetadataProvider(appCtx);
-        mp.setDefaultDataverse(defaultDataverse);
+        mp.setDefaultNamespace(MetadataConstants.DEFAULT_NAMESPACE);
+        return mp;
+    }
+
+    public static MetadataProvider create(ICcApplicationContext appCtx, Namespace defaultNamespace) {
+        java.util.function.Function<ICcApplicationContext, IMetadataProvider<?, ?>> factory =
+                ((ICCExtensionManager) appCtx.getExtensionManager()).getMetadataProviderFactory();
+        MetadataProvider mp = factory != null ? (MetadataProvider) factory.apply(appCtx) : new MetadataProvider(appCtx);
+        mp.setDefaultNamespace(defaultNamespace);
         return mp;
     }
 
     protected MetadataProvider(ICcApplicationContext appCtx) {
         this.appCtx = appCtx;
         this.storageComponentProvider = appCtx.getStorageComponentProvider();
+        namespaceResolver = appCtx.getNamespaceResolver();
         storageProperties = appCtx.getStorageProperties();
         functionManager = ((IFunctionExtensionManager) appCtx.getExtensionManager()).getFunctionManager();
         dataPartitioningProvider = (DataPartitioningProvider) appCtx.getDataPartitioningProvider();
         locks = new LockList();
         config = new HashMap<>();
+        setDefaultNamespace(MetadataConstants.DEFAULT_NAMESPACE);
     }
 
     @SuppressWarnings("unchecked")
@@ -246,16 +265,12 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         this.txnId = txnId;
     }
 
-    public void setDefaultDataverse(Dataverse defaultDataverse) {
-        this.defaultDataverse = defaultDataverse == null ? MetadataBuiltinEntities.DEFAULT_DATAVERSE : defaultDataverse;
+    public void setDefaultNamespace(Namespace namespace) {
+        this.defaultNamespace = namespace == null ? MetadataConstants.DEFAULT_NAMESPACE : namespace;
     }
 
-    public Dataverse getDefaultDataverse() {
-        return defaultDataverse;
-    }
-
-    public DataverseName getDefaultDataverseName() {
-        return defaultDataverse.getDataverseName();
+    public Namespace getDefaultNamespace() {
+        return defaultNamespace;
     }
 
     public void setWriteTransaction(boolean writeTransaction) {
@@ -327,21 +342,28 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         this.dataFormat = dataFormat;
     }
 
-    public StorageProperties getStorageProperties() {
-        return storageProperties;
+    public INamespaceResolver getNamespaceResolver() {
+        return namespaceResolver;
     }
 
-    private DataverseName getActiveDataverseName(DataverseName dataverseName) {
-        return dataverseName != null ? dataverseName
-                : defaultDataverse != null ? defaultDataverse.getDataverseName() : null;
+    public boolean isUsingDatabase() {
+        return namespaceResolver.isUsingDatabase();
+    }
+
+    public StorageProperties getStorageProperties() {
+        return storageProperties;
     }
 
     /**
      * Retrieve the Output RecordType, as defined by "set output-record-type".
      */
     public ARecordType findOutputRecordType() throws AlgebricksException {
-        String database = defaultDataverse == null ? null : defaultDataverse.getDatabaseName();
-        DataverseName dataverseName = defaultDataverse == null ? null : defaultDataverse.getDataverseName();
+        String database = null;
+        DataverseName dataverseName = null;
+        if (defaultNamespace != null) {
+            database = defaultNamespace.getDatabaseName();
+            dataverseName = defaultNamespace.getDataverseName();
+        }
         return MetadataManagerUtil.findOutputRecordType(mdTxnCtx, database, dataverseName,
                 getProperty("output-record-type"));
     }
@@ -356,16 +378,17 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         String dbName = database;
         DataverseName dvName = dataverseName;
         if (dbName == null && dvName == null) {
-            if (defaultDataverse == null) {
+            if (defaultNamespace == null) {
                 return null;
             }
-            dbName = defaultDataverse.getDatabaseName();
-            dvName = defaultDataverse.getDataverseName();
+            dbName = defaultNamespace.getDatabaseName();
+            dvName = defaultNamespace.getDataverseName();
         } else if (dbName == null || dvName == null) {
             return null;
         }
-        appCtx.getMetadataLockManager().acquireDataverseReadLock(locks, dvName);
-        appCtx.getMetadataLockManager().acquireDatasetReadLock(locks, dvName, datasetName);
+        //TODO(DB): read lock on database
+        appCtx.getMetadataLockManager().acquireDataverseReadLock(locks, dbName, dvName);
+        appCtx.getMetadataLockManager().acquireDatasetReadLock(locks, dbName, dvName, datasetName);
         return MetadataManagerUtil.findDataset(mdTxnCtx, dbName, dvName, datasetName, includingViews);
     }
 
@@ -392,13 +415,13 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
     }
 
     public IAType findType(Dataset dataset) throws AlgebricksException {
-        String typeDatabase = MetadataUtil.resolveDatabase(null, dataset.getItemTypeDataverseName());
-        return findType(typeDatabase, dataset.getItemTypeDataverseName(), dataset.getItemTypeName());
+        return findType(dataset.getItemTypeDatabaseName(), dataset.getItemTypeDataverseName(),
+                dataset.getItemTypeName());
     }
 
     public IAType findMetaType(Dataset dataset) throws AlgebricksException {
-        String metaTypeDatabase = MetadataUtil.resolveDatabase(null, dataset.getMetaItemTypeDataverseName());
-        return findType(metaTypeDatabase, dataset.getMetaItemTypeDataverseName(), dataset.getMetaItemTypeName());
+        return findType(dataset.getMetaItemTypeDatabaseName(), dataset.getMetaItemTypeDataverseName(),
+                dataset.getMetaItemTypeName());
     }
 
     public Feed findFeed(String database, DataverseName dataverseName, String feedName) throws AlgebricksException {
@@ -447,9 +470,9 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         return MetadataManagerUtil.getDatasetIndexes(mdTxnCtx, database, dataverseName, datasetName);
     }
 
-    public Index findSampleIndex(DataverseName dataverseName, String datasetName) throws AlgebricksException {
+    public Index findSampleIndex(String database, DataverseName dataverseName, String datasetName)
+            throws AlgebricksException {
         Pair<String, String> sampleIndexNames = IndexUtil.getSampleIndexNames(datasetName);
-        String database = MetadataUtil.resolveDatabase(null, dataverseName);
         Index sampleIndex = getIndex(database, dataverseName, datasetName, sampleIndexNames.first);
         if (sampleIndex != null && sampleIndex.getPendingOp() == MetadataUtil.PENDING_NO_OP) {
             return sampleIndex;
@@ -458,16 +481,16 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         return sampleIndex != null && sampleIndex.getPendingOp() == MetadataUtil.PENDING_NO_OP ? sampleIndex : null;
     }
 
-    public Triple<DataverseName, String, Boolean> resolveDatasetNameUsingSynonyms(String database,
+    public Quadruple<DataverseName, String, Boolean, String> resolveDatasetNameUsingSynonyms(String databaseName,
             DataverseName dataverseName, String datasetName, boolean includingViews) throws AlgebricksException {
-        String dbName = database;
+        String dbName = databaseName;
         DataverseName dvName = dataverseName;
         if (dbName == null && dvName == null) {
-            if (defaultDataverse == null) {
+            if (defaultNamespace == null) {
                 return null;
             }
-            dbName = defaultDataverse.getDatabaseName();
-            dvName = defaultDataverse.getDataverseName();
+            dbName = defaultNamespace.getDatabaseName();
+            dvName = defaultNamespace.getDataverseName();
         } else if (dbName == null || dvName == null) {
             return null;
         }
@@ -477,11 +500,11 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
             if (synonym == null) {
                 return null;
             }
-            //TODO(DB): object database
+            dbName = synonym.getObjectDatabaseName();
             dvName = synonym.getObjectDataverseName();
             datasetName = synonym.getObjectName();
         }
-        return new Triple<>(dvName, datasetName, synonym != null);
+        return new Quadruple<>(dvName, datasetName, synonym != null, dbName);
     }
 
     public Synonym findSynonym(String database, DataverseName dataverseName, String synonymName)
@@ -687,9 +710,8 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         byte[] successValueForIndexOnlyPlan = null;
         byte[] failValueForIndexOnlyPlan = null;
         if (isIndexOnlyPlan) {
-            String itemTypeDatabase = MetadataUtil.resolveDatabase(null, dataset.getItemTypeDataverseName());
-            ARecordType recType = (ARecordType) findType(itemTypeDatabase, dataset.getItemTypeDataverseName(),
-                    dataset.getItemTypeName());
+            ARecordType recType = (ARecordType) findType(dataset.getItemTypeDatabaseName(),
+                    dataset.getItemTypeDataverseName(), dataset.getItemTypeName());
             List<List<String>> secondaryKeyFields = secondaryIndexDetails.getKeyFieldNames();
             List<IAType> secondaryKeyTypes = secondaryIndexDetails.getKeyFieldTypes();
             Pair<IAType, Boolean> keyTypePair = Index.getNonNullableOpenFieldType(secondaryIndex,
@@ -728,19 +750,23 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
     }
 
     @Override
-    public Pair<IPushRuntimeFactory, AlgebricksPartitionConstraint> getWriteFileRuntime(IDataSink sink,
-            int[] printColumns, IPrinterFactory[] printerFactories, IAWriterFactory writerFactory,
-            RecordDescriptor inputDesc) {
-        FileSplitDataSink fsds = (FileSplitDataSink) sink;
-        FileSplitSinkId fssi = fsds.getId();
-        FileSplit fs = fssi.getFileSplit();
-        File outFile = new File(fs.getPath());
-        String nodeId = fs.getNodeName();
-
-        SinkWriterRuntimeFactory runtime =
-                new SinkWriterRuntimeFactory(printColumns, printerFactories, outFile, writerFactory, inputDesc);
-        AlgebricksPartitionConstraint apc = new AlgebricksAbsolutePartitionConstraint(new String[] { nodeId });
-        return new Pair<>(runtime, apc);
+    public Pair<IPushRuntimeFactory, AlgebricksPartitionConstraint> getWriteFileRuntime(int sourceColumn,
+            int[] partitionColumns, IBinaryComparatorFactory[] partitionComparatorFactories,
+            IScalarEvaluatorFactory dynamicPathEvalFactory, ILogicalExpression staticPathExpr,
+            SourceLocation pathSourceLocation, IWriteDataSink sink, RecordDescriptor inputDesc, Object sourceType)
+            throws AlgebricksException {
+        String staticPath = staticPathExpr != null ? ConstantExpressionUtil.getStringConstant(staticPathExpr) : null;
+        IExternalFileWriterFactory fileWriterFactory =
+                ExternalWriterProvider.createWriterFactory(appCtx, sink, staticPath, pathSourceLocation);
+        fileWriterFactory.validate();
+        String fileExtension = ExternalWriterProvider.getFileExtension(sink);
+        int maxResult = ExternalWriterProvider.getMaxResult(sink);
+        IExternalFilePrinterFactory printerFactory = ExternalWriterProvider.createPrinter(sink, sourceType);
+        ExternalWriterFactory writerFactory = new ExternalWriterFactory(fileWriterFactory, printerFactory,
+                fileExtension, maxResult, dynamicPathEvalFactory, staticPath, pathSourceLocation);
+        SinkExternalWriterRuntimeFactory runtime = new SinkExternalWriterRuntimeFactory(sourceColumn, partitionColumns,
+                partitionComparatorFactories, inputDesc, writerFactory);
+        return new Pair<>(runtime, null);
     }
 
     @Override
@@ -791,10 +817,11 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
             JobSpecification spec) throws AlgebricksException {
         DataverseName dataverseName = dataSource.getId().getDataverseName();
         String datasetName = dataSource.getId().getDatasourceName();
-        String database = MetadataUtil.resolveDatabase(null, dataverseName);
+        String database = dataSource.getId().getDatabaseName();
         Dataset dataset = findDataset(database, dataverseName, datasetName);
         if (dataset == null) {
-            throw new AsterixException(ErrorCode.UNKNOWN_DATASET_IN_DATAVERSE, datasetName, dataverseName);
+            throw new AsterixException(ErrorCode.UNKNOWN_DATASET_IN_DATAVERSE, datasetName,
+                    MetadataUtil.dataverseName(database, dataverseName, isUsingDatabase()));
         }
         int numKeys = primaryKeys.size();
         int numFilterFields = DatasetUtil.getFilterField(dataset) == null ? 0 : 1;
@@ -882,7 +909,7 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         String indexName = dataSourceIndex.getId();
         DataverseName dataverseName = dataSourceIndex.getDataSource().getId().getDataverseName();
         String datasetName = dataSourceIndex.getDataSource().getId().getDatasourceName();
-        String database = MetadataUtil.resolveDatabase(null, dataverseName);
+        String database = dataSourceIndex.getDataSource().getId().getDatabaseName();
 
         IOperatorSchema inputSchema;
         if (inputSchemas.length > 0) {
@@ -934,6 +961,7 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
             Map<String, String> configuration, ARecordType itemType, IWarningCollector warningCollector,
             IExternalFilterEvaluatorFactory filterEvaluatorFactory) throws AlgebricksException {
         try {
+            configuration.put(ExternalDataConstants.KEY_DATABASE_DATAVERSE, dataset.getDatabaseName());
             configuration.put(ExternalDataConstants.KEY_DATASET_DATAVERSE,
                     dataset.getDataverseName().getCanonicalForm());
             return AdapterFactoryProvider.getAdapterFactory(getApplicationContext().getServiceContext(), adapterName,
@@ -953,8 +981,12 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
                 numKeyFields / 2);
     }
 
-    public PartitioningProperties splitAndConstraints(DataverseName dataverseName) {
-        return dataPartitioningProvider.getPartitioningProperties(dataverseName);
+    public PartitioningProperties splitAndConstraints(String databaseName) {
+        return dataPartitioningProvider.getPartitioningProperties(databaseName);
+    }
+
+    public PartitioningProperties splitAndConstraints(String databaseName, DataverseName dataverseName) {
+        return dataPartitioningProvider.getPartitioningProperties(databaseName, dataverseName);
     }
 
     public FileSplit[] splitsForIndex(MetadataTransactionContext mdTxnCtx, Dataset dataset, String indexName)
@@ -1028,8 +1060,7 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
             List<LogicalVariable> additionalNonFilteringFields) throws AlgebricksException {
 
         String datasetName = dataSource.getId().getDatasourceName();
-        String database = MetadataUtil.resolveDatabase(null, dataSource.getId().getDataverseName());
-        Dataset dataset = MetadataManagerUtil.findExistingDataset(mdTxnCtx, database,
+        Dataset dataset = MetadataManagerUtil.findExistingDataset(mdTxnCtx, dataSource.getId().getDatabaseName(),
                 dataSource.getId().getDataverseName(), datasetName);
         int numKeys = keys.size();
         int numFilterFields = DatasetUtil.getFilterField(dataset) == null ? 0 : 1;
@@ -1146,7 +1177,7 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
             throws AlgebricksException {
         String indexName = dataSourceIndex.getId();
         DataverseName dataverseName = dataSourceIndex.getDataSource().getId().getDataverseName();
-        String database = MetadataUtil.resolveDatabase(null, dataverseName);
+        String database = dataSourceIndex.getDataSource().getId().getDatabaseName();
         String datasetName = dataSourceIndex.getDataSource().getId().getDatasourceName();
 
         Dataset dataset = MetadataManagerUtil.findExistingDataset(mdTxnCtx, database, dataverseName, datasetName);
@@ -1382,10 +1413,8 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
             throws AlgebricksException {
         Dataset dataset = MetadataManagerUtil.findExistingDataset(mdTxnCtx, database, dataverseName, datasetName);
         String itemTypeName = dataset.getItemTypeName();
-        String itemTypeDatabase = MetadataUtil.resolveDatabase(null, dataset.getItemTypeDataverseName());
-        IAType itemType = MetadataManager.INSTANCE
-                .getDatatype(mdTxnCtx, itemTypeDatabase, dataset.getItemTypeDataverseName(), itemTypeName)
-                .getDatatype();
+        IAType itemType = MetadataManager.INSTANCE.getDatatype(mdTxnCtx, dataset.getItemTypeDatabaseName(),
+                dataset.getItemTypeDataverseName(), itemTypeName).getDatatype();
         validateRecordType(itemType);
         ARecordType recType = (ARecordType) itemType;
         Index secondaryIndex = MetadataManager.INSTANCE.getIndex(mdTxnCtx, dataset.getDatabaseName(),
@@ -1692,10 +1721,8 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         String itemTypeName = dataset.getItemTypeName();
         IAType itemType;
         try {
-            String itemTypeDatabase = MetadataUtil.resolveDatabase(null, dataset.getItemTypeDataverseName());
-            itemType = MetadataManager.INSTANCE
-                    .getDatatype(mdTxnCtx, itemTypeDatabase, dataset.getItemTypeDataverseName(), itemTypeName)
-                    .getDatatype();
+            itemType = MetadataManager.INSTANCE.getDatatype(mdTxnCtx, dataset.getItemTypeDatabaseName(),
+                    dataset.getItemTypeDataverseName(), itemTypeName).getDatatype();
 
             if (itemType.getTypeTag() != ATypeTag.OBJECT) {
                 throw new AlgebricksException("Only record types can be tokenized.");
@@ -1817,6 +1844,10 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         return storageComponentProvider;
     }
 
+    public Namespace resolve(List<String> multiIdent) throws AsterixException {
+        return namespaceResolver.resolve(multiIdent);
+    }
+
     public PartitioningProperties getPartitioningProperties(Index idx) throws AlgebricksException {
         Dataset ds = findDataset(idx.getDatabaseName(), idx.getDataverseName(), idx.getDatasetName());
         return getPartitioningProperties(ds, idx.getIndexName());
@@ -1855,13 +1886,28 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         return appCtx.getCompressionManager();
     }
 
+    public void validateNamespaceName(Namespace namespace, SourceLocation srcLoc) throws AlgebricksException {
+        validateDatabaseName(namespace.getDatabaseName(), srcLoc);
+        validateDataverseName(namespace.getDataverseName(), srcLoc);
+    }
+
+    public void validateDatabaseName(String databaseName, SourceLocation srcLoc) throws AlgebricksException {
+        validateDatabaseObjectNameImpl(databaseName, srcLoc);
+        validateChars(databaseName, srcLoc);
+    }
+
     public void validateDataverseName(DataverseName dataverseName, SourceLocation sourceLoc)
             throws AlgebricksException {
+        List<String> dvParts = dataverseName.getParts();
+        validatePartsLimit(dataverseName, dvParts, sourceLoc);
         int totalLengthUTF8 = 0;
-        for (String dvNamePart : dataverseName.getParts()) {
+        for (String dvNamePart : dvParts) {
             validateDatabaseObjectNameImpl(dvNamePart, sourceLoc);
             if (totalLengthUTF8 == 0 && StoragePathUtil.DATAVERSE_CONTINUATION_MARKER == dvNamePart.codePointAt(0)) {
                 throw new AsterixException(ErrorCode.INVALID_DATABASE_OBJECT_NAME, sourceLoc, dvNamePart);
+            }
+            if (namespaceResolver.isUsingDatabase()) {
+                validateChars(dvNamePart, sourceLoc);
             }
             totalLengthUTF8 += dvNamePart.getBytes(StandardCharsets.UTF_8).length;
         }
@@ -1876,10 +1922,10 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         return IndexUtil.createExternalFilterEvaluatorFactory(context, typeEnv, projectionFiltrationInfo, properties);
     }
 
-    public void validateDatabaseObjectName(DataverseName dataverseName, String objectName, SourceLocation sourceLoc)
+    public void validateDatabaseObjectName(Namespace namespace, String objectName, SourceLocation sourceLoc)
             throws AlgebricksException {
-        if (dataverseName != null) {
-            validateDataverseName(dataverseName, sourceLoc);
+        if (namespace != null) {
+            validateNamespaceName(namespace, sourceLoc);
         }
         validateDatabaseObjectNameImpl(objectName, sourceLoc);
     }
@@ -1894,6 +1940,25 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         int lengthUTF8 = name.getBytes(StandardCharsets.UTF_8).length;
         if (lengthUTF8 > MetadataConstants.METADATA_OBJECT_NAME_LENGTH_LIMIT_UTF8) {
             throw new AsterixException(ErrorCode.INVALID_DATABASE_OBJECT_NAME, sourceLoc, name);
+        }
+    }
+
+    private void validatePartsLimit(DataverseName dvName, List<String> parts, SourceLocation srcLoc)
+            throws AsterixException {
+        if (namespaceResolver.isUsingDatabase() && parts.size() != MetadataConstants.DB_SCOPE_PARTS_COUNT) {
+            throw new AsterixException(ErrorCode.INVALID_DATABASE_OBJECT_NAME, srcLoc, dvName);
+        }
+    }
+
+    private static void validateChars(String name, SourceLocation srcLoc) throws AsterixException {
+        for (int off = 0, len = name.length(); off < len;) {
+            int codePointChar = name.codePointAt(off);
+            if (!Character.isLetterOrDigit(codePointChar)) {
+                if (codePointChar != '_' && codePointChar != '-') {
+                    throw new AsterixException(ErrorCode.INVALID_DATABASE_OBJECT_NAME, srcLoc, name);
+                }
+            }
+            off += Character.charCount(codePointChar);
         }
     }
 }

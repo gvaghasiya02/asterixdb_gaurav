@@ -119,7 +119,7 @@ public abstract class ActiveEntityEventsListener implements IActiveEntityControl
         this.statementExecutor = statementExecutor;
         this.appCtx = appCtx;
         this.clusterStateManager = appCtx.getClusterStateManager();
-        this.metadataProvider = MetadataProvider.create(appCtx, null);
+        this.metadataProvider = MetadataProvider.createWithDefaultNamespace(appCtx);
         this.hcc = hcc;
         this.entityId = entityId;
         this.datasets = new HashSet<>(datasets);
@@ -691,7 +691,7 @@ public abstract class ActiveEntityEventsListener implements IActiveEntityControl
 
     @Override
     public synchronized void replace(Dataset dataset) {
-        if (getDatasets().contains(dataset)) {
+        if (getDatasets().remove(dataset)) {
             getDatasets().remove(dataset);
             getDatasets().add(dataset);
         }
@@ -718,7 +718,8 @@ public abstract class ActiveEntityEventsListener implements IActiveEntityControl
         IMetadataLockManager lockManager = metadataProvider.getApplicationContext().getMetadataLockManager();
         DataverseName dataverseName = entityId.getDataverseName();
         String entityName = entityId.getEntityName();
-        lockManager.acquireActiveEntityWriteLock(metadataProvider.getLocks(), dataverseName, entityName);
+        lockManager.acquireActiveEntityWriteLock(metadataProvider.getLocks(), entityId.getDatabaseName(), dataverseName,
+                entityName);
         acquireSuspendDatasetsLocks(metadataProvider, lockManager, targetDataset);
     }
 
@@ -729,8 +730,8 @@ public abstract class ActiveEntityEventsListener implements IActiveEntityControl
                 // DDL operation already acquired the proper lock for the operation
                 continue;
             }
-            lockManager.acquireDatasetExclusiveModificationLock(metadataProvider.getLocks(), dataset.getDataverseName(),
-                    dataset.getDatasetName());
+            lockManager.acquireDatasetExclusiveModificationLock(metadataProvider.getLocks(), dataset.getDatabaseName(),
+                    dataset.getDataverseName(), dataset.getDatasetName());
         }
     }
 

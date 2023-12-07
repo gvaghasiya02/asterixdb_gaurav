@@ -41,6 +41,9 @@ import java.util.stream.Collectors;
 import org.apache.asterix.common.config.GlobalConfig;
 import org.apache.asterix.common.functions.FunctionSignature;
 import org.apache.asterix.common.metadata.DataverseName;
+import org.apache.asterix.common.metadata.MetadataConstants;
+import org.apache.asterix.common.metadata.Namespace;
+import org.apache.asterix.common.metadata.NamespaceResolver;
 import org.apache.asterix.lang.common.base.IParser;
 import org.apache.asterix.lang.common.base.IParserFactory;
 import org.apache.asterix.lang.common.base.IQueryRewriter;
@@ -56,7 +59,6 @@ import org.apache.asterix.lang.sqlpp.parser.SqlppParserFactory;
 import org.apache.asterix.lang.sqlpp.rewrites.SqlppRewriterFactory;
 import org.apache.asterix.lang.sqlpp.util.SqlppAstPrintUtil;
 import org.apache.asterix.lang.sqlpp.util.SqlppRewriteUtil;
-import org.apache.asterix.metadata.bootstrap.MetadataBuiltinEntities;
 import org.apache.asterix.metadata.declared.MetadataProvider;
 import org.apache.asterix.metadata.entities.Dataset;
 import org.apache.asterix.metadata.entities.Dataverse;
@@ -78,7 +80,7 @@ import junit.extensions.PA;
 
 public class ParserTestExecutor extends TestExecutor {
 
-    private IParserFactory sqlppParserFactory = new SqlppParserFactory();
+    private IParserFactory sqlppParserFactory = new SqlppParserFactory(new NamespaceResolver(false));
     private IRewriterFactory sqlppRewriterFactory = new SqlppRewriterFactory(sqlppParserFactory);
     private Set<FunctionSignature> createdFunctions = new HashSet<>();
 
@@ -141,16 +143,19 @@ public class ParserTestExecutor extends TestExecutor {
         GlobalConfig.ASTERIX_LOGGER.info(queryFile.toString());
         try {
             List<Statement> statements = parser.parse();
-            DataverseName dvName = getDefaultDataverse(statements);
-            List<FunctionDecl> functions = getDeclaredFunctions(statements, dvName);
-            List<FunctionSignature> createdFunctionsList = getCreatedFunctions(statements, dvName);
+            //TODO(DB): fix this properly so that metadataProvider.getDefaultDataverse() works when actually called
+            Namespace namespace = getDefaultDataverse(statements);
+            DataverseName dvName = namespace.getDataverseName();
+            String dbName = namespace.getDatabaseName();
+            List<FunctionDecl> functions = getDeclaredFunctions(statements, dbName, dvName);
+            List<FunctionSignature> createdFunctionsList = getCreatedFunctions(statements, dbName, dvName);
             createdFunctions.addAll(createdFunctionsList);
 
             MetadataProvider metadataProvider = mock(MetadataProvider.class);
 
             @SuppressWarnings("unchecked")
             Map<String, Object> config = mock(Map.class);
-            when(metadataProvider.getDefaultDataverseName()).thenReturn(dvName);
+            when(metadataProvider.getDefaultNamespace()).thenReturn(namespace);
             when(metadataProvider.getConfig()).thenReturn(config);
             when(config.get(FunctionUtil.IMPORT_PRIVATE_FUNCTIONS)).thenReturn("true");
             when(metadataProvider.findDataverse(anyString(), Mockito.<DataverseName> any()))
@@ -231,14 +236,15 @@ public class ParserTestExecutor extends TestExecutor {
     }
 
     // Extracts declared functions.
-    private List<FunctionDecl> getDeclaredFunctions(List<Statement> statements, DataverseName defaultDataverseName) {
+    private List<FunctionDecl> getDeclaredFunctions(List<Statement> statements, String defaultDatabaseName,
+            DataverseName defaultDataverseName) {
         List<FunctionDecl> functionDecls = new ArrayList<>();
         for (Statement st : statements) {
             if (st.getKind() == Statement.Kind.FUNCTION_DECL) {
                 FunctionDecl fds = (FunctionDecl) st;
                 FunctionSignature signature = fds.getSignature();
                 if (signature.getDataverseName() == null) {
-                    signature.setDataverseName(defaultDataverseName);
+                    signature.setDataverseName(defaultDatabaseName, defaultDataverseName);
                 }
                 functionDecls.add(fds);
             }
@@ -247,7 +253,7 @@ public class ParserTestExecutor extends TestExecutor {
     }
 
     // Extracts created functions.
-    private List<FunctionSignature> getCreatedFunctions(List<Statement> statements,
+    private List<FunctionSignature> getCreatedFunctions(List<Statement> statements, String defaultDatabaseName,
             DataverseName defaultDataverseName) {
         List<FunctionSignature> createdFunctions = new ArrayList<>();
         for (Statement st : statements) {
@@ -255,7 +261,8 @@ public class ParserTestExecutor extends TestExecutor {
                 CreateFunctionStatement cfs = (CreateFunctionStatement) st;
                 FunctionSignature signature = cfs.getFunctionSignature();
                 if (signature.getDataverseName() == null) {
-                    signature = new FunctionSignature(defaultDataverseName, signature.getName(), signature.getArity());
+                    signature = new FunctionSignature(defaultDatabaseName, defaultDataverseName, signature.getName(),
+                            signature.getArity());
                 }
                 createdFunctions.add(signature);
             }
@@ -264,14 +271,14 @@ public class ParserTestExecutor extends TestExecutor {
     }
 
     // Gets the default dataverse for the input statements.
-    private DataverseName getDefaultDataverse(List<Statement> statements) {
+    private Namespace getDefaultDataverse(List<Statement> statements) {
         for (Statement st : statements) {
             if (st.getKind() == Statement.Kind.DATAVERSE_DECL) {
                 DataverseDecl dv = (DataverseDecl) st;
-                return dv.getDataverseName();
+                return dv.getNamespace();
             }
         }
-        return MetadataBuiltinEntities.DEFAULT_DATAVERSE_NAME;
+        return MetadataConstants.DEFAULT_NAMESPACE;
     }
 
     // Rewrite queries.

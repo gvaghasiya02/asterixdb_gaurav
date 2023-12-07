@@ -18,9 +18,9 @@
  */
 package org.apache.asterix.metadata.bootstrap;
 
-import org.apache.asterix.common.metadata.DataverseName;
 import org.apache.asterix.common.metadata.MetadataConstants;
 import org.apache.asterix.common.metadata.MetadataUtil;
+import org.apache.asterix.common.metadata.Namespace;
 import org.apache.asterix.metadata.entities.Database;
 import org.apache.asterix.metadata.entities.Datatype;
 import org.apache.asterix.metadata.entities.Dataverse;
@@ -32,6 +32,7 @@ public class MetadataBuiltinEntities {
     //--------------------------------------- Databases ----------------------------------------//
     public static final Database SYSTEM_DATABASE =
             new Database(MetadataConstants.SYSTEM_DATABASE, true, MetadataUtil.PENDING_NO_OP);
+
     public static final Database DEFAULT_DATABASE =
             new Database(MetadataConstants.DEFAULT_DATABASE, false, MetadataUtil.PENDING_NO_OP);
 
@@ -39,13 +40,18 @@ public class MetadataBuiltinEntities {
     public static final Dataverse METADATA_DATAVERSE =
             new Dataverse(MetadataConstants.SYSTEM_DATABASE, MetadataConstants.METADATA_DATAVERSE_NAME,
                     NonTaggedDataFormat.NON_TAGGED_DATA_FORMAT, MetadataUtil.PENDING_NO_OP);
-    public static final DataverseName DEFAULT_DATAVERSE_NAME = DataverseName.createBuiltinDataverseName("Default");
+
     public static final Dataverse DEFAULT_DATAVERSE = new Dataverse(MetadataConstants.DEFAULT_DATABASE,
-            DEFAULT_DATAVERSE_NAME, NonTaggedDataFormat.class.getName(), MetadataUtil.PENDING_NO_OP);
+            MetadataConstants.DEFAULT_DATAVERSE_NAME, NonTaggedDataFormat.class.getName(), MetadataUtil.PENDING_NO_OP);
+
     //--------------------------------------- Datatypes -----------------------------------------//
     public static final Datatype ANY_OBJECT_DATATYPE =
             new Datatype(MetadataConstants.SYSTEM_DATABASE, MetadataConstants.METADATA_DATAVERSE_NAME,
                     RecordUtil.FULLY_OPEN_RECORD_TYPE.getTypeName(), RecordUtil.FULLY_OPEN_RECORD_TYPE, false);
+
+    public static final Namespace DEFAULT_NAMESPACE =
+            new Namespace(MetadataBuiltinEntities.DEFAULT_DATAVERSE.getDatabaseName(),
+                    MetadataBuiltinEntities.DEFAULT_DATAVERSE.getDataverseName());
 
     private MetadataBuiltinEntities() {
     }

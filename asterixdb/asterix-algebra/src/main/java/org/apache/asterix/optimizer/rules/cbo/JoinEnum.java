@@ -30,16 +30,15 @@ import java.util.Set;
 
 import org.apache.asterix.common.annotations.IndexedNLJoinExpressionAnnotation;
 import org.apache.asterix.common.annotations.SecondaryIndexSearchPreferenceAnnotation;
+import org.apache.asterix.common.config.DatasetConfig;
 import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.common.exceptions.ErrorCode;
-import org.apache.asterix.common.metadata.DataverseName;
 import org.apache.asterix.metadata.declared.DataSource;
 import org.apache.asterix.metadata.declared.DataSourceId;
 import org.apache.asterix.metadata.declared.DatasetDataSource;
 import org.apache.asterix.metadata.declared.MetadataProvider;
 import org.apache.asterix.metadata.declared.SampleDataSource;
 import org.apache.asterix.metadata.entities.Index;
-import org.apache.asterix.om.base.AInt64;
 import org.apache.asterix.om.base.AOrderedList;
 import org.apache.asterix.om.base.IAObject;
 import org.apache.asterix.om.constants.AsterixConstantValue;
@@ -60,6 +59,7 @@ import org.apache.hyracks.algebricks.core.algebra.base.IOptimizationContext;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalExpressionTag;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalVariable;
+import org.apache.hyracks.algebricks.core.algebra.base.OperatorAnnotations;
 import org.apache.hyracks.algebricks.core.algebra.expressions.AbstractFunctionCallExpression;
 import org.apache.hyracks.algebricks.core.algebra.expressions.BroadcastExpressionAnnotation;
 import org.apache.hyracks.algebricks.core.algebra.expressions.ConstantExpression;
@@ -78,8 +78,10 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.LimitOperato
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.SelectOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.UnnestOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.visitors.VariableUtilities;
+import org.apache.hyracks.algebricks.core.algebra.plan.ALogicalPlanImpl;
 import org.apache.hyracks.algebricks.core.algebra.prettyprint.IPlanPrettyPrinter;
 import org.apache.hyracks.algebricks.core.algebra.util.OperatorManipulationUtil;
+import org.apache.hyracks.algebricks.core.algebra.util.OperatorPropertiesUtil;
 import org.apache.hyracks.algebricks.core.rewriter.base.PhysicalOptimizationConfig;
 import org.apache.hyracks.api.exceptions.IWarningCollector;
 import org.apache.hyracks.api.exceptions.Warning;
@@ -104,6 +106,15 @@ public class JoinEnum {
     protected JoinNode[] jnArray; // array of all join nodes
     protected int jnArraySize;
     protected List<ILogicalOperator> leafInputs;
+
+    // The Distinct operators for each DataScan operator (if applicable)
+    protected HashMap<DataSourceScanOperator, ILogicalOperator> dataScanAndGroupByDistinctOps;
+
+    // The Distinct/GroupBy operator at root of the query tree (if exists)
+    protected ILogicalOperator rootGroupByDistinctOp;
+
+    // The OrderBy operator at root of the query tree (if exists)
+    protected ILogicalOperator rootOrderByOp;
     protected List<ILogicalExpression> singleDatasetPreds;
     protected List<AssignOperator> assignOps;
     List<Quadruple<Integer, Integer, JoinOperator, Integer>> outerJoinsDependencyList;
@@ -128,6 +139,7 @@ public class JoinEnum {
     protected String queryPlanShape;
     protected ICost cost;
     protected ICostMethods costMethods;
+    List<LogicalVariable> resultAndJoinVars;
 
     public JoinEnum() {
     }
@@ -136,6 +148,8 @@ public class JoinEnum {
             List<ILogicalOperator> leafInputs, List<JoinOperator> allJoinOps, List<AssignOperator> assignOps,
             List<Quadruple<Integer, Integer, JoinOperator, Integer>> outerJoinsDependencyList,
             List<Triple<Integer, Integer, Boolean>> buildSets, HashMap<LogicalVariable, Integer> varLeafInputIds,
+            HashMap<DataSourceScanOperator, ILogicalOperator> dataScanAndGroupByDistinctOps,
+            ILogicalOperator grpByDistinctOp, ILogicalOperator orderByOp, List<LogicalVariable> resultAndJoinVars,
             IOptimizationContext context) throws AsterixException {
         this.singleDatasetPreds = new ArrayList<>();
         this.joinConditions = new ArrayList<>();
@@ -155,6 +169,10 @@ public class JoinEnum {
         this.allJoinOps = allJoinOps;
         this.buildSets = buildSets;
         this.varLeafInputIds = varLeafInputIds;
+        this.dataScanAndGroupByDistinctOps = dataScanAndGroupByDistinctOps;
+        this.rootGroupByDistinctOp = grpByDistinctOp;
+        this.rootOrderByOp = orderByOp;
+        this.resultAndJoinVars = resultAndJoinVars;
         this.op = op;
         this.forceJoinOrderMode = getForceJoinOrderMode(context);
         this.queryPlanShape = getQueryPlanShape(context);
@@ -719,6 +737,26 @@ public class JoinEnum {
         if (LOGGER.isTraceEnabled()) {
             EnumerateJoinsRule.printPlan(pp, op, "Original Whole plan in JN 5");
         }
+
+        double grpInputCard = (double) Math.round(jnArray[jnNumber].getCardinality() * 100) / 100;
+        double grpOutputCard = (double) Math.round(jnArray[jnNumber].distinctCardinality * 100) / 100;
+
+        // set the root group-by/distinct operator's cardinality annotations (if exists)
+        if (!cboTestMode && this.rootGroupByDistinctOp != null) {
+            this.rootGroupByDistinctOp.getAnnotations().put(OperatorAnnotations.OP_INPUT_CARDINALITY, grpInputCard);
+            this.rootGroupByDistinctOp.getAnnotations().put(OperatorAnnotations.OP_OUTPUT_CARDINALITY, grpOutputCard);
+        }
+
+        // set the root order by operator's cardinality annotations (if exists)
+        if (this.rootOrderByOp != null) {
+            if (this.rootGroupByDistinctOp != null) {
+                this.rootOrderByOp.getAnnotations().put(OperatorAnnotations.OP_INPUT_CARDINALITY, grpOutputCard);
+                this.rootOrderByOp.getAnnotations().put(OperatorAnnotations.OP_OUTPUT_CARDINALITY, grpOutputCard);
+            } else {
+                this.rootOrderByOp.getAnnotations().put(OperatorAnnotations.OP_INPUT_CARDINALITY, grpInputCard);
+                this.rootOrderByOp.getAnnotations().put(OperatorAnnotations.OP_OUTPUT_CARDINALITY, grpInputCard);
+            }
+        }
         return jnNumber;
     }
 
@@ -764,6 +802,8 @@ public class JoinEnum {
                     }
                     jn.setOrigCardinality(idxDetails.getSourceCardinality());
                     jn.setAvgDocSize(idxDetails.getSourceAvgItemSize());
+                    jn.setSizeVarsFromDisk(10); // dummy value
+                    jn.setSizeVarsAfterScan(10); // dummy value
                 }
                 // multiply by the respective predicate selectivities
                 jn.setCardinality(jn.origCardinality * stats.getSelectivity(leafInput, false));
@@ -832,50 +872,107 @@ public class JoinEnum {
                 }
                 double origDatasetCard, finalDatasetCard, sampleCard;
 
-                ILogicalOperator parent = findDataSourceScanOperatorParent(leafInput);
                 DataSourceScanOperator scanOp = findDataSourceScanOperator(leafInput);
                 if (scanOp == null) {
                     continue; // what happens to the cards and sizes then? this may happen in case of in lists
                 }
-
                 finalDatasetCard = origDatasetCard = idxDetails.getSourceCardinality();
+
+                ILogicalOperator grpByDistinctOp = this.dataScanAndGroupByDistinctOps.get(scanOp);
+                if (grpByDistinctOp != null) {
+                    long distinctCardinality = stats.findDistinctCardinality(grpByDistinctOp);
+                    jn.distinctCardinality = (double) distinctCardinality;
+                    grpByDistinctOp.getAnnotations().put(OperatorAnnotations.OP_INPUT_CARDINALITY,
+                            (double) Math.round(finalDatasetCard * 100) / 100);
+                    grpByDistinctOp.getAnnotations().put(OperatorAnnotations.OP_OUTPUT_CARDINALITY,
+                            (double) Math.round(distinctCardinality * 100) / 100);
+                }
 
                 List<List<IAObject>> result;
                 SelectOperator selop = (SelectOperator) findASelectOp(leafInput);
+                if (selop == null) { // add a SelectOperator with TRUE condition. The code below becomes simpler with a select operator.
+                    selop = new SelectOperator(new MutableObject<>(ConstantExpression.TRUE));
+                    ILogicalOperator op = selop;
+                    op.getInputs().add(new MutableObject<>(leafInput));
+                    leafInput = op;
+                }
+                ILogicalOperator parent = findDataSourceScanOperatorParent(leafInput);
+                Mutable<ILogicalOperator> ref = new MutableObject<>(leafInput);
 
-                if (jn.getCardinality() == jn.getOrigCardinality() && selop != null) { // this means there was no selectivity hint provided
-                    SampleDataSource sampledatasource = getSampleDataSource(scanOp);
-                    DataSourceScanOperator deepCopyofScan =
-                            (DataSourceScanOperator) OperatorManipulationUtil.bottomUpCopyOperators(scanOp);
-                    deepCopyofScan.setDataSource(sampledatasource);
+                OperatorPropertiesUtil.typeOpRec(ref, optCtx);
+                if (LOGGER.isTraceEnabled()) {
+                    String viewPlan = new ALogicalPlanImpl(ref).toString(); //useful when debugging
+                    LOGGER.trace("viewPlan");
+                    LOGGER.trace(viewPlan);
+                }
 
-                    // if there is only one conjunct, I do not have to call the sampling query during index selection!
-                    // insert this in place of the scandatasourceOp.
-                    parent.getInputs().get(0).setValue(deepCopyofScan);
-                    // There are predicates here. So skip the predicates and get the original dataset card.
-                    // Now apply all the predicates and get the card after all predicates are applied.
-                    result = stats.runSamplingQuery(this.optCtx, leafInput);
-                    double predicateCardinality = ((double) ((AInt64) result.get(0).get(0)).getLongValue());
-                    if (predicateCardinality == 0.0) {
-                        predicateCardinality = 0.0001 * idxDetails.getSampleCardinalityTarget();
+                // find if row or columnar format
+                DatasetDataSource dds = (DatasetDataSource) scanOp.getDataSource();
+                if (dds.getDataset().getDatasetFormatInfo().getFormat() == DatasetConfig.DatasetFormat.ROW) {
+                    jn.setColumnar(false);
+                }
+
+                SampleDataSource sampledatasource = getSampleDataSource(scanOp);
+                DataSourceScanOperator deepCopyofScan =
+                        (DataSourceScanOperator) OperatorManipulationUtil.bottomUpCopyOperators(scanOp);
+                deepCopyofScan.setDataSource(sampledatasource);
+                LogicalVariable primaryKey;
+                if (deepCopyofScan.getVariables().size() > 1) {
+                    primaryKey = deepCopyofScan.getVariables().get(1);
+                } else {
+                    primaryKey = deepCopyofScan.getVariables().get(0);
+                }
+                // if there is only one conjunct, I do not have to call the sampling query during index selection!
+                // insert this in place of the scandatasourceOp.
+                parent.getInputs().get(0).setValue(deepCopyofScan);
+                // There are predicates here. So skip the predicates and get the original dataset card.
+                // Now apply all the predicates and get the card after all predicates are applied.
+                result = stats.runSamplingQueryProjection(this.optCtx, leafInput, i, primaryKey);
+                double predicateCardinality = stats.findPredicateCardinality(result, true);
+
+                double sizeVarsFromDisk;
+                double sizeVarsAfterScan;
+
+                if (predicateCardinality > 0.0) { // otherwise, we get nulls for the averages
+                    sizeVarsFromDisk = stats.findSizeVarsFromDisk(result, jn.getNumVarsFromDisk());
+                    sizeVarsAfterScan = stats.findSizeVarsAfterScan(result, jn.getNumVarsFromDisk());
+                } else { // in case we did not get any tuples from the sample, get the size by setting the predicate to true.
+                    ILogicalExpression saveExpr = selop.getCondition().getValue();
+                    selop.getCondition().setValue(ConstantExpression.TRUE);
+                    result = stats.runSamplingQueryProjection(this.optCtx, leafInput, i, primaryKey);
+                    double x = stats.findPredicateCardinality(result, true);
+                    // better to check if x is 0
+                    if (x == 0.0) {
+                        sizeVarsFromDisk = jn.getNumVarsFromDisk() * 100;
+                        sizeVarsAfterScan = jn.getNumVarsAfterScan() * 100; // cant think of anything better... cards are more important anyway
+                    } else {
+                        sizeVarsFromDisk = stats.findSizeVarsFromDisk(result, jn.getNumVarsFromDisk());
+                        sizeVarsAfterScan = stats.findSizeVarsAfterScan(result, jn.getNumVarsFromDisk());
                     }
-                    // now scale up
-                    sampleCard = Math.min(idxDetails.getSampleCardinalityTarget(), origDatasetCard);
-                    if (sampleCard == 0) { // should not happen unless the original dataset is empty
-                        sampleCard = 1; // we may have to make some adjustments to costs when the sample returns very rows.
+                    selop.getCondition().setValue(saveExpr); // restore the expression
+                }
+                if (predicateCardinality == 0.0) {
+                    predicateCardinality = 0.0001 * idxDetails.getSampleCardinalityTarget();
+                }
+                // now scale up
+                sampleCard = Math.min(idxDetails.getSampleCardinalityTarget(), origDatasetCard);
+                if (sampleCard == 0) { // should not happen unless the original dataset is empty
+                    sampleCard = 1; // we may have to make some adjustments to costs when the sample returns very rows.
 
-                        IWarningCollector warningCollector = optCtx.getWarningCollector();
-                        if (warningCollector.shouldWarn()) {
-                            warningCollector
-                                    .warn(Warning.of(scanOp.getSourceLocation(), ErrorCode.SAMPLE_HAS_ZERO_ROWS));
-                        }
+                    IWarningCollector warningCollector = optCtx.getWarningCollector();
+                    if (warningCollector.shouldWarn()) {
+                        warningCollector.warn(Warning.of(scanOp.getSourceLocation(), ErrorCode.SAMPLE_HAS_ZERO_ROWS));
                     }
-
-                    finalDatasetCard *= predicateCardinality / sampleCard;
-                    // now switch the input back.
-                    parent.getInputs().get(0).setValue(scanOp);
+                }
+                finalDatasetCard *= predicateCardinality / sampleCard;
+                // now switch the input back.
+                parent.getInputs().get(0).setValue(scanOp);
+                if (jn.getCardinality() == jn.getOrigCardinality()) { // this means there was no selectivity hint provided
                     jn.setCardinality(finalDatasetCard);
                 }
+                jn.setSizeVarsFromDisk(sizeVarsFromDisk);
+                jn.setSizeVarsAfterScan(sizeVarsAfterScan);
+                jn.setAvgDocSize(idxDetails.getSourceAvgItemSize());
             }
             dataScanPlan = jn.addSingleDatasetPlans();
             if (dataScanPlan == PlanNode.NO_PLAN) {
@@ -937,15 +1034,13 @@ public class JoinEnum {
     // we need to switch the datascource from the dataset source to the corresponding sample datasource.
     // Little tricky how this is done!
     protected SampleDataSource getSampleDataSource(DataSourceScanOperator scanOp) throws AlgebricksException {
-        DataverseName dataverseName = stats.findDataverseName(scanOp);
         DataSource ds = (DataSource) scanOp.getDataSource();
         DataSourceId dsid = ds.getId();
         MetadataProvider mdp = (MetadataProvider) this.optCtx.getMetadataProvider();
-        Index index = mdp.findSampleIndex(dataverseName, dsid.getDatasourceName());
+        Index index = mdp.findSampleIndex(dsid.getDatabaseName(), dsid.getDataverseName(), dsid.getDatasourceName());
         DatasetDataSource dds = (DatasetDataSource) ds;
-        SampleDataSource sds = new SampleDataSource(dds.getDataset(), index.getIndexName(), ds.getItemType(),
-                ds.getMetaItemType(), ds.getDomain());
-        return sds;
+        return new SampleDataSource(dds.getDataset(), index.getIndexName(), ds.getItemType(), ds.getMetaItemType(),
+                ds.getDomain());
     }
 
     private ILogicalOperator findASelectOp(ILogicalOperator op) {
@@ -1000,6 +1095,7 @@ public class JoinEnum {
 
                 // replace the dataScanSourceOperator with the sampling source
                 SampleDataSource sampledatasource = getSampleDataSource(scanOp);
+
                 DataSourceScanOperator deepCopyofScan =
                         (DataSourceScanOperator) OperatorManipulationUtil.bottomUpCopyOperators(scanOp);
                 deepCopyofScan.setDataSource(sampledatasource);
@@ -1011,7 +1107,8 @@ public class JoinEnum {
                 SelectOperator selOp = new SelectOperator(new MutableObject<>(exp));
                 selOp.getInputs().add(new MutableObject<>(leafInput));
                 result = stats.runSamplingQuery(this.optCtx, selOp);
-                predicateCardinality = ((double) ((AInt64) result.get(0).get(0)).getLongValue());
+                predicateCardinality = stats.findPredicateCardinality(result, false);
+
                 if (predicateCardinality == 0.0) {
                     predicateCardinality = 0.0001 * idxDetails.getSampleCardinalityTarget();
                 }

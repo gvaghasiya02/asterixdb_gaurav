@@ -39,7 +39,6 @@ import org.apache.asterix.app.active.ActiveNotificationHandler;
 import org.apache.asterix.common.api.IMetadataLockManager;
 import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.common.metadata.DataverseName;
-import org.apache.asterix.common.metadata.MetadataUtil;
 import org.apache.asterix.common.transactions.TxnId;
 import org.apache.asterix.common.utils.JobUtils;
 import org.apache.asterix.dataflow.data.nontagged.MissingWriterFactory;
@@ -94,10 +93,9 @@ public class RebalanceUtil {
      * @return <code>false</code> if the rebalance was safely skipped
      * @throws Exception
      */
-    public static boolean rebalance(DataverseName dataverseName, String datasetName, Set<String> targetNcNames,
-            MetadataProvider metadataProvider, IHyracksClientConnection hcc,
+    public static boolean rebalance(String database, DataverseName dataverseName, String datasetName,
+            Set<String> targetNcNames, MetadataProvider metadataProvider, IHyracksClientConnection hcc,
             IDatasetRebalanceCallback datasetRebalanceCallback, boolean forceRebalance) throws Exception {
-        String database = MetadataUtil.resolveDatabase(null, dataverseName);
         Dataset sourceDataset;
         Dataset targetDataset;
         boolean success = true;
@@ -123,9 +121,9 @@ public class RebalanceUtil {
 
             if (!targetNcNames.isEmpty()) {
                 // Creates a node group for rebalance.
-                String nodeGroupName = DatasetUtil.createNodeGroupForNewDataset(sourceDataset.getDataverseName(),
-                        sourceDataset.getDatasetName(), sourceDataset.getRebalanceCount() + 1, targetNcNames,
-                        metadataProvider);
+                String nodeGroupName = DatasetUtil.createNodeGroupForNewDataset(sourceDataset.getDatabaseName(),
+                        sourceDataset.getDataverseName(), sourceDataset.getDatasetName(),
+                        sourceDataset.getRebalanceCount() + 1, targetNcNames, metadataProvider);
                 // The target dataset for rebalance.
                 targetDataset = sourceDataset.getTargetDatasetForRebalance(nodeGroupName);
 
@@ -263,8 +261,8 @@ public class RebalanceUtil {
                 (ActiveNotificationHandler) appCtx.getActiveNotificationHandler();
         IMetadataLockManager lockManager = appCtx.getMetadataLockManager();
         LOGGER.debug("attempting to acquire dataset {} upgrade lock", source.getDatasetName());
-        lockManager.upgradeDatasetLockToWrite(metadataProvider.getLocks(), source.getDataverseName(),
-                source.getDatasetName());
+        lockManager.upgradeDatasetLockToWrite(metadataProvider.getLocks(), source.getDatabaseName(),
+                source.getDataverseName(), source.getDatasetName());
         LOGGER.debug("acquired dataset {} upgrade lock", source.getDatasetName());
         LOGGER.info("Updating dataset {} node group from {} to {}", source.getDatasetName(), source.getNodeGroupName(),
                 target.getNodeGroupName());
@@ -280,8 +278,8 @@ public class RebalanceUtil {
             MetadataManager.INSTANCE.commitTransaction(mdTxnCtx);
             LOGGER.info("dataset {} node group updated to {}", target.getDatasetName(), target.getNodeGroupName());
         } finally {
-            lockManager.downgradeDatasetLockToExclusiveModify(metadataProvider.getLocks(), target.getDataverseName(),
-                    target.getDatasetName());
+            lockManager.downgradeDatasetLockToExclusiveModify(metadataProvider.getLocks(), target.getDatabaseName(),
+                    target.getDataverseName(), target.getDatasetName());
         }
     }
 
@@ -355,8 +353,7 @@ public class RebalanceUtil {
 
     private static ITupleProjectorFactory createTupleProjectorFactory(Dataset source, MetadataProvider metadataProvider)
             throws AlgebricksException {
-        String itemTypeDatabase = MetadataUtil.resolveDatabase(null, source.getItemTypeDataverseName());
-        ARecordType itemType = (ARecordType) metadataProvider.findType(itemTypeDatabase,
+        ARecordType itemType = (ARecordType) metadataProvider.findType(source.getItemTypeDatabaseName(),
                 source.getItemTypeDataverseName(), source.getItemTypeName());
         ARecordType metaType = DatasetUtil.getMetaType(metadataProvider, source);
         itemType = (ARecordType) metadataProvider.findTypeForDatasetWithoutType(itemType, metaType, source);

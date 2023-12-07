@@ -256,6 +256,15 @@ public abstract class MetadataManager implements IMetadataManager {
     }
 
     @Override
+    public List<Database> getDatabases(MetadataTransactionContext ctx) throws AlgebricksException {
+        try {
+            return metadataNode.getDatabases(ctx.getTxnId());
+        } catch (RemoteException e) {
+            throw new MetadataException(ErrorCode.REMOTE_EXCEPTION_WHEN_CALLING_METADATA_NODE, e);
+        }
+    }
+
+    @Override
     public List<Dataverse> getDataverses(MetadataTransactionContext ctx) throws AlgebricksException {
         try {
             return metadataNode.getDataverses(ctx.getTxnId());
@@ -298,6 +307,21 @@ public abstract class MetadataManager implements IMetadataManager {
             ctx.addDataverse(dataverse);
         }
         return dataverse;
+    }
+
+    @Override
+    public List<Dataset> getDatabaseDatasets(MetadataTransactionContext ctx, String database)
+            throws AlgebricksException {
+        List<Dataset> databaseDatasets;
+        try {
+            Objects.requireNonNull(database);
+            // assuming that the transaction can read its own writes on the metadata node
+            databaseDatasets = metadataNode.getDatabaseDatasets(ctx.getTxnId(), database);
+        } catch (RemoteException e) {
+            throw new MetadataException(ErrorCode.REMOTE_EXCEPTION_WHEN_CALLING_METADATA_NODE, e);
+        }
+        // don't update the cache to avoid checking against the transaction's uncommitted datasets
+        return databaseDatasets;
     }
 
     @Override
@@ -663,6 +687,7 @@ public abstract class MetadataManager implements IMetadataManager {
             // in the cache.
             return null;
         }
+        //TODO(DB): review this and other similar ones
         if (ctx.getDataverse(functionSignature.getDatabaseName(), functionSignature.getDataverseName()) != null) {
             // This transaction has dropped and subsequently created the same
             // dataverse.
@@ -900,6 +925,21 @@ public abstract class MetadataManager implements IMetadataManager {
             throw new MetadataException(ErrorCode.REMOTE_EXCEPTION_WHEN_CALLING_METADATA_NODE, e);
         }
         ctx.dropLibrary(database, dataverseName, libraryName);
+    }
+
+    @Override
+    public List<Library> getDatabaseLibraries(MetadataTransactionContext ctx, String database)
+            throws AlgebricksException {
+        List<Library> databaseLibraries;
+        try {
+            // assuming that the transaction can read its own writes on the metadata node
+            Objects.requireNonNull(database);
+            databaseLibraries = metadataNode.getDatabaseLibraries(ctx.getTxnId(), database);
+        } catch (RemoteException e) {
+            throw new MetadataException(ErrorCode.REMOTE_EXCEPTION_WHEN_CALLING_METADATA_NODE, e);
+        }
+        // don't update the cache to avoid checking against the transaction's uncommitted functions
+        return databaseLibraries;
     }
 
     @Override

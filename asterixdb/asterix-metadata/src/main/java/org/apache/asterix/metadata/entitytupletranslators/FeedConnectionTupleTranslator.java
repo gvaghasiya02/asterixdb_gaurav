@@ -82,12 +82,14 @@ public class FeedConnectionTupleTranslator extends AbstractTupleTranslator<FeedC
                     (AUnorderedList) feedConnectionRecord.getValueByPos(feedConnectionEntity.appliedFunctionsIndex());
             cursor = afList.getCursor();
             while (cursor.next()) {
+                //TODO(DB): deal with database
                 String afValue = ((AString) cursor.get()).getStringValue();
                 int pos = afValue.lastIndexOf('.'); //TODO(MULTI_PART_DATAVERSE_NAME):REVISIT
                 String afDataverseCanonicalName = afValue.substring(0, pos);
                 String afName = afValue.substring(pos + 1);
                 DataverseName afDataverseName = DataverseName.createFromCanonicalForm(afDataverseCanonicalName);
-                FunctionSignature functionSignature = new FunctionSignature(afDataverseName, afName, 1);
+                String afDatabaseName = MetadataUtil.databaseFor(afDataverseName);
+                FunctionSignature functionSignature = new FunctionSignature(afDatabaseName, afDataverseName, afName, 1);
                 appliedFunctions.add(functionSignature);
             }
         }
@@ -206,6 +208,7 @@ public class FeedConnectionTupleTranslator extends AbstractTupleTranslator<FeedC
         if (fc.getAppliedFunctions() != null) {
             List<FunctionSignature> appliedFunctions = fc.getAppliedFunctions();
             for (FunctionSignature af : appliedFunctions) {
+                //TODO(DB): deal with database
                 listEleBuffer.reset();
                 aString.setValue(af.getDataverseName().getCanonicalForm() + '.' + af.getName()); //TODO(MULTI_PART_DATAVERSE_NAME):REVISIT
                 stringSerde.serialize(aString, listEleBuffer.getDataOutput());

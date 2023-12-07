@@ -37,16 +37,23 @@ import org.apache.asterix.common.functions.FunctionConstants;
 import org.apache.asterix.common.functions.FunctionSignature;
 import org.apache.asterix.common.metadata.DatasetFullyQualifiedName;
 import org.apache.asterix.common.metadata.DataverseName;
+import org.apache.asterix.common.metadata.DependencyFullyQualifiedName;
 import org.apache.asterix.common.metadata.MetadataUtil;
+import org.apache.asterix.common.metadata.Namespace;
 import org.apache.asterix.lang.common.base.Expression;
 import org.apache.asterix.lang.common.base.IParser;
 import org.apache.asterix.lang.common.base.IParserFactory;
 import org.apache.asterix.lang.common.base.IQueryRewriter;
 import org.apache.asterix.lang.common.expression.AbstractCallExpression;
+import org.apache.asterix.lang.common.expression.CallExpr;
+import org.apache.asterix.lang.common.expression.LiteralExpr;
 import org.apache.asterix.lang.common.expression.OrderedListTypeDefinition;
 import org.apache.asterix.lang.common.expression.TypeExpression;
 import org.apache.asterix.lang.common.expression.TypeReferenceExpression;
 import org.apache.asterix.lang.common.expression.UnorderedListTypeDefinition;
+import org.apache.asterix.lang.common.literal.FalseLiteral;
+import org.apache.asterix.lang.common.literal.StringLiteral;
+import org.apache.asterix.lang.common.literal.TrueLiteral;
 import org.apache.asterix.lang.common.statement.FunctionDecl;
 import org.apache.asterix.metadata.declared.MetadataProvider;
 import org.apache.asterix.metadata.entities.Dataverse;
@@ -85,15 +92,17 @@ public class FunctionUtil {
         return BuiltinFunctions.getBuiltinFunctionInfo(fi);
     }
 
-    public static TypeSignature getTypeDependencyFromFunctionParameter(TypeExpression typeExpr,
+    public static TypeSignature getTypeDependencyFromFunctionParameter(TypeExpression typeExpr, String defaultDatabase,
             DataverseName defaultDataverse) {
         switch (typeExpr.getTypeKind()) {
             case ORDEREDLIST:
                 return getTypeDependencyFromFunctionParameter(
-                        ((OrderedListTypeDefinition) typeExpr).getItemTypeExpression(), defaultDataverse);
+                        ((OrderedListTypeDefinition) typeExpr).getItemTypeExpression(), defaultDatabase,
+                        defaultDataverse);
             case UNORDEREDLIST:
                 return getTypeDependencyFromFunctionParameter(
-                        ((UnorderedListTypeDefinition) typeExpr).getItemTypeExpression(), defaultDataverse);
+                        ((UnorderedListTypeDefinition) typeExpr).getItemTypeExpression(), defaultDatabase,
+                        defaultDataverse);
             case TYPEREFERENCE:
                 TypeReferenceExpression typeRef = ((TypeReferenceExpression) typeExpr);
                 String typeName = typeRef.getIdent().getSecond().toString();
@@ -101,9 +110,17 @@ public class FunctionUtil {
                 if (builtinType != null) {
                     return null;
                 }
-                DataverseName typeDataverseName =
-                        typeRef.getIdent().getFirst() != null ? typeRef.getIdent().getFirst() : defaultDataverse;
-                return new TypeSignature(typeDataverseName, typeName);
+                Namespace typeRefNamespace = typeRef.getIdent().getFirst();
+                DataverseName typeDataverseName;
+                String typeDatabaseName;
+                if (typeRefNamespace == null) {
+                    typeDataverseName = defaultDataverse;
+                    typeDatabaseName = defaultDatabase;
+                } else {
+                    typeDataverseName = typeRefNamespace.getDataverseName();
+                    typeDatabaseName = typeRefNamespace.getDatabaseName();
+                }
+                return new TypeSignature(typeDatabaseName, typeDataverseName, typeName);
             case RECORD:
                 throw new IllegalArgumentException();
             default:
@@ -116,16 +133,18 @@ public class FunctionUtil {
             boolean searchUdfs, Map<FunctionSignature, FunctionDecl> declaredFunctionMap,
             boolean allowNonStoredUdfCalls) throws CompilationException {
         DataverseName dataverse = fs.getDataverseName();
+        String database = fs.getDatabaseName();
         if (dataverse == null) {
-            dataverse = metadataProvider.getDefaultDataverseName();
+            Namespace defaultNamespace = metadataProvider.getDefaultNamespace();
+            dataverse = defaultNamespace.getDataverseName();
+            database = defaultNamespace.getDatabaseName();
         }
-        String database = MetadataUtil.resolveDatabase(null, dataverse);
         if (searchUdfs && !isBuiltinFunctionDataverse(dataverse)) {
             // attempt to resolve to a user-defined function
-            FunctionSignature fsWithDv =
-                    fs.getDataverseName() == null ? new FunctionSignature(dataverse, fs.getName(), fs.getArity()) : fs;
-            FunctionSignature fsWithDvVarargs =
-                    new FunctionSignature(fsWithDv.getDataverseName(), fsWithDv.getName(), FunctionIdentifier.VARARGS);
+            FunctionSignature fsWithDv = fs.getDataverseName() == null
+                    ? new FunctionSignature(database, dataverse, fs.getName(), fs.getArity()) : fs;
+            FunctionSignature fsWithDvVarargs = new FunctionSignature(fsWithDv.getDatabaseName(),
+                    fsWithDv.getDataverseName(), fsWithDv.getName(), FunctionIdentifier.VARARGS);
 
             FunctionDecl fd = declaredFunctionMap.get(fsWithDv);
             if (fd == null) {
@@ -155,10 +174,12 @@ public class FunctionUtil {
                 try {
                     dv = metadataProvider.findDataverse(database, dataverse);
                 } catch (AlgebricksException e) {
-                    throw new CompilationException(ErrorCode.UNKNOWN_DATAVERSE, e, sourceLoc, dataverse);
+                    throw new CompilationException(ErrorCode.UNKNOWN_DATAVERSE, e, sourceLoc,
+                            MetadataUtil.dataverseName(database, dataverse, metadataProvider.isUsingDatabase()));
                 }
                 if (dv == null) {
-                    throw new CompilationException(ErrorCode.UNKNOWN_DATAVERSE, sourceLoc, dataverse);
+                    throw new CompilationException(ErrorCode.UNKNOWN_DATAVERSE, sourceLoc,
+                            MetadataUtil.dataverseName(database, dataverse, metadataProvider.isUsingDatabase()));
                 }
             }
         }
@@ -206,7 +227,7 @@ public class FunctionUtil {
         };
     }
 
-    public static List<List<Triple<DataverseName, String, String>>> getFunctionDependencies(FunctionDecl fd,
+    public static List<List<DependencyFullyQualifiedName>> getFunctionDependencies(FunctionDecl fd,
             IQueryRewriter rewriter) throws CompilationException {
         Expression normBody = fd.getNormalizedFuncBody();
         if (normBody == null) {
@@ -215,25 +236,26 @@ public class FunctionUtil {
         }
 
         // Get the list of used functions and used datasets
-        List<Triple<DataverseName, String, String>> datasetDependencies = new ArrayList<>();
-        List<Triple<DataverseName, String, String>> synonymDependencies = new ArrayList<>();
-        List<Triple<DataverseName, String, String>> functionDependencies = new ArrayList<>();
+        List<DependencyFullyQualifiedName> datasetDependencies = new ArrayList<>();
+        List<DependencyFullyQualifiedName> synonymDependencies = new ArrayList<>();
+        List<DependencyFullyQualifiedName> functionDependencies = new ArrayList<>();
         ExpressionUtils.collectDependencies(normBody, rewriter, datasetDependencies, synonymDependencies,
                 functionDependencies);
 
-        List<Triple<DataverseName, String, String>> typeDependencies = Collections.emptyList();
+        List<DependencyFullyQualifiedName> typeDependencies = Collections.emptyList();
         return Function.createDependencies(datasetDependencies, functionDependencies, typeDependencies,
                 synonymDependencies);
     }
 
-    public static List<List<Triple<DataverseName, String, String>>> getExternalFunctionDependencies(
+    public static List<List<DependencyFullyQualifiedName>> getExternalFunctionDependencies(
             Collection<TypeSignature> dependentTypes) {
-        List<Triple<DataverseName, String, String>> datasetDependencies = Collections.emptyList();
-        List<Triple<DataverseName, String, String>> functionDependencies = Collections.emptyList();
-        List<Triple<DataverseName, String, String>> typeDependencies = new ArrayList<>(dependentTypes.size());
-        List<Triple<DataverseName, String, String>> synonymDependencies = Collections.emptyList();
+        List<DependencyFullyQualifiedName> datasetDependencies = Collections.emptyList();
+        List<DependencyFullyQualifiedName> functionDependencies = Collections.emptyList();
+        List<DependencyFullyQualifiedName> typeDependencies = new ArrayList<>(dependentTypes.size());
+        List<DependencyFullyQualifiedName> synonymDependencies = Collections.emptyList();
         for (TypeSignature t : dependentTypes) {
-            typeDependencies.add(new Triple<>(t.getDataverseName(), t.getName(), null));
+            typeDependencies.add(
+                    new DependencyFullyQualifiedName(t.getDatabaseName(), t.getDataverseName(), t.getName(), null));
         }
         return Function.createDependencies(datasetDependencies, functionDependencies, typeDependencies,
                 synonymDependencies);
@@ -249,8 +271,8 @@ public class FunctionUtil {
         List<Expression> argList = datasetFn.getExprList();
         DatasetFullyQualifiedName datasetOrViewName = parseDatasetFunctionArguments(argList, 0,
                 datasetFn.getSourceLocation(), ExpressionUtils::getStringLiteral);
-        boolean isView = argList.size() > 2 && Boolean.TRUE.equals(ExpressionUtils.getBooleanLiteral(argList.get(2)));
-        DatasetFullyQualifiedName synonymName = argList.size() > 3 ? parseDatasetFunctionArguments(argList, 3,
+        boolean isView = argList.size() > 3 && Boolean.TRUE.equals(ExpressionUtils.getBooleanLiteral(argList.get(3)));
+        DatasetFullyQualifiedName synonymName = argList.size() > 4 ? parseDatasetFunctionArguments(argList, 4,
                 datasetFn.getSourceLocation(), ExpressionUtils::getStringLiteral) : null;
         return new Triple<>(datasetOrViewName, isView, synonymName);
     }
@@ -264,7 +286,11 @@ public class FunctionUtil {
     private static <T> DatasetFullyQualifiedName parseDatasetFunctionArguments(List<T> datasetFnArgs, int startPos,
             SourceLocation sourceLoc, java.util.function.Function<T, String> stringAccessor)
             throws CompilationException {
-        String dataverseNameArg = stringAccessor.apply(datasetFnArgs.get(startPos));
+        String databaseName = stringAccessor.apply(datasetFnArgs.get(startPos));
+        if (databaseName == null) {
+            throw new CompilationException(ErrorCode.COMPILATION_ERROR, sourceLoc, "Invalid argument to dataset()");
+        }
+        String dataverseNameArg = stringAccessor.apply(datasetFnArgs.get(startPos + 1));
         if (dataverseNameArg == null) {
             throw new CompilationException(ErrorCode.COMPILATION_ERROR, sourceLoc, "Invalid argument to dataset()");
         }
@@ -274,11 +300,10 @@ public class FunctionUtil {
         } catch (AsterixException e) {
             throw new CompilationException(ErrorCode.COMPILATION_ERROR, sourceLoc, e, "Invalid argument to dataset()");
         }
-        String datasetName = stringAccessor.apply(datasetFnArgs.get(startPos + 1));
+        String datasetName = stringAccessor.apply(datasetFnArgs.get(startPos + 2));
         if (datasetName == null) {
             throw new CompilationException(ErrorCode.COMPILATION_ERROR, sourceLoc, "Invalid argument to dataset()");
         }
-        String databaseName = MetadataUtil.resolveDatabase(null, dataverseName);
         return new DatasetFullyQualifiedName(databaseName, dataverseName, datasetName);
     }
 
@@ -387,5 +412,34 @@ public class FunctionUtil {
         }
 
         return numberOfMatches == args1.size();
+    }
+
+    public static CallExpr makeDatasetCallExpr(String database, DataverseName dataverse, String dataset) {
+        List<Expression> arguments = new ArrayList<>();
+        addDataset(arguments, database, dataverse, dataset);
+        return new CallExpr(new FunctionSignature(BuiltinFunctions.DATASET), arguments);
+    }
+
+    public static CallExpr makeDatasetCallExpr(String database, DataverseName dataverse, String dataset, boolean view) {
+        List<Expression> argList = new ArrayList<>(4);
+        addDataset(argList, database, dataverse, dataset);
+        argList.add(new LiteralExpr(view ? TrueLiteral.INSTANCE : FalseLiteral.INSTANCE));
+        return new CallExpr(new FunctionSignature(BuiltinFunctions.DATASET), argList);
+    }
+
+    public static CallExpr makeSynonymDatasetCallExpr(String resolvedDatabaseName, DataverseName resolvedDataverseName,
+            String resolvedDatasetName, boolean isView, String databaseName, DataverseName dataverseName,
+            String datasetName) {
+        List<Expression> argList = new ArrayList<>(7);
+        addDataset(argList, resolvedDatabaseName, resolvedDataverseName, resolvedDatasetName);
+        argList.add(new LiteralExpr(isView ? TrueLiteral.INSTANCE : FalseLiteral.INSTANCE));
+        addDataset(argList, databaseName, dataverseName, datasetName);
+        return new CallExpr(new FunctionSignature(BuiltinFunctions.DATASET), argList);
+    }
+
+    private static void addDataset(List<Expression> argList, String db, DataverseName dv, String ds) {
+        argList.add(new LiteralExpr(new StringLiteral(db)));
+        argList.add(new LiteralExpr(new StringLiteral(dv.getCanonicalForm())));
+        argList.add(new LiteralExpr(new StringLiteral(ds)));
     }
 }

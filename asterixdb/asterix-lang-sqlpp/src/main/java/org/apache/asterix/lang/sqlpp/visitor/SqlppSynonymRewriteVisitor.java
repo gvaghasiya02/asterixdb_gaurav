@@ -22,14 +22,14 @@ package org.apache.asterix.lang.sqlpp.visitor;
 import org.apache.asterix.common.exceptions.CompilationException;
 import org.apache.asterix.common.exceptions.ErrorCode;
 import org.apache.asterix.common.metadata.DataverseName;
-import org.apache.asterix.common.metadata.MetadataUtil;
+import org.apache.asterix.common.metadata.Namespace;
 import org.apache.asterix.lang.common.statement.DeleteStatement;
 import org.apache.asterix.lang.common.statement.InsertStatement;
 import org.apache.asterix.lang.common.statement.LoadStatement;
 import org.apache.asterix.lang.sqlpp.visitor.base.AbstractSqlppAstVisitor;
 import org.apache.asterix.metadata.declared.MetadataProvider;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
-import org.apache.hyracks.algebricks.common.utils.Triple;
+import org.apache.hyracks.algebricks.common.utils.Quadruple;
 import org.apache.hyracks.api.exceptions.SourceLocation;
 
 /**
@@ -44,45 +44,45 @@ public class SqlppSynonymRewriteVisitor extends AbstractSqlppAstVisitor<Void, Me
 
     @Override
     public Void visit(LoadStatement loadStmt, MetadataProvider metadataProvider) throws CompilationException {
-        String database = MetadataUtil.resolveDatabase(null, loadStmt.getDataverseName());
-        Triple<DataverseName, String, Boolean> dsName = resolveDatasetNameUsingSynonyms(metadataProvider, database,
-                loadStmt.getDataverseName(), loadStmt.getDatasetName(), false, loadStmt.getSourceLocation());
+        Quadruple<DataverseName, String, Boolean, String> dsName =
+                resolveDatasetNameUsingSynonyms(metadataProvider, loadStmt.getDatabaseName(),
+                        loadStmt.getDataverseName(), loadStmt.getDatasetName(), false, loadStmt.getSourceLocation());
         if (dsName != null) {
-            loadStmt.setDataverseName(dsName.first);
-            loadStmt.setDatasetName(dsName.second);
+            loadStmt.setNamespace(new Namespace(dsName.getFourth(), dsName.getFirst()));
+            loadStmt.setDatasetName(dsName.getSecond());
         }
         return null;
     }
 
     @Override
     public Void visit(InsertStatement insertStmt, MetadataProvider metadataProvider) throws CompilationException {
-        String database = MetadataUtil.resolveDatabase(null, insertStmt.getDataverseName());
-        Triple<DataverseName, String, Boolean> dsName = resolveDatasetNameUsingSynonyms(metadataProvider, database,
-                insertStmt.getDataverseName(), insertStmt.getDatasetName(), false, insertStmt.getSourceLocation());
+        Quadruple<DataverseName, String, Boolean, String> dsName = resolveDatasetNameUsingSynonyms(metadataProvider,
+                insertStmt.getDatabaseName(), insertStmt.getDataverseName(), insertStmt.getDatasetName(), false,
+                insertStmt.getSourceLocation());
         if (dsName != null) {
-            insertStmt.setDataverseName(dsName.first);
-            insertStmt.setDatasetName(dsName.second);
+            insertStmt.setNamespace(new Namespace(dsName.getFourth(), dsName.getFirst()));
+            insertStmt.setDatasetName(dsName.getSecond());
         }
         return null;
     }
 
     @Override
     public Void visit(DeleteStatement deleteStmt, MetadataProvider metadataProvider) throws CompilationException {
-        String database = MetadataUtil.resolveDatabase(null, deleteStmt.getDataverseName());
-        Triple<DataverseName, String, Boolean> dsName = resolveDatasetNameUsingSynonyms(metadataProvider, database,
-                deleteStmt.getDataverseName(), deleteStmt.getDatasetName(), false, deleteStmt.getSourceLocation());
+        Quadruple<DataverseName, String, Boolean, String> dsName = resolveDatasetNameUsingSynonyms(metadataProvider,
+                deleteStmt.getDatabaseName(), deleteStmt.getDataverseName(), deleteStmt.getDatasetName(), false,
+                deleteStmt.getSourceLocation());
         if (dsName != null) {
-            deleteStmt.setDataverseName(dsName.first);
-            deleteStmt.setDatasetName(dsName.second);
+            deleteStmt.setNamespace(new Namespace(dsName.getFourth(), dsName.getFirst()));
+            deleteStmt.setDatasetName(dsName.getSecond());
         }
         return null;
     }
 
-    private Triple<DataverseName, String, Boolean> resolveDatasetNameUsingSynonyms(MetadataProvider metadataProvider,
-            String database, DataverseName dataverseName, String datasetName, boolean includingViews,
-            SourceLocation sourceLoc) throws CompilationException {
+    private Quadruple<DataverseName, String, Boolean, String> resolveDatasetNameUsingSynonyms(
+            MetadataProvider metadataProvider, String databaseName, DataverseName dataverseName, String datasetName,
+            boolean includingViews, SourceLocation sourceLoc) throws CompilationException {
         try {
-            return metadataProvider.resolveDatasetNameUsingSynonyms(database, dataverseName, datasetName,
+            return metadataProvider.resolveDatasetNameUsingSynonyms(databaseName, dataverseName, datasetName,
                     includingViews);
         } catch (AlgebricksException e) {
             throw new CompilationException(ErrorCode.COMPILATION_ERROR, e, sourceLoc, e.getMessage());

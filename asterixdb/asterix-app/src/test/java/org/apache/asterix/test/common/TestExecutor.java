@@ -109,7 +109,6 @@ import org.apache.asterix.common.metadata.DataverseName;
 import org.apache.asterix.common.metadata.MetadataConstants;
 import org.apache.asterix.common.utils.Servlets;
 import org.apache.asterix.lang.sqlpp.util.SqlppStatementUtil;
-import org.apache.asterix.metadata.bootstrap.MetadataBuiltinEntities;
 import org.apache.asterix.runtime.evaluators.common.NumberUtils;
 import org.apache.asterix.test.server.ITestServer;
 import org.apache.asterix.test.server.TestServerProvider;
@@ -252,6 +251,7 @@ public class TestExecutor {
     private static final String PROFILE_QUERY_TYPE = "profile";
     private static final String PLANS_QUERY_TYPE = "plans";
     private static final String SIGNATURE_QUERY_TYPE = "signature";
+    private static final String DEF_REPLACER = "def";
 
     private static final HashMap<Integer, ITestServer> runningTestServers = new HashMap<>();
     private static Map<String, InetSocketAddress> ncEndPoints;
@@ -277,6 +277,8 @@ public class TestExecutor {
     protected int loopIteration;
 
     protected String deltaPath = null;
+    public String stripSubstring = null;
+    public String executorId = null;
 
     public TestExecutor() {
         this(Collections.singletonList(
@@ -862,6 +864,9 @@ public class TestExecutor {
         }
 
         str = applyExternalDatasetSubstitution(str, placeholders);
+        if (stripSubstring != null && !stripSubstring.isBlank()) {
+            str = strip(str, stripSubstring);
+        }
 
         HttpUriRequest method = jsonEncoded ? constructPostMethodJson(str, uri, "statement", params)
                 : constructPostMethodUrl(str, uri, "statement", params);
@@ -1841,13 +1846,8 @@ public class TestExecutor {
     }
 
     protected static boolean isExpected(Exception e, CompilationUnit cUnit) {
-        final List<String> expErrors = cUnit.getExpectedError();
-        for (String exp : expErrors) {
-            if (e.toString().contains(exp) || containsPattern(e.toString(), exp)) {
-                return true;
-            }
-        }
-        return false;
+        return cUnit.getExpectedError().stream().anyMatch(
+                exp -> e.toString().contains(exp.getValue()) || containsPattern(e.toString(), exp.getValue()));
     }
 
     private static boolean containsPattern(String exception, String maybePattern) {
@@ -2144,7 +2144,9 @@ public class TestExecutor {
         int numOfFiles = 0;
         List<CompilationUnit> cUnits = testCaseCtx.getTestCase().getCompilationUnit();
         for (CompilationUnit cUnit : cUnits) {
-            testCaseCtx.expectedErrors = cUnit.getExpectedError();
+            fixupMessages(cUnit);
+            testCaseCtx.expectedErrors = cUnit.getExpectedError().stream().map(CompilationUnit.ExpectedError::getValue)
+                    .collect(Collectors.toList());
             testCaseCtx.expectedWarnings = new BitSet(cUnit.getExpectedWarn().size());
             testCaseCtx.expectedWarnings.set(0, cUnit.getExpectedWarn().size());
             LOGGER.info(
@@ -2216,6 +2218,30 @@ public class TestExecutor {
                 }
             }
         }
+    }
+
+    private void fixupMessages(CompilationUnit cUnit) {
+        String replacerId = executorId == null ? DEF_REPLACER : executorId;
+
+        List<CompilationUnit.ExpectedWarn> expectedWarns = cUnit.getExpectedWarn();
+        expectedWarns.stream().filter(w -> !w.getReplacers().isEmpty()).forEach(w -> w.setValue(
+                MessageFormat.format(w.getValue(), (Object[]) getReplacements(cUnit, replacerId, w.getReplacers()))));
+
+        List<CompilationUnit.ExpectedError> expectedErrors = cUnit.getExpectedError();
+        expectedErrors.stream().filter(e -> !e.getReplacers().isEmpty()).forEach(e -> e.setValue(
+                MessageFormat.format(e.getValue(), (Object[]) getReplacements(cUnit, replacerId, e.getReplacers()))));
+    }
+
+    private static String[] getReplacements(CompilationUnit cUnit, String replacerId, List<String> replacers) {
+        Optional<String> replacements = replacers.stream().filter(s -> s.startsWith(replacerId)).findFirst();
+        if (replacements.isPresent()) {
+            return replacements.get().substring(replacerId.length() + 1).split(",");
+        }
+        LOGGER.error("Test '{}', could not find message replacements for '{}' in replacements {}", cUnit.getName(),
+                replacerId, replacers);
+        throw new RuntimeException(
+                String.format("Test '%s', could not find message replacements for '%s' in replacements %s",
+                        cUnit.getName(), replacerId, replacers));
     }
 
     private String applySubstitution(String statement, List<Parameter> parameters) throws Exception {
@@ -2324,6 +2350,10 @@ public class TestExecutor {
                 throw new Exception("Unknown macro command");
         }
         return substitute;
+    }
+
+    protected static String strip(String str, String target) {
+        return str.replace(target, "");
     }
 
     protected String applyExternalDatasetSubstitution(String str, List<Placeholder> placeholders) {
@@ -2590,12 +2620,12 @@ public class TestExecutor {
 
     public void cleanup(String testCase, List<String> badtestcases) throws Exception {
         try {
-            List<DataverseName> toBeDropped = new ArrayList<>();
+            List<Pair<String, DataverseName>> toBeDropped = new ArrayList<>();
             listUserDefinedDataverses(toBeDropped);
             if (!toBeDropped.isEmpty()) {
                 badtestcases.add(testCase);
                 LOGGER.info("Last test left some garbage. Dropping dataverses: " + StringUtils.join(toBeDropped, ','));
-                for (DataverseName dv : toBeDropped) {
+                for (Pair<String, DataverseName> dv : toBeDropped) {
                     dropDataverse(dv);
                 }
             }
@@ -2605,8 +2635,9 @@ public class TestExecutor {
         }
     }
 
-    protected void listUserDefinedDataverses(List<DataverseName> outDataverses) throws Exception {
-        String query = "select dv.DataverseName from Metadata.`Dataverse` as dv order by dv.DataverseName";
+    protected void listUserDefinedDataverses(List<Pair<String, DataverseName>> outDataverses) throws Exception {
+        String query =
+                "select dv.DatabaseName, dv.DataverseName from Metadata.`Dataverse` as dv order by dv.DataverseName";
         InputStream resultStream =
                 executeQueryService(query, getEndpoint(Servlets.QUERY_SERVICE), OutputFormat.CLEAN_JSON);
         JsonNode result = extractResult(IOUtils.toString(resultStream, UTF_8));
@@ -2615,17 +2646,27 @@ public class TestExecutor {
             if (json != null) {
                 DataverseName dvName = DataverseName.createFromCanonicalForm(json.get("DataverseName").asText());
                 if (!dvName.equals(MetadataConstants.METADATA_DATAVERSE_NAME)
-                        && !dvName.equals(MetadataBuiltinEntities.DEFAULT_DATAVERSE_NAME)) {
-                    outDataverses.add(dvName);
+                        && !dvName.equals(MetadataConstants.DEFAULT_DATAVERSE_NAME)) {
+                    JsonNode databaseName = json.get("DatabaseName");
+                    String dbName = null;
+                    if (databaseName != null && !databaseName.isNull() && !databaseName.isMissingNode()) {
+                        dbName = databaseName.asText();
+                    }
+                    outDataverses.add(new Pair<>(dbName, dvName));
                 }
             }
         }
     }
 
-    protected void dropDataverse(DataverseName dv) throws Exception {
+    protected void dropDataverse(Pair<String, DataverseName> dv) throws Exception {
         StringBuilder dropStatement = new StringBuilder();
         dropStatement.append("drop dataverse ");
-        SqlppStatementUtil.encloseDataverseName(dropStatement, dv);
+        if (dv.first == null) {
+            SqlppStatementUtil.encloseDataverseName(dropStatement, dv.second);
+        } else {
+            SqlppStatementUtil.enclose(dropStatement, dv.first).append(SqlppStatementUtil.DOT);
+            SqlppStatementUtil.encloseDataverseName(dropStatement, dv.second);
+        }
         dropStatement.append(";\n");
         InputStream resultStream = executeQueryService(dropStatement.toString(), getEndpoint(Servlets.QUERY_SERVICE),
                 OutputFormat.CLEAN_JSON, UTF_8);
@@ -2651,6 +2692,18 @@ public class TestExecutor {
             }
             outDatasets.add(new Pair<>(datasetName, datasetType));
         }
+    }
+
+    protected boolean metadataHasDatabase() throws Exception {
+        String query = "select d.DatabaseName from Metadata.`Dataverse` d limit 1;";
+        InputStream resultStream = executeQueryService(query, getEndpoint(Servlets.QUERY_SERVICE),
+                TestCaseContext.OutputFormat.CLEAN_JSON);
+        JsonNode result = extractResult(IOUtils.toString(resultStream, UTF_8));
+        if (result.size() > 1) {
+            JsonNode json = result.get(0);
+            return json != null && !json.get("DatabaseName").isNull() && !json.get("DatabaseName").isMissingNode();
+        }
+        return false;
     }
 
     private JsonNode extractResult(String jsonString) throws IOException {
@@ -2717,7 +2770,8 @@ public class TestExecutor {
         if (fail) {
             LOGGER.error("Test {} failed to raise (an) expected warning(s):", cUnit.getName());
         }
-        List<String> expectedWarn = cUnit.getExpectedWarn();
+        List<String> expectedWarn =
+                cUnit.getExpectedWarn().stream().map(w -> w.getValue()).collect(Collectors.toList());
         for (int i = expectedWarnings.nextSetBit(0); i >= 0; i = expectedWarnings.nextSetBit(i + 1)) {
             String warning = expectedWarn.get(i);
             LOGGER.error(warning);
@@ -2882,13 +2936,14 @@ public class TestExecutor {
         }
     }
 
-    protected void validateWarnings(List<String> actualWarnings, List<String> expectedWarn, BitSet expectedWarnings,
-            boolean expectedSourceLoc, File testFile) throws Exception {
+    protected void validateWarnings(List<String> actualWarnings, List<CompilationUnit.ExpectedWarn> expectedWarn,
+            BitSet expectedWarnings, boolean expectedSourceLoc, File testFile) throws Exception {
         if (actualWarnings != null) {
             for (String actualWarn : actualWarnings) {
                 OptionalInt first = IntStream.range(0, expectedWarn.size())
-                        .filter(i -> actualWarn.contains(expectedWarn.get(i)) && expectedWarnings.get(i)).findFirst();
-                if (!first.isPresent()) {
+                        .filter(i -> actualWarn.contains(expectedWarn.get(i).getValue()) && expectedWarnings.get(i))
+                        .findFirst();
+                if (first.isEmpty()) {
                     String msg = "unexpected warning was encountered or has already been matched (" + actualWarn + ")";
                     LOGGER.error(msg);
                     if (!expectedWarnings.isEmpty()) {

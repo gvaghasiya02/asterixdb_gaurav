@@ -19,8 +19,8 @@
 package org.apache.asterix.cloud.clients.aws.s3;
 
 import static org.apache.asterix.cloud.clients.aws.s3.S3ClientConfig.DELETE_BATCH_SIZE;
-import static org.apache.asterix.cloud.clients.aws.s3.S3Utils.encodeURI;
-import static org.apache.asterix.cloud.clients.aws.s3.S3Utils.listS3Objects;
+import static org.apache.asterix.cloud.clients.aws.s3.S3ClientUtils.encodeURI;
+import static org.apache.asterix.cloud.clients.aws.s3.S3ClientUtils.listS3Objects;
 
 import java.io.FilenameFilter;
 import java.io.IOException;
@@ -45,6 +45,7 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.api.util.IoUtil;
 import org.apache.hyracks.control.nc.io.IOManager;
+import org.apache.hyracks.util.annotations.ThreadSafe;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,21 +68,25 @@ import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
+@ThreadSafe
 public class S3CloudClient implements ICloudClient {
     private final S3ClientConfig config;
     private final S3Client s3Client;
     private final IRequestProfiler profiler;
 
     public S3CloudClient(S3ClientConfig config) {
+        this(config, buildClient(config));
+    }
+
+    public S3CloudClient(S3ClientConfig config, S3Client s3Client) {
         this.config = config;
-        s3Client = buildClient();
+        this.s3Client = s3Client;
         long profilerInterval = config.getProfilerLogInterval();
         if (profilerInterval > 0) {
             profiler = new CountRequestProfiler(profilerInterval);
         } else {
             profiler = NoOpRequestProfiler.INSTANCE;
         }
-
     }
 
     @Override
@@ -222,6 +227,12 @@ public class S3CloudClient implements ICloudClient {
     }
 
     @Override
+    public boolean isEmptyPrefix(String bucket, String path) throws HyracksDataException {
+        profiler.objectsList();
+        return S3ClientUtils.isEmptyPrefix(s3Client, bucket, path);
+    }
+
+    @Override
     public IParallelDownloader createParallelDownloader(String bucket, IOManager ioManager) {
         return new S3ParallelDownloader(bucket, ioManager, config, profiler);
     }
@@ -245,7 +256,7 @@ public class S3CloudClient implements ICloudClient {
         s3Client.close();
     }
 
-    private S3Client buildClient() {
+    private static S3Client buildClient(S3ClientConfig config) {
         S3ClientBuilder builder = S3Client.builder();
         builder.credentialsProvider(config.createCredentialsProvider());
         builder.region(Region.of(config.getRegion()));
@@ -264,7 +275,7 @@ public class S3CloudClient implements ICloudClient {
     private Set<String> filterAndGet(List<S3Object> contents, FilenameFilter filter) {
         Set<String> files = new HashSet<>();
         for (S3Object s3Object : contents) {
-            String path = config.isLocalS3Provider() ? S3Utils.decodeURI(s3Object.key()) : s3Object.key();
+            String path = config.isLocalS3Provider() ? S3ClientUtils.decodeURI(s3Object.key()) : s3Object.key();
             if (filter.accept(null, IoUtil.getFileNameFromPath(path))) {
                 files.add(path);
             }

@@ -26,6 +26,7 @@ import org.apache.asterix.column.operation.lsm.flush.FlushColumnTupleReaderWrite
 import org.apache.asterix.column.operation.lsm.load.LoadColumnTupleReaderWriterFactory;
 import org.apache.asterix.column.operation.lsm.merge.MergeColumnTupleReaderWriterFactory;
 import org.apache.asterix.om.types.ARecordType;
+import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.IJsonSerializable;
 import org.apache.hyracks.api.io.IPersistedResourceRegistry;
@@ -46,12 +47,14 @@ public final class ColumnManagerFactory implements IColumnManagerFactory {
     private final int pageSize;
     private final int maxTupleCount;
     private final double tolerance;
+    private final int maxLeafNodeSize;
 
     public ColumnManagerFactory(ARecordType datasetType, ARecordType metaType, List<List<String>> primaryKeys,
-            List<Integer> keySourceIndicator, int pageSize, int maxTupleCount, double tolerance) {
+            List<Integer> keySourceIndicator, int pageSize, int maxTupleCount, double tolerance, int maxLeafNodeSize) {
         this.pageSize = pageSize;
         this.maxTupleCount = maxTupleCount;
         this.tolerance = tolerance;
+        this.maxLeafNodeSize = maxLeafNodeSize;
 
         this.datasetType = datasetType;
         if (containsSplitKeys(keySourceIndicator)) {
@@ -69,18 +72,20 @@ public final class ColumnManagerFactory implements IColumnManagerFactory {
     }
 
     @Override
-    public AbstractColumnTupleReaderWriterFactory getLoadColumnTupleReaderWriterFactory() {
-        return new LoadColumnTupleReaderWriterFactory(pageSize, maxTupleCount, tolerance);
+    public AbstractColumnTupleReaderWriterFactory getLoadColumnTupleReaderWriterFactory(
+            IBinaryComparatorFactory[] cmpFactories) {
+        return new LoadColumnTupleReaderWriterFactory(pageSize, maxTupleCount, tolerance, maxLeafNodeSize,
+                cmpFactories);
     }
 
     @Override
     public AbstractColumnTupleReaderWriterFactory getFlushColumnTupleReaderWriterFactory() {
-        return new FlushColumnTupleReaderWriterFactory(pageSize, maxTupleCount, tolerance);
+        return new FlushColumnTupleReaderWriterFactory(pageSize, maxTupleCount, tolerance, maxLeafNodeSize);
     }
 
     @Override
     public AbstractColumnTupleReaderWriterFactory createMergeColumnTupleReaderWriterFactory() {
-        return new MergeColumnTupleReaderWriterFactory(pageSize, maxTupleCount, tolerance);
+        return new MergeColumnTupleReaderWriterFactory(pageSize, maxTupleCount, tolerance, maxLeafNodeSize);
     }
 
     @Override
@@ -94,6 +99,7 @@ public final class ColumnManagerFactory implements IColumnManagerFactory {
         json.put("pageSize", pageSize);
         json.put("maxTupleCount", maxTupleCount);
         json.put("tolerance", tolerance);
+        json.put("maxLeafNodeSize", maxLeafNodeSize);
 
         ArrayNode primaryKeysArray = json.putArray("primaryKeys");
         for (List<String> primaryKey : primaryKeys) {
@@ -121,7 +127,8 @@ public final class ColumnManagerFactory implements IColumnManagerFactory {
 
         int pageSize = json.get("pageSize").asInt();
         int maxTupleCount = json.get("maxTupleCount").asInt();
-        float tolerance = (float) json.get("tolerance").asDouble();
+        double tolerance = json.get("tolerance").asDouble();
+        int maxLeafNodeSize = json.get("maxLeafNodeSize").asInt();
 
         List<List<String>> primaryKeys = new ArrayList<>();
         ArrayNode primaryKeysNode = (ArrayNode) json.get("primaryKeys");
@@ -141,7 +148,7 @@ public final class ColumnManagerFactory implements IColumnManagerFactory {
         }
 
         return new ColumnManagerFactory(datasetType, metaType, primaryKeys, keySourceIndicator, pageSize, maxTupleCount,
-                tolerance);
+                tolerance, maxLeafNodeSize);
     }
 
     private static boolean containsSplitKeys(List<Integer> keySourceIndicator) {

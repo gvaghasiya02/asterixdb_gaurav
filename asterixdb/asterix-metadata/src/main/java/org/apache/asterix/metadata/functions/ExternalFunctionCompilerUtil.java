@@ -26,7 +26,6 @@ import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.common.exceptions.CompilationException;
 import org.apache.asterix.common.exceptions.ErrorCode;
 import org.apache.asterix.common.functions.ExternalFunctionLanguage;
-import org.apache.asterix.common.metadata.MetadataUtil;
 import org.apache.asterix.metadata.declared.MetadataProvider;
 import org.apache.asterix.metadata.entities.Function;
 import org.apache.asterix.om.functions.IExternalFunctionInfo;
@@ -80,6 +79,7 @@ public class ExternalFunctionCompilerUtil {
             throw new AsterixException(ErrorCode.METADATA_ERROR, function.getSignature().toString());
         }
 
+        //TODO(DB): review
         return new ExternalScalarFunctionInfo(function.getSignature().createFunctionIdentifier(), paramTypes,
                 returnType, typeComputer, lang, function.getLibraryDataverseName(), function.getLibraryName(),
                 function.getExternalIdentifier(), function.getResources(), deterministic, function.getNullCall());
@@ -137,8 +137,8 @@ public class ExternalFunctionCompilerUtil {
         }
         IAType type = BuiltinTypeMap.getBuiltinType(typeName);
         if (type == null) {
-            String database = MetadataUtil.resolveDatabase(null, typeSignature.getDataverseName());
-            type = metadataProvider.findType(database, typeSignature.getDataverseName(), typeName);
+            type = metadataProvider.findType(typeSignature.getDatabaseName(), typeSignature.getDataverseName(),
+                    typeName);
         }
         return type;
     }

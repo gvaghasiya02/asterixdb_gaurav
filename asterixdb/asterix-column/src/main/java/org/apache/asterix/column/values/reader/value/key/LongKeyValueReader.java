@@ -23,9 +23,15 @@ import org.apache.asterix.om.types.ATypeTag;
 import org.apache.hyracks.data.std.primitive.LongPointable;
 
 public final class LongKeyValueReader extends AbstractFixedLengthColumnKeyValueReader {
+    private final ATypeTag typeTag;
+
+    public LongKeyValueReader(ATypeTag typeTag) {
+        this.typeTag = typeTag;
+    }
+
     @Override
     public ATypeTag getTypeTag() {
-        return ATypeTag.BIGINT;
+        return typeTag;
     }
 
     @Override

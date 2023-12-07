@@ -20,6 +20,7 @@ package org.apache.asterix.translator;
 
 import static org.apache.asterix.common.utils.IdentifierUtil.dataset;
 import static org.apache.asterix.common.utils.IdentifierUtil.dataverse;
+import static org.apache.hyracks.api.exceptions.ErrorCode.TIMEOUT;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -40,16 +41,20 @@ import org.apache.asterix.common.functions.FunctionConstants;
 import org.apache.asterix.common.functions.FunctionSignature;
 import org.apache.asterix.common.metadata.DataverseName;
 import org.apache.asterix.common.metadata.MetadataConstants;
+import org.apache.asterix.common.metadata.Namespace;
+import org.apache.asterix.common.utils.StorageConstants;
 import org.apache.asterix.lang.common.base.Statement;
 import org.apache.asterix.lang.common.statement.AnalyzeDropStatement;
 import org.apache.asterix.lang.common.statement.AnalyzeStatement;
 import org.apache.asterix.lang.common.statement.CreateAdapterStatement;
+import org.apache.asterix.lang.common.statement.CreateDatabaseStatement;
 import org.apache.asterix.lang.common.statement.CreateDataverseStatement;
 import org.apache.asterix.lang.common.statement.CreateFeedStatement;
 import org.apache.asterix.lang.common.statement.CreateFunctionStatement;
 import org.apache.asterix.lang.common.statement.CreateLibraryStatement;
 import org.apache.asterix.lang.common.statement.CreateSynonymStatement;
 import org.apache.asterix.lang.common.statement.CreateViewStatement;
+import org.apache.asterix.lang.common.statement.DatabaseDropStatement;
 import org.apache.asterix.lang.common.statement.DatasetDecl;
 import org.apache.asterix.lang.common.statement.DataverseDropStatement;
 import org.apache.asterix.lang.common.statement.DeleteStatement;
@@ -62,10 +67,10 @@ import org.apache.asterix.lang.common.statement.TypeDecl;
 import org.apache.asterix.lang.common.statement.TypeDropStatement;
 import org.apache.asterix.lang.common.statement.UpsertStatement;
 import org.apache.asterix.metadata.dataset.hints.DatasetHints;
-import org.apache.asterix.metadata.entities.Dataverse;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.utils.Pair;
+import org.apache.hyracks.algebricks.core.algebra.functions.AlgebricksBuiltinFunctions;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -82,12 +87,20 @@ public abstract class AbstractLangTranslator {
 
     protected static final String BAD_DATAVERSE_DML_MESSAGE = "%s operation is not permitted in " + dataverse() + " %s";
 
+    protected static final String BAD_DATAVERSE_DML_MSG_DB =
+            "%s operation is not permitted in " + dataverse() + " %s in database %s";
+
     protected static final String BAD_DATAVERSE_DDL_MESSAGE = "Cannot %s " + dataverse() + ": %s";
+
+    protected static final String BAD_DATAVERSE_DDL_MSG_DB = "Cannot %s " + dataverse() + ": %s in database: %s";
 
     protected static final String BAD_DATAVERSE_OBJECT_DDL_MESSAGE =
             "Cannot %s a %s belonging to the " + dataverse() + ": %s";
 
-    public void validateOperation(ICcApplicationContext appCtx, Dataverse defaultDataverse, Statement stmt)
+    protected static final String BAD_DATAVERSE_OBJECT_DDL_MSG_DB =
+            "Cannot %s a %s belonging to the " + dataverse() + ": %s in database: %s";
+
+    public void validateOperation(ICcApplicationContext appCtx, Namespace activeNamespace, Statement stmt)
             throws AlgebricksException {
 
         final IClusterStateManager clusterStateManager = appCtx.getClusterStateManager();
@@ -98,7 +111,7 @@ public abstract class AbstractLangTranslator {
             try {
                 clusterStateManager.waitForState(ClusterState.ACTIVE, maxWaitCycles, TimeUnit.SECONDS);
             } catch (HyracksDataException e) {
-                throw new AsterixException(e);
+                throw new AlgebricksException(e, TIMEOUT);
             } catch (InterruptedException e) {
                 if (LOGGER.isWarnEnabled()) {
                     LOGGER.warn("Thread interrupted while waiting for cluster to be " + ClusterState.ACTIVE);
@@ -144,81 +157,91 @@ public abstract class AbstractLangTranslator {
             }
         }
 
+        boolean usingDb = appCtx.getNamespaceResolver().isUsingDatabase();
         boolean invalidOperation = false;
         String message = null;
-        DataverseName dataverseName = defaultDataverse != null ? defaultDataverse.getDataverseName() : null;
+        DataverseName dataverseName;
+        Namespace namespace;
         switch (stmt.getKind()) {
             case LOAD:
-                LoadStatement loadStmt = (LoadStatement) stmt;
-                if (loadStmt.getDataverseName() != null) {
-                    dataverseName = loadStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((LoadStatement) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_DML_MESSAGE, "Load", dataverseName);
+                    message = formatDmlMessage("Load", namespace, usingDb);
                 }
                 break;
 
             case INSERT:
-                InsertStatement insertStmt = (InsertStatement) stmt;
-                if (insertStmt.getDataverseName() != null) {
-                    dataverseName = insertStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((InsertStatement) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_DML_MESSAGE, "Insert", dataverseName);
+                    message = formatDmlMessage("Insert", namespace, usingDb);
                 }
                 break;
 
             case UPSERT:
-                UpsertStatement upsertStmt = (UpsertStatement) stmt;
-                if (upsertStmt.getDataverseName() != null) {
-                    dataverseName = upsertStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((UpsertStatement) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_DML_MESSAGE, "Upsert", dataverseName);
+                    message = formatDmlMessage("Upsert", namespace, usingDb);
                 }
                 break;
 
             case DELETE:
-                DeleteStatement deleteStmt = (DeleteStatement) stmt;
-                if (deleteStmt.getDataverseName() != null) {
-                    dataverseName = deleteStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((DeleteStatement) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_DML_MESSAGE, "Delete", dataverseName);
+                    message = formatDmlMessage("Delete", namespace, usingDb);
                 }
                 break;
+
+            case CREATE_DATABASE: {
+                CreateDatabaseStatement dbCreateStmt = (CreateDatabaseStatement) stmt;
+                String dbName = dbCreateStmt.getDatabaseName().getValue();
+                invalidOperation = isSystemDatabase(dbName) || isDefaultDatabase(dbName) || isReservedDatabase(dbName);
+                if (invalidOperation) {
+                    message = String.format("Cannot create database: %s", dbName);
+                }
+                break;
+            }
+
+            case DATABASE_DROP: {
+                DatabaseDropStatement dbDropStmt = (DatabaseDropStatement) stmt;
+                String dbName = dbDropStmt.getDatabaseName().getValue();
+                invalidOperation = isSystemDatabase(dbName) || isDefaultDatabase(dbName);
+                if (invalidOperation) {
+                    message = String.format("Cannot drop database: %s", dbName);
+                }
+                break;
+            }
 
             case CREATE_DATAVERSE:
                 CreateDataverseStatement dvCreateStmt = (CreateDataverseStatement) stmt;
                 dataverseName = dvCreateStmt.getDataverseName();
                 invalidOperation = FunctionConstants.ASTERIX_DV.equals(dataverseName)
-                        || FunctionConstants.ALGEBRICKS_DV.equals(dataverseName);
+                        || FunctionConstants.ALGEBRICKS_DV.equals(dataverseName) || isMetadataDataverse(dataverseName)
+                        || isDefaultDataverse(dataverseName) || isSystemDatabase(dvCreateStmt.getDatabaseName());
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_DDL_MESSAGE, "create", dataverseName);
+                    message = formatDdlMessage("create", dataverseName, dvCreateStmt.getDatabaseName(), usingDb);
                 }
                 break;
 
             case DATAVERSE_DROP:
                 DataverseDropStatement dvDropStmt = (DataverseDropStatement) stmt;
                 dataverseName = dvDropStmt.getDataverseName();
-                invalidOperation = isMetadataDataverse(dataverseName);
+                invalidOperation = isMetadataDataverse(dataverseName) || isDefaultDataverse(dataverseName)
+                        || isSystemDatabase(dvDropStmt.getDatabaseName());
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_DDL_MESSAGE, "drop", dataverseName);
+                    message = formatDdlMessage("drop", dataverseName, dvDropStmt.getDatabaseName(), usingDb);
                 }
                 break;
 
             case DATASET_DECL:
                 DatasetDecl dsCreateStmt = (DatasetDecl) stmt;
-                if (dsCreateStmt.getDataverse() != null) {
-                    dataverseName = dsCreateStmt.getDataverse();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((DatasetDecl) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "create", dataset(), dataverseName);
+                    message = formatObjectDdlMessage("create", dataset(), namespace, usingDb);
                 }
 
                 if (!invalidOperation) {
@@ -244,154 +267,127 @@ public abstract class AbstractLangTranslator {
                 break;
 
             case DATASET_DROP:
-                DropDatasetStatement dsDropStmt = (DropDatasetStatement) stmt;
-                if (dsDropStmt.getDataverseName() != null) {
-                    dataverseName = dsDropStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((DropDatasetStatement) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "drop", dataset(), dataverseName);
+                    message = formatObjectDdlMessage("drop", dataset(), namespace, usingDb);
                 }
                 break;
 
             case INDEX_DROP:
-                IndexDropStatement idxDropStmt = (IndexDropStatement) stmt;
-                if (idxDropStmt.getDataverseName() != null) {
-                    dataverseName = idxDropStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((IndexDropStatement) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "drop", "index", dataverseName);
+                    message = formatObjectDdlMessage("drop", "index", namespace, usingDb);
                 }
                 break;
 
             case TYPE_DECL:
-                TypeDecl typeCreateStmt = (TypeDecl) stmt;
-                if (typeCreateStmt.getDataverseName() != null) {
-                    dataverseName = typeCreateStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((TypeDecl) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "create", "type", dataverseName);
+                    message = formatObjectDdlMessage("create", "type", namespace, usingDb);
                 }
                 break;
 
             case TYPE_DROP:
-                TypeDropStatement typeDropStmt = (TypeDropStatement) stmt;
-                if (typeDropStmt.getDataverseName() != null) {
-                    dataverseName = typeDropStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((TypeDropStatement) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "drop", "type", dataverseName);
+                    message = formatObjectDdlMessage("drop", "type", namespace, usingDb);
                 }
                 break;
 
             case CREATE_SYNONYM:
-                CreateSynonymStatement synCreateStmt = (CreateSynonymStatement) stmt;
-                if (synCreateStmt.getDataverseName() != null) {
-                    dataverseName = synCreateStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((CreateSynonymStatement) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "create", "synonym", dataverseName);
+                    message = formatObjectDdlMessage("create", "synonym", namespace, usingDb);
                 }
                 break;
 
             case FUNCTION_DECL:
+                //TODO(DB): change to use namespace like others
                 FunctionDecl fnDeclStmt = (FunctionDecl) stmt;
                 FunctionSignature fnDeclSignature = fnDeclStmt.getSignature();
                 if (fnDeclSignature.getDataverseName() != null) {
-                    dataverseName = fnDeclSignature.getDataverseName();
+                    namespace = new Namespace(fnDeclSignature.getDatabaseName(), fnDeclSignature.getDataverseName());
+                } else {
+                    namespace = activeNamespace;
                 }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "declare", "function", dataverseName);
+                    message = formatObjectDdlMessage("declare", "function", namespace, usingDb);
                 }
                 break;
 
             case CREATE_FUNCTION:
+                //TODO(DB): check it's not System database for all cases
                 CreateFunctionStatement fnCreateStmt = (CreateFunctionStatement) stmt;
                 FunctionSignature fnCreateSignature = fnCreateStmt.getFunctionSignature();
                 if (fnCreateSignature.getDataverseName() != null) {
-                    dataverseName = fnCreateSignature.getDataverseName();
+                    namespace =
+                            new Namespace(fnCreateSignature.getDatabaseName(), fnCreateSignature.getDataverseName());
+                } else {
+                    namespace = activeNamespace;
                 }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "create", "function", dataverseName);
+                    message = formatObjectDdlMessage("create", "function", namespace, usingDb);
                 }
                 break;
 
             case CREATE_LIBRARY:
-                CreateLibraryStatement libCreateStmt = (CreateLibraryStatement) stmt;
-                if (libCreateStmt.getDataverseName() != null) {
-                    dataverseName = libCreateStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((CreateLibraryStatement) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "create", "library", dataverseName);
+                    message = formatObjectDdlMessage("create", "library", namespace, usingDb);
                 }
                 break;
 
             case CREATE_ADAPTER:
-                CreateAdapterStatement adCreateStmt = (CreateAdapterStatement) stmt;
-                if (adCreateStmt.getDataverseName() != null) {
-                    dataverseName = adCreateStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((CreateAdapterStatement) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "create", "adapter", dataverseName);
+                    message = formatObjectDdlMessage("create", "adapter", namespace, usingDb);
                 }
                 break;
 
             case CREATE_VIEW:
-                CreateViewStatement viewCreateStmt = (CreateViewStatement) stmt;
-                if (viewCreateStmt.getDataverseName() != null) {
-                    dataverseName = viewCreateStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((CreateViewStatement) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "create", "view", dataverseName);
+                    message = formatObjectDdlMessage("create", "view", namespace, usingDb);
                 }
                 break;
 
             case CREATE_FEED:
-                CreateFeedStatement feedCreateStmt = (CreateFeedStatement) stmt;
-                if (feedCreateStmt.getDataverseName() != null) {
-                    dataverseName = feedCreateStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((CreateFeedStatement) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "create", "feed", dataverseName);
+                    message = formatObjectDdlMessage("create", "feed", namespace, usingDb);
                 }
                 break;
 
             case CREATE_FEED_POLICY:
-                invalidOperation = isMetadataDataverse(dataverseName);
+                invalidOperation = isSystemNamespace(activeNamespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "create", "ingestion policy",
-                            dataverseName);
+                    message = formatObjectDdlMessage("create", "ingestion policy", activeNamespace, usingDb);
                 }
                 break;
 
             case ANALYZE:
-                AnalyzeStatement analyzeStmt = (AnalyzeStatement) stmt;
-                if (analyzeStmt.getDataverseName() != null) {
-                    dataverseName = analyzeStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((AnalyzeStatement) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "analyze", dataset(), dataverseName);
+                    message = formatObjectDdlMessage("analyze", dataset(), namespace, usingDb);
                 }
                 break;
             case ANALYZE_DROP:
-                AnalyzeDropStatement analyzeDropStmt = (AnalyzeDropStatement) stmt;
-                if (analyzeDropStmt.getDataverseName() != null) {
-                    dataverseName = analyzeDropStmt.getDataverseName();
-                }
-                invalidOperation = isMetadataDataverse(dataverseName);
+                namespace = getStatementNamespace(((AnalyzeDropStatement) stmt).getNamespace(), activeNamespace);
+                invalidOperation = isSystemNamespace(namespace);
                 if (invalidOperation) {
-                    message = String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, "analyze drop", dataset(), dataverseName);
+                    message = formatObjectDdlMessage("analyze drop", dataset(), namespace, usingDb);
                 }
                 break;
         }
@@ -402,7 +398,51 @@ public abstract class AbstractLangTranslator {
         }
     }
 
+    private static String formatDmlMessage(String operation, Namespace ns, boolean usingDb) {
+        DataverseName dv = ns.getDataverseName();
+        return usingDb ? String.format(BAD_DATAVERSE_DML_MSG_DB, operation, dv, ns.getDatabaseName())
+                : String.format(BAD_DATAVERSE_DML_MESSAGE, operation, dv);
+    }
+
+    private static String formatDdlMessage(String operation, DataverseName dv, String db, boolean usingDb) {
+        return usingDb ? String.format(BAD_DATAVERSE_DDL_MSG_DB, operation, dv, db)
+                : String.format(BAD_DATAVERSE_DDL_MESSAGE, operation, dv);
+    }
+
+    protected static String formatObjectDdlMessage(String operation, String object, Namespace ns, boolean usingDb) {
+        DataverseName dv = ns.getDataverseName();
+        return usingDb ? String.format(BAD_DATAVERSE_OBJECT_DDL_MSG_DB, operation, object, dv, ns.getDatabaseName())
+                : String.format(BAD_DATAVERSE_OBJECT_DDL_MESSAGE, operation, object, dv);
+    }
+
+    protected static Namespace getStatementNamespace(Namespace namespace, Namespace activeNamespace) {
+        return namespace != null ? namespace : activeNamespace;
+    }
+
+    protected static boolean isSystemNamespace(Namespace ns) {
+        return ns != null && (isSystemDatabase(ns.getDatabaseName()) || isMetadataDataverse(ns.getDataverseName()));
+    }
+
+    protected static boolean isSystemDatabase(String databaseName) {
+        return MetadataConstants.SYSTEM_DATABASE.equals(databaseName);
+    }
+
+    protected static boolean isDefaultDatabase(String databaseName) {
+        return MetadataConstants.DEFAULT_DATABASE.equals(databaseName);
+    }
+
     protected static boolean isMetadataDataverse(DataverseName dataverseName) {
         return MetadataConstants.METADATA_DATAVERSE_NAME.equals(dataverseName);
+    }
+
+    protected static boolean isDefaultDataverse(DataverseName dataverseName) {
+        return MetadataConstants.DEFAULT_DATAVERSE_NAME.equals(dataverseName);
+    }
+
+    protected static boolean isReservedDatabase(String databaseName) {
+        return FunctionConstants.ASTERIX_DB.equals(databaseName)
+                || AlgebricksBuiltinFunctions.ALGEBRICKS_DB.equals(databaseName)
+                || MetadataConstants.METADATA_DATAVERSE_NAME.getCanonicalForm().equals(databaseName)
+                || databaseName.startsWith(StorageConstants.PARTITION_DIR_PREFIX);
     }
 }

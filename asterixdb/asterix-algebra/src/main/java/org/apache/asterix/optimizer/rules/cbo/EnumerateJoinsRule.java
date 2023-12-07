@@ -74,18 +74,33 @@ public class EnumerateJoinsRule implements IAlgebraicRewriteRule {
 
     private final JoinEnum joinEnum;
     private int leafInputNumber;
-    List<ILogicalOperator> newJoinOps;
-    List<JoinOperator> allJoinOps; // can be inner join or left outer join
+    private List<ILogicalOperator> newJoinOps;
+    private List<JoinOperator> allJoinOps; // can be inner join or left outer join
     // Will be in the order of the from clause. Important for position ordering when assigning bits to join expressions.
-    List<ILogicalOperator> leafInputs;
-    HashMap<LogicalVariable, Integer> varLeafInputIds;
-    List<Triple<Integer, Integer, Boolean>> buildSets; // the first is the bits and the second is the number of tables.
-    List<Quadruple<Integer, Integer, JoinOperator, Integer>> outerJoinsDependencyList;
-    List<AssignOperator> assignOps;
-    List<ILogicalExpression> assignJoinExprs; // These are the join expressions below the assign operator.
+    private List<ILogicalOperator> leafInputs;
+    private HashMap<LogicalVariable, Integer> varLeafInputIds;
+    private List<Triple<Integer, Integer, Boolean>> buildSets; // the first is the bits and the second is the number of tables.
+    private List<Quadruple<Integer, Integer, JoinOperator, Integer>> outerJoinsDependencyList;
+    private List<AssignOperator> assignOps;
+    private List<ILogicalExpression> assignJoinExprs; // These are the join expressions below the assign operator.
+
+    // The Distinct operators for each Select or DataSourceScan operator (if applicable)
+    // The Distinct operators for each DataSourceScan operator (if applicable)
+    private HashMap<DataSourceScanOperator, ILogicalOperator> dataScanAndGroupByDistinctOps;
+
+    // The Distinct/GroupBy operator at root of the query tree (if exists)
+    private ILogicalOperator rootGroupByDistinctOp;
+
+    // The OrderBy operator at root of the query tree (if exists)
+    private ILogicalOperator rootOrderByOp;
+
+    private List<LogicalVariable> resultAndJoinVars = new ArrayList();
 
     public EnumerateJoinsRule(JoinEnum joinEnum) {
         this.joinEnum = joinEnum;
+        dataScanAndGroupByDistinctOps = new HashMap<>(); // initialized only once at the beginning of the rule
+        rootGroupByDistinctOp = null;
+        rootOrderByOp = null;
     }
 
     @Override
@@ -118,6 +133,26 @@ public class EnumerateJoinsRule implements IAlgebraicRewriteRule {
             return false;
         }
 
+        // If cboMode or cboTestMode is true, identify each DistinctOp or GroupByOp for the corresponding DataScanOp
+        if (op.getOperatorTag() == LogicalOperatorTag.DISTRIBUTE_RESULT) {
+            // If cboMode or cboTestMode is true, identify each DistinctOp or GroupByOp for the corresponding DataScanOp
+            getDistinctOpsForJoinNodes(op, context);
+
+            // Find the order by op, so we can annotate cost/cards
+            findOrderByOp(op);
+
+            // Find the topmost assign, so we can find all the final projected variables.
+            ILogicalOperator tmp = op;
+
+            while (tmp.getOperatorTag() != LogicalOperatorTag.EMPTYTUPLESOURCE) {
+                if (tmp.getOperatorTag().equals(LogicalOperatorTag.ASSIGN)) {
+                    addAllAssignExprVars(resultAndJoinVars, (AssignOperator) tmp);
+                    break;
+                }
+                tmp = tmp.getInputs().get(0).getValue();
+            }
+        }
+
         // if this join has already been seen before, no need to apply the rule again
         if (context.checkIfInDontApplySet(this, op)) {
             return false;
@@ -132,7 +167,6 @@ public class EnumerateJoinsRule implements IAlgebraicRewriteRule {
         assignOps = new ArrayList<>();
         assignJoinExprs = new ArrayList<>();
         buildSets = new ArrayList<>();
-
         IPlanPrettyPrinter pp = context.getPrettyPrinter();
         printPlan(pp, (AbstractLogicalOperator) op, "Original Whole plan1");
         leafInputNumber = 0;
@@ -141,6 +175,8 @@ public class EnumerateJoinsRule implements IAlgebraicRewriteRule {
         if (!canTransform) {
             return false;
         }
+
+        collectJoinConditionsVariables(); // will be used for determining which variables will be projected from the base levels
 
         convertOuterJoinstoJoinsIfPossible(outerJoinsDependencyList);
 
@@ -158,7 +194,8 @@ public class EnumerateJoinsRule implements IAlgebraicRewriteRule {
             // we need to build the smaller sets first. So we need to find these first.
         }
         joinEnum.initEnum((AbstractLogicalOperator) op, cboMode, cboTestMode, numberOfFromTerms, leafInputs, allJoinOps,
-                assignOps, outerJoinsDependencyList, buildSets, varLeafInputIds, context);
+                assignOps, outerJoinsDependencyList, buildSets, varLeafInputIds, dataScanAndGroupByDistinctOps,
+                rootGroupByDistinctOp, rootOrderByOp, resultAndJoinVars, context);
 
         if (cboMode) {
             if (!doAllDataSourcesHaveSamples(leafInputs, context)) {
@@ -189,7 +226,7 @@ public class EnumerateJoinsRule implements IAlgebraicRewriteRule {
                 return false; // there are some cases such as R OJ S on true. Here there is an OJ predicate but the code in findJoinConditions
                 // in JoinEnum does not capture this. Will fix later. Just bail for now.
             }
-            buildNewTree(cheapestPlanNode, newJoinOps, new MutableInt(0));
+            buildNewTree(cheapestPlanNode, newJoinOps, new MutableInt(0), context);
             opRef.setValue(newJoinOps.get(0));
 
             if (assignOps.size() > 0) {
@@ -197,6 +234,8 @@ public class EnumerateJoinsRule implements IAlgebraicRewriteRule {
                     MutableBoolean removed = new MutableBoolean(false);
                     removed.setFalse();
                     pushAssignsAboveJoins(newJoinOps.get(0), assignOps.get(i), assignJoinExprs.get(i), removed);
+                    context.computeAndSetTypeEnvironmentForOperator(newJoinOps.get(i));
+                    context.computeAndSetTypeEnvironmentForOperator(assignOps.get(i));
                     if (removed.isTrue()) {
                         assignOps.remove(i);
                     }
@@ -230,17 +269,33 @@ public class EnumerateJoinsRule implements IAlgebraicRewriteRule {
                 printPlan(pp, (AbstractLogicalOperator) newJoinOps.get(0), "New Whole Plan");
                 printPlan(pp, (AbstractLogicalOperator) root, "New Whole Plan");
             }
-
             // turn of this rule for all joins in this set (subtree)
             for (ILogicalOperator joinOp : newJoinOps) {
                 context.addToDontApplySet(this, joinOp);
             }
-
         } else {
             buildNewTree(cheapestPlanNode);
         }
-
+        context.computeAndSetTypeEnvironmentForOperator(op);
         return true;
+    }
+
+    private void collectJoinConditionsVariables() {
+        for (JoinOperator jOp : allJoinOps) {
+            AbstractBinaryJoinOperator joinOp = jOp.getAbstractJoinOp();
+            ILogicalExpression expr = joinOp.getCondition().getValue();
+            List<LogicalVariable> vars = new ArrayList<>();
+            expr.getUsedVariables(vars);
+            resultAndJoinVars.addAll(vars); // collect all the variables used in join expressions. These will be projected from the base level
+        }
+    }
+
+    private void addAllAssignExprVars(List<LogicalVariable> resultAndJoinVars, AssignOperator op) {
+        for (Mutable<ILogicalExpression> exp : op.getExpressions()) {
+            List<LogicalVariable> vars = new ArrayList<>();
+            exp.getValue().getUsedVariables(vars);
+            resultAndJoinVars.addAll(vars);
+        }
     }
 
     private void pushAssignsAboveJoins(ILogicalOperator op, AssignOperator aOp, ILogicalExpression jexpr,
@@ -372,19 +427,75 @@ public class EnumerateJoinsRule implements IAlgebraicRewriteRule {
 
     private ILogicalOperator findSelectOrDataScan(ILogicalOperator op) {
         LogicalOperatorTag tag;
+        ILogicalOperator currentOp = op;
         while (true) {
-            if (op.getInputs().size() > 1) {
+            if (currentOp.getInputs().size() > 1) {
                 return null; // Assuming only a linear plan for single table queries (as leafInputs are linear).
             }
-            tag = op.getOperatorTag();
+            tag = currentOp.getOperatorTag();
             if (tag == LogicalOperatorTag.EMPTYTUPLESOURCE) {
                 return null; // if this happens, there is nothing we can do in CBO code since there is no datasourcescan
             }
             if ((tag == LogicalOperatorTag.SELECT) || (tag == LogicalOperatorTag.DATASOURCESCAN)) {
-                return op;
+                return currentOp;
             }
 
-            op = op.getInputs().get(0).getValue();
+            currentOp = currentOp.getInputs().get(0).getValue();
+        }
+    }
+
+    private void getDistinctOpsForJoinNodes(ILogicalOperator op, IOptimizationContext context) {
+        if (op.getOperatorTag() != LogicalOperatorTag.DISTRIBUTE_RESULT) {
+            return;
+        }
+        ILogicalOperator grpByDistinctOp = null; // null indicates no DistinctOp or GroupByOp
+        DataSourceScanOperator scanOp;
+        ILogicalOperator currentOp = op;
+        while (true) {
+            LogicalOperatorTag tag = currentOp.getOperatorTag();
+            if (tag == LogicalOperatorTag.DISTINCT || tag == LogicalOperatorTag.GROUP) {
+                grpByDistinctOp = currentOp; // GroupByOp Variable expressions (if any) take over DistinctOp ones
+                this.rootGroupByDistinctOp = grpByDistinctOp;
+            } else if (tag == LogicalOperatorTag.INNERJOIN || tag == LogicalOperatorTag.LEFTOUTERJOIN) {
+                if (grpByDistinctOp != null) {
+                    for (int i = 0; i < currentOp.getInputs().size(); i++) {
+                        ILogicalOperator nextOp = currentOp.getInputs().get(i).getValue();
+                        OperatorUtils.createDistinctOpsForJoinNodes(nextOp, grpByDistinctOp, context,
+                                dataScanAndGroupByDistinctOps);
+                    }
+                }
+                return;
+            } else if (tag == LogicalOperatorTag.DATASOURCESCAN) { // single table queries
+                scanOp = (DataSourceScanOperator) currentOp;
+                // will work for any attributes present in GroupByOp or DistinctOp
+                if (grpByDistinctOp != null) {
+                    dataScanAndGroupByDistinctOps.put(scanOp, grpByDistinctOp);
+                }
+                return;
+            }
+            currentOp = currentOp.getInputs().get(0).getValue();
+            if (currentOp.getOperatorTag() == LogicalOperatorTag.EMPTYTUPLESOURCE) {
+                return; // if this happens, there is nothing we can do in CBO code since there is no DataSourceScan
+            }
+        }
+    }
+
+    private void findOrderByOp(ILogicalOperator op) {
+        ILogicalOperator currentOp = op;
+        if (currentOp.getOperatorTag() != LogicalOperatorTag.DISTRIBUTE_RESULT) {
+            return;
+        }
+
+        while (currentOp != null) {
+            LogicalOperatorTag tag = currentOp.getOperatorTag();
+            if (tag == LogicalOperatorTag.ORDER) {
+                this.rootOrderByOp = currentOp;
+                return;
+            }
+            if (tag == LogicalOperatorTag.EMPTYTUPLESOURCE) {
+                return;
+            }
+            currentOp = currentOp.getInputs().get(0).getValue();
         }
     }
 
@@ -807,8 +918,8 @@ public class EnumerateJoinsRule implements IAlgebraicRewriteRule {
     }
 
     // This one is for join queries
-    private void buildNewTree(PlanNode plan, List<ILogicalOperator> joinOps, MutableInt totalNumberOfJoins)
-            throws AlgebricksException {
+    private void buildNewTree(PlanNode plan, List<ILogicalOperator> joinOps, MutableInt totalNumberOfJoins,
+            IOptimizationContext context) throws AlgebricksException {
         // we have to move the inputs in op around so that they match the tree structure in pn
         // we use the existing joinOps and switch the leafInputs appropriately.
         List<PlanNode> allPlans = joinEnum.getAllPlans();
@@ -834,13 +945,15 @@ public class EnumerateJoinsRule implements IAlgebraicRewriteRule {
                 addCardCostAnnotations(selOp, leftPlan);
             }
             joinOp.getInputs().get(0).setValue(leftInput);
+            context.computeAndSetTypeEnvironmentForOperator(joinOp.getInputs().get(0).getValue());
             addCardCostAnnotations(findDataSourceScanOperator(leftInput), leftPlan);
         } else {
             // join
             totalNumberOfJoins.increment();
             ILogicalOperator leftInput = joinOps.get(totalNumberOfJoins.intValue());
             joinOp.getInputs().get(0).setValue(leftInput);
-            buildNewTree(leftPlan, joinOps, totalNumberOfJoins);
+            context.computeAndSetTypeEnvironmentForOperator(joinOp.getInputs().get(0).getValue());
+            buildNewTree(leftPlan, joinOps, totalNumberOfJoins, context);
         }
 
         if (rightPlan.IsScanNode()) {
@@ -852,13 +965,15 @@ public class EnumerateJoinsRule implements IAlgebraicRewriteRule {
                 addCardCostAnnotations(selOp, rightPlan);
             }
             joinOp.getInputs().get(1).setValue(rightInput);
+            context.computeAndSetTypeEnvironmentForOperator(joinOp.getInputs().get(1).getValue());
             addCardCostAnnotations(findDataSourceScanOperator(rightInput), rightPlan);
         } else {
             // join
             totalNumberOfJoins.increment();
             ILogicalOperator rightInput = joinOps.get(totalNumberOfJoins.intValue());
             joinOp.getInputs().get(1).setValue(rightInput);
-            buildNewTree(rightPlan, joinOps, totalNumberOfJoins);
+            context.computeAndSetTypeEnvironmentForOperator(joinOp.getInputs().get(1).getValue());
+            buildNewTree(rightPlan, joinOps, totalNumberOfJoins, context);
         }
     }
 

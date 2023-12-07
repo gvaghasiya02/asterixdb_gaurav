@@ -18,6 +18,8 @@
  */
 package org.apache.asterix.column.values.writer;
 
+import static org.apache.asterix.column.util.ColumnValuesUtil.getNormalizedTypeTag;
+
 import java.io.IOException;
 
 import org.apache.asterix.column.bytes.encoder.AbstractParquetValuesWriter;
@@ -38,16 +40,19 @@ import org.apache.parquet.bytes.BytesInput;
 
 final class LongColumnValuesWriter extends AbstractColumnValuesWriter {
     private final AbstractParquetValuesWriter longWriter;
+    private final ATypeTag typeTag;
 
     public LongColumnValuesWriter(Mutable<IColumnWriteMultiPageOp> multiPageOpRef, int columnIndex, int level,
-            boolean collection, boolean filtered) {
+            boolean collection, boolean filtered, ATypeTag typeTag) {
         super(columnIndex, level, collection, filtered);
-        longWriter = !filtered ? new ParquetPlainFixedLengthValuesWriter(multiPageOpRef)
-                : new ParquetDeltaBinaryPackingValuesWriterForLong(multiPageOpRef);
+        longWriter = filtered ? new ParquetDeltaBinaryPackingValuesWriterForLong(multiPageOpRef)
+                : new ParquetPlainFixedLengthValuesWriter(multiPageOpRef);
+
+        this.typeTag = filtered ? getNormalizedTypeTag(typeTag) : typeTag;
     }
 
     @Override
-    protected void addValue(ATypeTag tag, IValueReference value) throws IOException {
+    protected void addValue(ATypeTag tag, IValueReference value) {
         final long normalizedInt = getValue(tag, value.getByteArray(), value.getStartOffset());
         longWriter.writeLong(normalizedInt);
         filterWriter.addLong(normalizedInt);
@@ -64,7 +69,7 @@ final class LongColumnValuesWriter extends AbstractColumnValuesWriter {
             case BIGINT:
                 return LongPointable.getLong(byteArray, offset);
             default:
-                throw new IllegalAccessError(typeTag + "is not of type integer");
+                throw new IllegalAccessError(typeTag + " is not of type integer");
         }
     }
 
@@ -112,6 +117,6 @@ final class LongColumnValuesWriter extends AbstractColumnValuesWriter {
 
     @Override
     protected ATypeTag getTypeTag() {
-        return ATypeTag.BIGINT;
+        return typeTag;
     }
 }

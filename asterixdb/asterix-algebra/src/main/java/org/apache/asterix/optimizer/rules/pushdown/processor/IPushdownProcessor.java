@@ -21,5 +21,5 @@ package org.apache.asterix.optimizer.rules.pushdown.processor;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 
 public interface IPushdownProcessor {
-    void process() throws AlgebricksException;
+    boolean process() throws AlgebricksException;
 }

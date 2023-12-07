@@ -32,6 +32,7 @@ import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.common.metadata.DataverseName;
 import org.apache.asterix.common.metadata.MetadataConstants;
 import org.apache.asterix.common.metadata.MetadataUtil;
+import org.apache.asterix.common.metadata.NamespacePathResolver;
 import org.apache.asterix.file.StorageComponentProvider;
 import org.apache.asterix.metadata.MetadataManager;
 import org.apache.asterix.metadata.MetadataTransactionContext;
@@ -109,8 +110,8 @@ public class IndexDropOperatorNodePushableTest {
             String database = MetadataUtil.databaseFor(dvName);
             List<List<String>> partitioningKeys = new ArrayList<>();
             partitioningKeys.add(Collections.singletonList("key"));
-            Dataset dataset = new Dataset(database, dvName, DATASET_NAME, dvName, DATA_TYPE_NAME, NODE_GROUP_NAME,
-                    NoMergePolicyFactory.NAME, null,
+            Dataset dataset = new Dataset(database, dvName, DATASET_NAME, database, dvName, DATA_TYPE_NAME,
+                    NODE_GROUP_NAME, NoMergePolicyFactory.NAME, null,
                     new InternalDatasetDetails(null, InternalDatasetDetails.PartitioningStrategy.HASH, partitioningKeys,
                             null, null, null, false, null, null),
                     null, DatasetConfig.DatasetType.INTERNAL, DATASET_ID, 0);
@@ -152,14 +153,16 @@ public class IndexDropOperatorNodePushableTest {
             final MetadataTransactionContext mdTxn = MetadataManager.INSTANCE.beginTransaction();
             ICcApplicationContext appCtx = (ICcApplicationContext) ExecutionTestUtil.integrationUtil
                     .getClusterControllerService().getApplicationContext();
-            MetadataProvider metadataProver = MetadataProvider.create(appCtx, null);
+            MetadataProvider metadataProver = MetadataProvider.createWithDefaultNamespace(appCtx);
             metadataProver.setMetadataTxnContext(mdTxn);
             final DataverseName defaultDv = MetadataBuiltinEntities.DEFAULT_DATAVERSE.getDataverseName();
             final Dataset dataset = MetadataManager.INSTANCE.getDataset(mdTxn, MetadataConstants.DEFAULT_DATABASE,
                     defaultDv, datasetName);
             MetadataManager.INSTANCE.commitTransaction(mdTxn);
+            String dvPath =
+                    new NamespacePathResolver(false).resolve(dataset.getDatabaseName(), dataset.getDataverseName());
             FileSplit[] splits = SplitsAndConstraintsUtil.getIndexSplits(appCtx.getClusterStateManager(), dataset,
-                    indexName, Arrays.asList("asterix_nc1"));
+                    indexName, Arrays.asList("asterix_nc1"), dvPath);
             final ConstantFileSplitProvider constantFileSplitProvider =
                     new ConstantFileSplitProvider(Arrays.copyOfRange(splits, 0, 1));
             IndexDataflowHelperFactory helperFactory =

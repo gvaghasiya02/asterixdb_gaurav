@@ -123,7 +123,9 @@ public class CompilerProperties extends AbstractProperties {
                 BOOLEAN,
                 AlgebricksConfig.COLUMN_FILTER_DEFAULT,
                 "Enable/disable the use of column min/max filters"),
-        COMPILER_OPTIMIZE_GROUPBY(BOOLEAN, false, "Enable/disable optimize groupby");
+        COMPILER_OPTIMIZE_GROUPBY(BOOLEAN, false, "Enable/disable optimize groupby"),
+        //TODO(DB): remove after
+        COMPILER_ENABLE_DB_RESOLUTION(BOOLEAN, true, "Enable/disable the resolution of namespaces to database");
 
         private final IOptionType type;
         private final Object defaultValue;
@@ -157,7 +159,8 @@ public class CompilerProperties extends AbstractProperties {
 
         @Override
         public boolean hidden() {
-            return this == COMPILER_EXTERNALSCANMEMORY || this == COMPILER_CBOTEST;
+            return this == COMPILER_EXTERNALSCANMEMORY || this == COMPILER_CBOTEST
+                    || this == COMPILER_ENABLE_DB_RESOLUTION;
         }
     }
 
@@ -204,6 +207,8 @@ public class CompilerProperties extends AbstractProperties {
     public static final String COMPILER_QUERY_PLAN_SHAPE_KEY = Option.COMPILER_QUERYPLANSHAPE.ini();
 
     public static final String COMPILER_COLUMN_FILTER_KEY = Option.COMPILER_COLUMN_FILTER.ini();
+
+    public static final String COMPILER_ENABLE_DB_RESOLUTION_KEY = Option.COMPILER_ENABLE_DB_RESOLUTION.ini();
 
     public static final String COMPILER_OPTIMIZE_GROUPBY = Option.COMPILER_OPTIMIZE_GROUPBY.ini();
 
@@ -312,5 +317,9 @@ public class CompilerProperties extends AbstractProperties {
 
     public boolean isOptimizeGroupBy() {
         return accessor.getBoolean(Option.COMPILER_OPTIMIZE_GROUPBY);
+    }
+
+    public boolean isDbResolutionEnabled() {
+        return accessor.getBoolean(Option.COMPILER_ENABLE_DB_RESOLUTION);
     }
 }

@@ -30,7 +30,6 @@ import org.apache.asterix.common.config.DatasetConfig.DatasetType;
 import org.apache.asterix.common.config.OptimizationConfUtil;
 import org.apache.asterix.common.exceptions.CompilationException;
 import org.apache.asterix.common.exceptions.ErrorCode;
-import org.apache.asterix.common.metadata.MetadataUtil;
 import org.apache.asterix.common.utils.StoragePathUtil;
 import org.apache.asterix.formats.base.IDataFormat;
 import org.apache.asterix.formats.nontagged.BinaryBooleanInspector;
@@ -135,9 +134,8 @@ public abstract class SecondaryIndexOperationsHelper implements ISecondaryIndexO
         this.dataset = dataset;
         this.index = index;
         this.metadataProvider = metadataProvider;
-        String database = MetadataUtil.resolveDatabase(null, dataset.getItemTypeDataverseName());
-        ARecordType recordType = (ARecordType) metadataProvider.findType(database, dataset.getItemTypeDataverseName(),
-                dataset.getItemTypeName());
+        ARecordType recordType = (ARecordType) metadataProvider.findType(dataset.getItemTypeDatabaseName(),
+                dataset.getItemTypeDataverseName(), dataset.getItemTypeName());
         this.metaType = DatasetUtil.getMetaType(metadataProvider, dataset);
         this.itemType = (ARecordType) metadataProvider.findTypeForDatasetWithoutType(recordType, metaType, dataset);
 
@@ -477,9 +475,22 @@ public abstract class SecondaryIndexOperationsHelper implements ISecondaryIndexO
         return createFilterSelectOp(spec, numSecondaryKeyFields, secondaryRecDesc, AndDescriptor::new);
     }
 
+    public AlgebricksMetaOperatorDescriptor createCastFilterAnyUnknownSelectOp(JobSpecification spec,
+            int numSecondaryKeyFields, RecordDescriptor secondaryRecDesc, List<IAType> castFieldTypes)
+            throws AlgebricksException {
+        return createFilterSelectOp(spec, numSecondaryKeyFields, secondaryRecDesc, AndDescriptor::new, castFieldTypes);
+    }
+
     private AlgebricksMetaOperatorDescriptor createFilterSelectOp(JobSpecification spec, int numSecondaryKeyFields,
             RecordDescriptor secondaryRecDesc, Supplier<AbstractFunctionDescriptor> predicatesCombinerFuncSupplier)
             throws AlgebricksException {
+        return createFilterSelectOp(spec, numSecondaryKeyFields, secondaryRecDesc, predicatesCombinerFuncSupplier,
+                Collections.emptyList());
+    }
+
+    private AlgebricksMetaOperatorDescriptor createFilterSelectOp(JobSpecification spec, int numSecondaryKeyFields,
+            RecordDescriptor secondaryRecDesc, Supplier<AbstractFunctionDescriptor> predicatesCombinerFuncSupplier,
+            List<IAType> castFieldTypes) throws AlgebricksException {
         IScalarEvaluatorFactory[] predicateArgsEvalFactories = new IScalarEvaluatorFactory[numSecondaryKeyFields];
         NotDescriptor notDesc = new NotDescriptor();
         notDesc.setSourceLocation(sourceLoc);
@@ -488,8 +499,14 @@ public abstract class SecondaryIndexOperationsHelper implements ISecondaryIndexO
         for (int i = 0; i < numSecondaryKeyFields; i++) {
             // Access column i, and apply 'is not null'.
             ColumnAccessEvalFactory columnAccessEvalFactory = new ColumnAccessEvalFactory(i);
+            IScalarEvaluatorFactory evalFactory = columnAccessEvalFactory;
+            if (castFieldTypes != null && !castFieldTypes.isEmpty()) {
+                IScalarEvaluatorFactory[] castArg = new IScalarEvaluatorFactory[] { columnAccessEvalFactory };
+                evalFactory = createCastFunction(castFieldTypes.get(i), BuiltinType.ANY, index.isEnforced(), sourceLoc)
+                        .createEvaluatorFactory(castArg);
+            }
             IScalarEvaluatorFactory isUnknownEvalFactory =
-                    isUnknownDesc.createEvaluatorFactory(new IScalarEvaluatorFactory[] { columnAccessEvalFactory });
+                    isUnknownDesc.createEvaluatorFactory(new IScalarEvaluatorFactory[] { evalFactory });
             IScalarEvaluatorFactory notEvalFactory =
                     notDesc.createEvaluatorFactory(new IScalarEvaluatorFactory[] { isUnknownEvalFactory });
             predicateArgsEvalFactories[i] = notEvalFactory;

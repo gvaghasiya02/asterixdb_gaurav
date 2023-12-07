@@ -43,6 +43,7 @@ import org.apache.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.metadata.IProjectionFiltrationInfo;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractScanOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.DataSourceScanOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.logical.LeftOuterUnnestMapOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.UnnestMapOperator;
 
 public class PushdownProcessorsExecutor {
@@ -56,10 +57,12 @@ public class PushdownProcessorsExecutor {
         processors.add(processor);
     }
 
-    public void execute() throws AlgebricksException {
+    public boolean execute() throws AlgebricksException {
+        boolean changed = false;
         for (IPushdownProcessor processor : processors) {
-            processor.process();
+            changed |= processor.process();
         }
+        return changed;
     }
 
     public void finalizePushdown(PushdownContext pushdownContext, IOptimizationContext context) {
@@ -133,6 +136,9 @@ public class PushdownProcessorsExecutor {
         } else if (scanOp.getOperatorTag() == LogicalOperatorTag.UNNEST_MAP) {
             UnnestMapOperator unnestMapOp = (UnnestMapOperator) scanOp;
             unnestMapOp.setProjectionFiltrationInfo(info);
+        } else if (scanOp.getOperatorTag() == LogicalOperatorTag.LEFT_OUTER_UNNEST_MAP) {
+            LeftOuterUnnestMapOperator outerUnnestMapOp = (LeftOuterUnnestMapOperator) scanOp;
+            outerUnnestMapOp.setProjectionFiltrationInfo(info);
         }
     }
 }

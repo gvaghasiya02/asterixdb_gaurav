@@ -24,6 +24,7 @@ import java.util.List;
 import org.apache.asterix.column.assembler.value.MissingValueGetter;
 import org.apache.asterix.column.bytes.stream.in.AbstractBytesInputStream;
 import org.apache.asterix.column.bytes.stream.in.ByteBufferInputStream;
+import org.apache.asterix.column.bytes.stream.in.DummyBytesInputStream;
 import org.apache.asterix.column.bytes.stream.in.MultiByteBufferInputStream;
 import org.apache.asterix.column.filter.FilterAccessorProvider;
 import org.apache.asterix.column.filter.IColumnFilterEvaluator;
@@ -52,6 +53,7 @@ public final class QueryColumnTupleReference extends AbstractAsterixColumnTupleR
     private final IFilterApplier filterApplier;
     private final List<IColumnValuesReader> filterColumnReaders;
     private final AbstractBytesInputStream[] filteredColumnStreams;
+    private int previousIndex;
 
     public QueryColumnTupleReference(int componentIndex, ColumnBTreeReadLeafFrame frame,
             QueryColumnMetadata columnMetadata, IColumnReadMultiPageOp multiPageOp) {
@@ -68,12 +70,16 @@ public final class QueryColumnTupleReference extends AbstractAsterixColumnTupleR
         int numberOfPrimaryKeys = columnMetadata.getNumberOfPrimaryKeys();
         filteredColumnStreams = new AbstractBytesInputStream[columnMetadata.getNumberOfFilteredColumns()];
         for (int i = 0; i < filteredColumnStreams.length; i++) {
-            if (filterColumnReaders.get(i).getColumnIndex() >= numberOfPrimaryKeys) {
+            int columnIndex = filterColumnReaders.get(i).getColumnIndex();
+            if (columnIndex < 0) {
+                filteredColumnStreams[i] = DummyBytesInputStream.INSTANCE;
+            } else if (columnIndex >= numberOfPrimaryKeys) {
                 filteredColumnStreams[i] = new MultiByteBufferInputStream();
             } else {
                 filteredColumnStreams[i] = new ByteBufferInputStream();
             }
         }
+        previousIndex = -1;
     }
 
     @Override
@@ -94,6 +100,7 @@ public final class QueryColumnTupleReference extends AbstractAsterixColumnTupleR
         boolean readColumns = rangeFilterEvaluator.evaluate();
         assembler.reset(readColumns ? numberOfTuples : 0);
         columnFilterEvaluator.reset();
+        previousIndex = -1;
         return readColumns;
     }
 
@@ -125,9 +132,13 @@ public final class QueryColumnTupleReference extends AbstractAsterixColumnTupleR
 
     public IValueReference getAssembledValue() throws HyracksDataException {
         try {
+            if (previousIndex == tupleIndex) {
+                return assembler.getPreviousValue();
+            }
+            previousIndex = tupleIndex;
             return filterApplier.getTuple();
         } catch (ColumnarValueException e) {
-            appendExceptionInformation(e);
+            appendExceptionInformation(e, previousIndex);
             throw e;
         }
 

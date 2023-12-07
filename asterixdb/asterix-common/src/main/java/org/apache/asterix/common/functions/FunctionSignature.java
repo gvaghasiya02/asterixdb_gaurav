@@ -23,13 +23,15 @@ import java.util.Objects;
 
 import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.common.metadata.DataverseName;
-import org.apache.asterix.common.metadata.MetadataUtil;
+import org.apache.asterix.common.metadata.Namespace;
 import org.apache.hyracks.algebricks.core.algebra.functions.AlgebricksBuiltinFunctions;
 import org.apache.hyracks.algebricks.core.algebra.functions.FunctionIdentifier;
 
 public class FunctionSignature implements Serializable {
 
-    private static final long serialVersionUID = 2L;
+    private static final long serialVersionUID = 3L;
+
+    private String databaseName;
 
     private DataverseName dataverseName;
 
@@ -38,13 +40,18 @@ public class FunctionSignature implements Serializable {
     private int arity;
 
     public FunctionSignature(FunctionIdentifier fi) {
-        this(getDataverseName(fi), fi.getName(), fi.getArity());
+        this(fi.getDatabase(), getDataverseName(fi), fi.getName(), fi.getArity());
     }
 
-    public FunctionSignature(DataverseName dataverseName, String name, int arity) {
+    public FunctionSignature(String databaseName, DataverseName dataverseName, String name, int arity) {
+        this.databaseName = databaseName;
         this.dataverseName = dataverseName;
         this.name = name;
         this.arity = arity;
+    }
+
+    public static FunctionSignature newAsterix(String name, int arity) {
+        return new FunctionSignature(FunctionConstants.ASTERIX_DB, FunctionConstants.ASTERIX_DV, name, arity);
     }
 
     @Override
@@ -53,12 +60,13 @@ public class FunctionSignature implements Serializable {
             return false;
         }
         FunctionSignature f = ((FunctionSignature) o);
-        return Objects.equals(dataverseName, f.dataverseName) && name.equals(f.name) && arity == f.arity;
+        return Objects.equals(databaseName, f.databaseName) && Objects.equals(dataverseName, f.dataverseName)
+                && name.equals(f.name) && arity == f.arity;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dataverseName, name, arity);
+        return Objects.hash(databaseName, dataverseName, name, arity);
     }
 
     @Override
@@ -94,11 +102,16 @@ public class FunctionSignature implements Serializable {
     }
 
     public String getDatabaseName() {
-        return MetadataUtil.databaseFor(dataverseName);
+        return databaseName;
     }
 
     public DataverseName getDataverseName() {
         return dataverseName;
+    }
+
+    public Namespace getNamespace() {
+        //TODO(DB): the dataverse name is the driver here. change so that it's similar to other statement
+        return dataverseName == null ? null : new Namespace(databaseName, dataverseName);
     }
 
     public String getName() {
@@ -109,7 +122,8 @@ public class FunctionSignature implements Serializable {
         return arity;
     }
 
-    public void setDataverseName(DataverseName dataverseName) {
+    public void setDataverseName(String databaseName, DataverseName dataverseName) {
+        this.databaseName = databaseName;
         this.dataverseName = dataverseName;
     }
 
@@ -122,12 +136,12 @@ public class FunctionSignature implements Serializable {
     }
 
     public FunctionIdentifier createFunctionIdentifier() {
-        return createFunctionIdentifier(dataverseName, name, arity);
+        return createFunctionIdentifier(databaseName, dataverseName, name, arity);
     }
 
-    private static FunctionIdentifier createFunctionIdentifier(DataverseName dataverseName, String functionName,
-            int arity) {
-        return new FunctionIdentifier(dataverseName.getCanonicalForm(), functionName, arity);
+    private static FunctionIdentifier createFunctionIdentifier(String databaseName, DataverseName dataverseName,
+            String functionName, int arity) {
+        return new FunctionIdentifier(databaseName, dataverseName.getCanonicalForm(), functionName, arity);
     }
 
     public static DataverseName getDataverseName(FunctionIdentifier fi) {

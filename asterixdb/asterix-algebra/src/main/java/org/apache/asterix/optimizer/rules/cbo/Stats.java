@@ -23,19 +23,26 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.asterix.common.metadata.DataverseName;
 import org.apache.asterix.compiler.provider.IRuleSetFactory;
+import org.apache.asterix.lang.common.expression.LiteralExpr;
+import org.apache.asterix.lang.common.literal.StringLiteral;
+import org.apache.asterix.lang.common.util.FunctionUtil;
 import org.apache.asterix.metadata.declared.DataSource;
 import org.apache.asterix.metadata.declared.DataSourceId;
 import org.apache.asterix.metadata.declared.MetadataProvider;
 import org.apache.asterix.metadata.declared.SampleDataSource;
 import org.apache.asterix.metadata.entities.Index;
+import org.apache.asterix.om.base.ADouble;
 import org.apache.asterix.om.base.AInt64;
+import org.apache.asterix.om.base.ARecord;
 import org.apache.asterix.om.base.IAObject;
+import org.apache.asterix.om.constants.AsterixConstantValue;
 import org.apache.asterix.om.functions.BuiltinFunctionInfo;
 import org.apache.asterix.om.functions.BuiltinFunctions;
 import org.apache.asterix.optimizer.base.AnalysisUtil;
 import org.apache.asterix.optimizer.rules.am.array.AbstractOperatorFromSubplanRewrite;
+import org.apache.asterix.translator.ConstantHelper;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.commons.lang3.mutable.MutableObject;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
@@ -50,11 +57,16 @@ import org.apache.hyracks.algebricks.core.algebra.expressions.AggregateFunctionC
 import org.apache.hyracks.algebricks.core.algebra.expressions.ConstantExpression;
 import org.apache.hyracks.algebricks.core.algebra.expressions.JoinProductivityAnnotation;
 import org.apache.hyracks.algebricks.core.algebra.expressions.PredicateCardinalityAnnotation;
+import org.apache.hyracks.algebricks.core.algebra.expressions.ScalarFunctionCallExpression;
+import org.apache.hyracks.algebricks.core.algebra.expressions.VariableReferenceExpression;
 import org.apache.hyracks.algebricks.core.algebra.functions.AlgebricksBuiltinFunctions;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.logical.AssignOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.DataSourceScanOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.logical.ProjectOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.SelectOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.SubplanOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.logical.visitors.VariableUtilities;
 import org.apache.hyracks.algebricks.core.algebra.plan.ALogicalPlanImpl;
 import org.apache.hyracks.algebricks.core.algebra.util.OperatorManipulationUtil;
 import org.apache.hyracks.algebricks.core.algebra.util.OperatorPropertiesUtil;
@@ -69,27 +81,32 @@ public class Stats {
     private final IOptimizationContext optCtx;
     private final JoinEnum joinEnum;
 
+    private long totalCardFromSample;
+    private double distinctCardFromSample;
+
+    private final long MIN_TOTAL_SAMPLES = 1L;
+
+    public void setTotalCardFromSample(long numSamples) {
+        totalCardFromSample = numSamples;
+    }
+
+    public void setDistinctCardFromSample(double numDistinctSamples) {
+        distinctCardFromSample = numDistinctSamples;
+    }
+
     public Stats(IOptimizationContext context, JoinEnum joinE) {
         optCtx = context;
         joinEnum = joinE;
     }
 
-    protected DataverseName findDataverseName(DataSourceScanOperator scanOp) {
-        if (scanOp == null) {
-            // this should rarely happen (IN lists may cause this)
-            return null;
-        }
-        DataSourceId dsid = (DataSourceId) scanOp.getDataSource().getId();
-        return dsid.getDataverseName();
-    }
-
     protected Index findSampleIndex(DataSourceScanOperator scanOp, IOptimizationContext context)
             throws AlgebricksException {
-        DataverseName dataverseName = findDataverseName(scanOp);
         DataSource ds = (DataSource) scanOp.getDataSource();
+        if (ds.getDatasourceType() != DataSource.Type.INTERNAL_DATASET)
+            return null;
         DataSourceId dsid = ds.getId();
         MetadataProvider mdp = (MetadataProvider) context.getMetadataProvider();
-        return mdp.findSampleIndex(dataverseName, dsid.getDatasourceName());
+        return mdp.findSampleIndex(dsid.getDatabaseName(), dsid.getDataverseName(), dsid.getDatasourceName());
     }
 
     private double findJoinSelectivity(JoinProductivityAnnotation anno, AbstractFunctionCallExpression joinExpr)
@@ -488,7 +505,7 @@ public class Stats {
             }
         }
 
-        double predicateCardinality = (double) ((AInt64) result.get(0).get(0)).getLongValue();
+        double predicateCardinality = findPredicateCardinality(result, false);
         if (predicateCardinality == 0.0) {
             predicateCardinality = 0.0001 * idxDetails.getSampleCardinalityTarget();
         }
@@ -511,7 +528,7 @@ public class Stats {
             selOp.getCondition().setValue(ConstantExpression.TRUE);
             result = runSamplingQuery(optCtx, selOp);
             selOp.getCondition().setValue(saveExprs);
-            sampleCard = (double) ((AInt64) result.get(0).get(0)).getLongValue();
+            sampleCard = findPredicateCardinality(result, false);
         }
         // switch  the scanOp back
         parent.getInputs().get(0).setValue(scanOp);
@@ -520,9 +537,50 @@ public class Stats {
         return sel;
     }
 
-    private void transformtoAnyInPlan(SelectOperator newSelOp) {
+    public double findPredicateCardinality(List<List<IAObject>> result, boolean project) {
+        if (project) {
+            ARecord record = (ARecord) (((IAObject) ((List<IAObject>) (result.get(0))).get(0)));
+            int fields = record.numberOfFields();
+            IAObject first = record.getValueByPos(0);
+            return ((double) ((AInt64) first).getLongValue());
+        } else {
+            return (double) ((AInt64) result.get(0).get(0)).getLongValue();
+        }
     }
 
+    public int numberOfFields(List<List<IAObject>> result) {
+        ARecord record = (ARecord) (((IAObject) ((List<IAObject>) (result.get(0))).get(0)));
+        return record.numberOfFields();
+    }
+
+    public double findSizeVarsFromDisk(List<List<IAObject>> result, int numDiskVars) {
+        ARecord record = (ARecord) (((IAObject) ((List<IAObject>) (result.get(0))).get(0)));
+        // Now figure out the projected size
+        double projectedSize = 0.0;
+        int fields = record.numberOfFields();
+        for (int j = 1; j <= numDiskVars; j++) {
+            IAObject field = record.getValueByPos(j);
+            double size = ((double) ((ADouble) field).getDoubleValue());
+            projectedSize += size;
+        }
+        return projectedSize;
+    }
+
+    // Can have null returned, so this routine should only be called if at least tuple is returned by the sample
+    public double findSizeVarsAfterScan(List<List<IAObject>> result, int numDiskVars) {
+        ARecord record = (ARecord) (((IAObject) ((List<IAObject>) (result.get(0))).get(0)));
+        // Now figure out the projected size
+        double projectedSize = 0.0;
+        int fields = record.numberOfFields();
+        for (int j = 1 + numDiskVars; j < fields; j++) { // must skip the disk vars
+            IAObject field = record.getValueByPos(j);
+            double size = ((double) ((ADouble) field).getDoubleValue());
+            projectedSize += size;
+        }
+        return projectedSize;
+    }
+
+    // This one only gets the cardinality
     protected List<List<IAObject>> runSamplingQuery(IOptimizationContext ctx, ILogicalOperator logOp)
             throws AlgebricksException {
         LOGGER.info("***running sample query***");
@@ -555,5 +613,288 @@ public class Stats {
         LOGGER.trace("viewInPlan");
         LOGGER.trace(viewInPlan);
         return AnalysisUtil.runQuery(newAggOpRef, Arrays.asList(aggVar), newCtx, IRuleSetFactory.RuleSetKind.SAMPLING);
+    }
+
+    // This one gets the cardinality and also projection sizes
+    protected List<List<IAObject>> runSamplingQueryProjection(IOptimizationContext ctx, ILogicalOperator logOp,
+            int dataset, LogicalVariable primaryKey) throws AlgebricksException {
+        LOGGER.info("***running sample query***");
+
+        IOptimizationContext newCtx = ctx.getOptimizationContextFactory().cloneOptimizationContext(ctx);
+
+        ILogicalOperator newScanOp = OperatorManipulationUtil.bottomUpCopyOperators(logOp);
+        // Now we have to generate plans like this on top of the scanOp (logOp)
+        // project ([$$79])
+        // assign [$$79] <- [{"$1": $$73, "$2": $$74, "$3": $$75, "$4": $$76, "$5": $$77, "$6": $$78}]
+        // aggregate [$$73, $$74, $$75, $$76, $$77, $$78] <- [agg-count(true), sql-avg($$68), sql-avg($$69), sql-avg($$70), sql-avg($$71), sql-avg($$72)]
+        // assign [$$68, $$69, $$70, $$71, $$72] <- [serialized-size($$60), serialized-size($$str), serialized-size($$61), serialized-size($$65), serialized-size($$67)]
+
+        // add the assign [$$56, ..., ] <- [encoded-size($$67), ..., ] on top of newAggOp
+        List<LogicalVariable> vars1 = new ArrayList<>();
+        VariableUtilities.getLiveVariables(logOp, vars1); // all the variables in the leafInput
+        // Depending on the order here. Assuming the first three variables are from the data scan operator.
+        if (!joinEnum.resultAndJoinVars.contains(primaryKey)) { // if the entire row is not being projected, we must remove $$p
+            vars1.remove(primaryKey);
+        }
+
+        List<LogicalVariable> vars3 = // these variables can be thrown away as they are not present joins and in the final project
+                new ArrayList<>(CollectionUtils.subtract(vars1, joinEnum.resultAndJoinVars /* vars2 */));
+        List<LogicalVariable> vars4 = new ArrayList<>(CollectionUtils.subtract(vars1, vars3)); // variables that will flow up the tree
+
+        List<LogicalVariable> vars = new ArrayList<>();
+        vars.addAll(vars1);
+        vars.addAll(vars4); // doing a union all; duplicates must not be removed
+        //vars1 is what comes out of the disk
+        joinEnum.jnArray[dataset].setNumVarsFromDisk(vars1.size());
+        joinEnum.jnArray[dataset].setNumVarsAfterScan(vars4.size()); // Is this used? check.
+
+        LogicalVariable newVar;
+        // array to keep track of the assigns
+        List<LogicalVariable> newVars = new ArrayList<>();
+        List<Mutable<ILogicalExpression>> exprs = new ArrayList<>();
+
+        // create this assignOperator
+        // assign [$$68, $$69, $$70, $$71, $$72] <- [serialized-size($$60), serialized-size($$str), serialized-size($$61), serialized-size($$65), serialized-size($$67)]
+        int count = 0;
+        for (LogicalVariable lv : vars) {
+            count++;
+            VariableReferenceExpression varRefExpr = new VariableReferenceExpression(lv);
+            List<Mutable<ILogicalExpression>> vars2 = new ArrayList<>();
+            vars2.add(new MutableObject<>(varRefExpr));
+            ScalarFunctionCallExpression func = new ScalarFunctionCallExpression(
+                    FunctionUtil.getFunctionInfo(BuiltinFunctions.SERIALIZED_SIZE), vars2);
+            exprs.add(new MutableObject<>(func));
+            newVar = newCtx.newVar();
+            newVars.add(newVar);
+        }
+
+        AssignOperator assignOp = new AssignOperator(newVars, exprs);
+        assignOp.getInputs().add(new MutableObject<>(newScanOp));
+        Mutable<ILogicalOperator> tmpRef = new MutableObject<>(assignOp);
+
+        // aggregate [$$73, $$74, $$75, $$76, $$77, $$78] <- [agg-count(true), sql-avg($$68), sql-avg($$69), sql-avg($$70), sql-avg($$71), sql-avg($$72)]
+        // add the count-agg (true) first
+        List<LogicalVariable> newVars2 = new ArrayList<>();
+        List<Mutable<ILogicalExpression>> aggExprList = new ArrayList<>();
+        List<Mutable<ILogicalExpression>> aggFunArgs = new ArrayList<>(1);
+        aggFunArgs.add(new MutableObject<>(ConstantExpression.TRUE));
+        BuiltinFunctionInfo countFn = BuiltinFunctions.getBuiltinFunctionInfo(BuiltinFunctions.COUNT);
+        AggregateFunctionCallExpression aggExpr = new AggregateFunctionCallExpression(countFn, false, aggFunArgs);
+        aggExprList.add(new MutableObject<>(aggExpr));
+        LogicalVariable aggVar = newCtx.newVar();
+        newVars2.add(aggVar);
+
+        // Now add the other aggs
+        for (int i = 0; i < count; i++) {
+            VariableReferenceExpression varRefExpr;
+            varRefExpr = new VariableReferenceExpression(newVars.get(i));
+            List<Mutable<ILogicalExpression>> vars2 = new ArrayList<>();
+            vars2.add(new MutableObject<>(varRefExpr));
+            BuiltinFunctionInfo avgFn = BuiltinFunctions.getBuiltinFunctionInfo(BuiltinFunctions.SQL_AVG);
+            aggExpr = new AggregateFunctionCallExpression(avgFn, false, vars2);
+            newVar = newCtx.newVar();
+
+            newVars2.add(newVar);
+            aggExprList.add(new MutableObject<>(aggExpr));
+        }
+
+        // add assign [$$79] <- [{"$1": $$73, "$2": $$74, "$3": $$75, "$4": $$76, "$5": $$77, "$6": $$78}]
+        AggregateOperator newAggOp = new AggregateOperator(newVars2, aggExprList);
+        newAggOp.getInputs().add(new MutableObject<>(assignOp));
+        Mutable<ILogicalOperator> newAggOpRef = new MutableObject<>(newAggOp);
+        OperatorPropertiesUtil.typeOpRec(newAggOpRef, newCtx); // is this really needed??
+        List<MutableObject> arr = createMutableObjectArray(newAggOp.getVariables());
+        AbstractFunctionCallExpression f = new ScalarFunctionCallExpression(
+                FunctionUtil.getFunctionInfo(BuiltinFunctions.OPEN_RECORD_CONSTRUCTOR));
+        for (int i = 0; i < arr.size(); i++) {
+            f.getArguments().add(arr.get(i));
+        }
+
+        newVar = newCtx.newVar();
+        assignOp = new AssignOperator(newVar, new MutableObject<>(f));
+        assignOp.getInputs().add(new MutableObject<>(newAggOp));
+        ProjectOperator pOp = new ProjectOperator(newVar);
+        pOp.getInputs().add(new MutableObject<>(assignOp));
+
+        Mutable<ILogicalOperator> Ref = new MutableObject<>(pOp);
+
+        OperatorPropertiesUtil.typeOpRec(Ref, newCtx);
+        if (LOGGER.isTraceEnabled()) {
+            String viewInPlan = new ALogicalPlanImpl(Ref).toString(); //useful when debugging
+            LOGGER.trace("sampling query before calling runQuery");
+            LOGGER.trace(viewInPlan);
+        }
+
+        LOGGER.info("***returning from sample query***");
+        return AnalysisUtil.runQuery(Ref, Arrays.asList(newVar), newCtx, IRuleSetFactory.RuleSetKind.SAMPLING);
+    }
+
+    private List<MutableObject> createMutableObjectArray(List<LogicalVariable> vars) {
+        List<MutableObject> arr = new ArrayList<>();
+        for (int i = 0; i < vars.size(); i++) {
+            LiteralExpr le = new LiteralExpr();
+            StringLiteral value = new StringLiteral("$" + Integer.toString(i + 1)); // these start from 1
+            le.setValue(value);
+            AsterixConstantValue cValue = new AsterixConstantValue(ConstantHelper.objectFromLiteral(le.getValue()));
+            ConstantExpression cExpr = new ConstantExpression(cValue);
+            arr.add(new MutableObject<>(cExpr));
+            arr.add(new MutableObject<>(new VariableReferenceExpression(vars.get(i))));
+        }
+        return arr;
+    }
+
+    public long findDistinctCardinality(ILogicalOperator grpByDistinctOp) throws AlgebricksException {
+        long distinctCard = 0L;
+        LogicalOperatorTag tag = grpByDistinctOp.getOperatorTag();
+
+        // distinct cardinality supported only for GroupByOp and DistinctOp
+        if (tag == LogicalOperatorTag.DISTINCT || tag == LogicalOperatorTag.GROUP) {
+            ILogicalOperator parent = joinEnum.findDataSourceScanOperatorParent(grpByDistinctOp);
+            DataSourceScanOperator scanOp = (DataSourceScanOperator) parent.getInputs().get(0).getValue();
+            if (scanOp == null) {
+                return distinctCard; // this may happen in case of in lists
+            }
+
+            Index index = findSampleIndex(scanOp, optCtx);
+            if (index == null) {
+                return distinctCard;
+            }
+
+            Index.SampleIndexDetails idxDetails = (Index.SampleIndexDetails) index.getIndexDetails();
+            double origDatasetCard = idxDetails.getSourceCardinality();
+
+            byte dsType = ((DataSource) scanOp.getDataSource()).getDatasourceType();
+            if (!(dsType == DataSource.Type.INTERNAL_DATASET || dsType == DataSource.Type.EXTERNAL_DATASET)) {
+                return distinctCard; // Datasource must be of a dataset, not supported for other datasource types
+            }
+            SampleDataSource sampleDataSource = joinEnum.getSampleDataSource(scanOp);
+
+            ILogicalOperator parentOfSelectOp = findParentOfSelectOp(grpByDistinctOp);
+            SelectOperator selOp = (parentOfSelectOp == null) ? null
+                    : ((SelectOperator) parentOfSelectOp.getInputs().get(0).getValue());
+
+            setTotalCardFromSample(idxDetails.getSampleCardinalityTarget()); // sample size without predicates (i.e., n)
+            if (selOp != null) {
+                long sampleWithPredicates = findSampleSizeWithPredicates(selOp, sampleDataSource);
+                // set totalSamples to the sample size with predicates (i.e., n_f)
+                setTotalCardFromSample(sampleWithPredicates);
+            }
+            // get the estimated distinct cardinality for the dataset (i.e., D_est or D_est_f)
+            distinctCard = findEstDistinctWithPredicates(grpByDistinctOp, origDatasetCard, sampleDataSource);
+        }
+        return distinctCard;
+    }
+
+    private long findSampleSizeWithPredicates(SelectOperator selOp, SampleDataSource sampleDataSource)
+            throws AlgebricksException {
+        long sampleSize = Long.MAX_VALUE;
+        ILogicalOperator copyOfSelOp = OperatorManipulationUtil.bottomUpCopyOperators(selOp);
+        if (setSampleDataSource(copyOfSelOp, sampleDataSource)) {
+            List<List<IAObject>> result = runSamplingQuery(optCtx, copyOfSelOp);
+            sampleSize = (long) findPredicateCardinality(result, false);
+        }
+        return sampleSize;
+    }
+
+    private long findEstDistinctWithPredicates(ILogicalOperator grpByDistinctOp, double origDatasetCardinality,
+            SampleDataSource sampleDataSource) throws AlgebricksException {
+        double estDistCardinalityFromSample = -1.0;
+        double estDistCardinality = -1.0;
+
+        LogicalOperatorTag tag = grpByDistinctOp.getOperatorTag();
+        if (tag == LogicalOperatorTag.GROUP || tag == LogicalOperatorTag.DISTINCT) {
+            ILogicalOperator copyOfGrpByDistinctOp = OperatorManipulationUtil.bottomUpCopyOperators(grpByDistinctOp);
+            if (setSampleDataSource(copyOfGrpByDistinctOp, sampleDataSource)) {
+                // get distinct cardinality from the sampling source
+                List<List<IAObject>> result = runSamplingQuery(optCtx, copyOfGrpByDistinctOp);
+                estDistCardinalityFromSample = findPredicateCardinality(result, false);
+            }
+        }
+        if (estDistCardinalityFromSample != -1.0) { // estimate distinct cardinality for the dataset from the sampled cardinality
+            estDistCardinality = distinctEstimator(estDistCardinalityFromSample, origDatasetCardinality);
+        }
+        estDistCardinality = Math.max(0.0, estDistCardinality);
+        return Math.round(estDistCardinality);
+    }
+
+    // Use the Newton-Raphson method for distinct cardinality estimation.
+    private double distinctEstimator(double estDistinctCardinalityFromSample, double origDatasetCardinality) {
+        // initialize the estimate to be the number of distinct values from the sample.
+        double estDistinctCardinality = initNR(estDistinctCardinalityFromSample);
+        setDistinctCardFromSample(estDistinctCardinality);
+
+        int itr_counter = 0, max_counter = 1000; // allow a maximum number of iterations
+        double denominator = derivativeFunctionForMMO(estDistinctCardinality);
+        if (denominator == 0.0) { // Newton-Raphson method requires it to be non-zero
+            return estDistinctCardinality;
+        }
+        double fraction = functionForMMO(estDistinctCardinality) / denominator;
+        while (Math.abs(fraction) >= 0.001 && itr_counter < max_counter) {
+            denominator = derivativeFunctionForMMO(estDistinctCardinality);
+            if (denominator == 0.0) {
+                break;
+            }
+            fraction = functionForMMO(estDistinctCardinality) / denominator;
+            estDistinctCardinality = estDistinctCardinality - fraction;
+            itr_counter++;
+            if (estDistinctCardinality > origDatasetCardinality) {
+                estDistinctCardinality = origDatasetCardinality; // for preventing infinite growth beyond N
+                break;
+            }
+        }
+
+        // estimated cardinality cannot be less the initial one from samples
+        estDistinctCardinality = Math.max(estDistinctCardinality, estDistinctCardinalityFromSample);
+
+        return estDistinctCardinality;
+    }
+
+    double initNR(double estDistinctCardinalityFromSample) {
+        double estDistinctCardinality = estDistinctCardinalityFromSample;
+
+        // Boundary condition checks for Newton-Raphson method.
+        if (totalCardFromSample <= MIN_TOTAL_SAMPLES) {
+            setTotalCardFromSample(totalCardFromSample + 2);
+            estDistinctCardinality = totalCardFromSample - 1;
+        } else if (estDistinctCardinality == totalCardFromSample) {
+            estDistinctCardinality--;
+        }
+        return estDistinctCardinality;
+    }
+
+    private double functionForMMO(double x) {
+        return (x * (1.0 - Math.exp(-1.0 * (double) totalCardFromSample / x)) - distinctCardFromSample);
+    }
+
+    private double derivativeFunctionForMMO(double x) {
+        double arg = ((double) totalCardFromSample / x);
+        return (1.0 - (arg + 1.0) * Math.exp(-1.0 * arg));
+    }
+
+    private boolean setSampleDataSource(ILogicalOperator op, SampleDataSource sampleDataSource) {
+        ILogicalOperator parent = joinEnum.findDataSourceScanOperatorParent(op);
+        DataSourceScanOperator scanOp = (DataSourceScanOperator) parent.getInputs().get(0).getValue();
+        if (scanOp == null) {
+            return false;
+        }
+        // replace the DataSourceScanOp with the sampling source
+        scanOp.setDataSource(sampleDataSource);
+        return true;
+    }
+
+    private ILogicalOperator findParentOfSelectOp(ILogicalOperator op) {
+        ILogicalOperator parent = null;
+        ILogicalOperator currentOp = op;
+        LogicalOperatorTag tag = currentOp.getOperatorTag();
+
+        while (tag != LogicalOperatorTag.DATASOURCESCAN) {
+            if (tag == LogicalOperatorTag.SELECT) {
+                return parent;
+            }
+            parent = currentOp;
+            currentOp = currentOp.getInputs().get(0).getValue();
+            tag = currentOp.getOperatorTag();
+        }
+        return null; // no SelectOp in the query tree
     }
 }

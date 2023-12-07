@@ -1,14 +1,14 @@
-distribute result [$$52] [cardinality: 3.0, op-cost: 0.0, total-cost: 21.9]
+distribute result [$$52] [cardinality: 3.0, op-cost: 0.0, total-cost: 26.65]
 -- DISTRIBUTE_RESULT  |PARTITIONED|
-  exchange [cardinality: 3.0, op-cost: 0.0, total-cost: 21.9]
+  exchange [cardinality: 3.0, op-cost: 0.0, total-cost: 26.65]
   -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
-    project ([$$52]) [cardinality: 3.0, op-cost: 0.0, total-cost: 21.9]
+    project ([$$52]) [cardinality: 3.0, op-cost: 0.0, total-cost: 26.65]
     -- STREAM_PROJECT  |PARTITIONED|
-      assign [$$52] <- [{"t1_id": $$73, "t2_id": $$54}] [cardinality: 3.0, op-cost: 0.0, total-cost: 21.9]
+      assign [$$52] <- [{"t1_id": $$73, "t2_id": $$54}] [cardinality: 3.0, op-cost: 0.0, total-cost: 26.65]
       -- ASSIGN  |PARTITIONED|
-        exchange [cardinality: 3.0, op-cost: 0.0, total-cost: 21.9]
+        exchange [cardinality: 3.0, op-cost: 0.0, total-cost: 26.65]
         -- SORT_MERGE_EXCHANGE [$$73(ASC), $$54(ASC) ]  |PARTITIONED|
-          order (ASC, $$73) (ASC, $$54) [cardinality: 3.0, op-cost: 0.0, total-cost: 21.9]
+          order (ASC, $$73) (ASC, $$54) [cardinality: 3.0, op-cost: 4.75, total-cost: 26.65]
           -- STABLE_SORT [$$73(ASC), $$54(ASC)]  |PARTITIONED|
             exchange [cardinality: 3.0, op-cost: 0.0, total-cost: 21.9]
             -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
@@ -34,7 +34,7 @@ distribute result [$$52] [cardinality: 3.0, op-cost: 0.0, total-cost: 21.9]
                                 -- STREAM_SELECT  |PARTITIONED|
                                   exchange [cardinality: 2.1, op-cost: 0.0, total-cost: 2.1]
                                   -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
-                                    left-outer-unnest-map [$$70, $$71] <- index-search("ds_inner_typed", 0, "test", "ds_inner_typed", true, false, 1, $$61, 1, $$61, true, true, true) [cardinality: 0.0, op-cost: 0.0, total-cost: 0.0]
+                                    left-outer-unnest-map [$$70, $$71] <- index-search("ds_inner_typed", 0, "Default", "test", "ds_inner_typed", true, false, 1, $$61, 1, $$61, true, true, true) [cardinality: 0.0, op-cost: 0.0, total-cost: 0.0]
                                     -- BTREE_SEARCH  |PARTITIONED|
                                       exchange [cardinality: 2.1, op-cost: 0.0, total-cost: 2.1]
                                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
@@ -46,7 +46,7 @@ distribute result [$$52] [cardinality: 3.0, op-cost: 0.0, total-cost: 21.9]
                                             -- SPLIT  |PARTITIONED|
                                               exchange [cardinality: 2.1, op-cost: 0.0, total-cost: 2.1]
                                               -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
-                                                left-outer-unnest-map [$$60, $$61, $$62] <- index-search("idx_c_int32", 0, "test", "ds_inner_typed", true, true, 1, $$55, 1, $$55, true, true, true) [cardinality: 0.0, op-cost: 0.0, total-cost: 0.0]
+                                                left-outer-unnest-map [$$60, $$61, $$62] <- index-search("idx_c_int32", 0, "Default", "test", "ds_inner_typed", true, true, 1, $$55, 1, $$55, true, true, true) [cardinality: 0.0, op-cost: 0.0, total-cost: 0.0]
                                                 -- BTREE_SEARCH  |PARTITIONED|
                                                   exchange [cardinality: 2.1, op-cost: 0.0, total-cost: 2.1]
                                                   -- BROADCAST_EXCHANGE  |PARTITIONED|
@@ -76,7 +76,7 @@ distribute result [$$52] [cardinality: 3.0, op-cost: 0.0, total-cost: 21.9]
                                       -- SPLIT  |PARTITIONED|
                                         exchange [cardinality: 2.1, op-cost: 0.0, total-cost: 2.1]
                                         -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
-                                          left-outer-unnest-map [$$60, $$61, $$62] <- index-search("idx_c_int32", 0, "test", "ds_inner_typed", true, true, 1, $$55, 1, $$55, true, true, true) [cardinality: 0.0, op-cost: 0.0, total-cost: 0.0]
+                                          left-outer-unnest-map [$$60, $$61, $$62] <- index-search("idx_c_int32", 0, "Default", "test", "ds_inner_typed", true, true, 1, $$55, 1, $$55, true, true, true) [cardinality: 0.0, op-cost: 0.0, total-cost: 0.0]
                                           -- BTREE_SEARCH  |PARTITIONED|
                                             exchange [cardinality: 2.1, op-cost: 0.0, total-cost: 2.1]
                                             -- BROADCAST_EXCHANGE  |PARTITIONED|

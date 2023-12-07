@@ -64,12 +64,15 @@ import org.apache.asterix.app.result.JobResultCallback;
 import org.apache.asterix.cloud.CloudManagerProvider;
 import org.apache.asterix.common.api.AsterixThreadFactory;
 import org.apache.asterix.common.api.IConfigValidatorFactory;
+import org.apache.asterix.common.api.INamespacePathResolver;
+import org.apache.asterix.common.api.INamespaceResolver;
 import org.apache.asterix.common.api.INodeJobTracker;
 import org.apache.asterix.common.api.IReceptionistFactory;
 import org.apache.asterix.common.cluster.IGlobalRecoveryManager;
 import org.apache.asterix.common.cluster.IGlobalTxManager;
 import org.apache.asterix.common.config.AsterixExtension;
 import org.apache.asterix.common.config.CloudProperties;
+import org.apache.asterix.common.config.CompilerProperties;
 import org.apache.asterix.common.config.ExtensionProperties;
 import org.apache.asterix.common.config.ExternalProperties;
 import org.apache.asterix.common.config.GlobalConfig;
@@ -81,6 +84,8 @@ import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.common.external.IAdapterFactoryService;
 import org.apache.asterix.common.library.ILibraryManager;
 import org.apache.asterix.common.metadata.IMetadataLockUtil;
+import org.apache.asterix.common.metadata.NamespacePathResolver;
+import org.apache.asterix.common.metadata.NamespaceResolver;
 import org.apache.asterix.common.replication.INcLifecycleCoordinator;
 import org.apache.asterix.common.utils.Servlets;
 import org.apache.asterix.external.adapter.factory.AdapterFactoryService;
@@ -165,7 +170,13 @@ public class CCApplication extends BaseCCApplication {
                 new ReplicationProperties(PropertiesAccessor.getInstance(ccServiceCtx.getAppConfig()));
         INcLifecycleCoordinator lifecycleCoordinator = createNcLifeCycleCoordinator(repProp.isReplicationEnabled());
         componentProvider = new StorageComponentProvider();
-        ccExtensionManager = new CCExtensionManager(new ArrayList<>(getExtensions()));
+        boolean isDbResolutionEnabled =
+                ccServiceCtx.getAppConfig().getBoolean(CompilerProperties.Option.COMPILER_ENABLE_DB_RESOLUTION);
+        boolean cloudDeployment = ccServiceCtx.getAppConfig().getBoolean(CLOUD_DEPLOYMENT);
+        boolean useDatabaseResolution = cloudDeployment && isDbResolutionEnabled;
+        INamespaceResolver namespaceResolver = new NamespaceResolver(useDatabaseResolution);
+        INamespacePathResolver namespacePathResolver = new NamespacePathResolver(useDatabaseResolution);
+        ccExtensionManager = new CCExtensionManager(new ArrayList<>(getExtensions()), namespaceResolver);
         IGlobalRecoveryManager globalRecoveryManager = createGlobalRecoveryManager();
         final CCConfig ccConfig = controllerService.getCCConfig();
 
@@ -173,14 +184,15 @@ public class CCApplication extends BaseCCApplication {
         devices.add(new IODeviceHandle(new File(ccConfig.getGlobalTxLogDir()), "."));
         IOManager ioManager = new IOManager(devices, new DefaultDeviceResolver(), 1, 10);
         CloudProperties cloudProperties = null;
-        if (ccServiceCtx.getAppConfig().getBoolean(CLOUD_DEPLOYMENT)) {
+        if (cloudDeployment) {
             cloudProperties = new CloudProperties(PropertiesAccessor.getInstance(ccServiceCtx.getAppConfig()));
-            ioManager = (IOManager) CloudManagerProvider.createIOManager(cloudProperties, ioManager);;
+            ioManager =
+                    (IOManager) CloudManagerProvider.createIOManager(cloudProperties, ioManager, namespacePathResolver);
         }
         IGlobalTxManager globalTxManager = createGlobalTxManager(ioManager);
         appCtx = createApplicationContext(null, globalRecoveryManager, lifecycleCoordinator, Receptionist::new,
                 ConfigValidator::new, ccExtensionManager, new AdapterFactoryService(), globalTxManager, ioManager,
-                cloudProperties);
+                cloudProperties, namespaceResolver, namespacePathResolver);
         if (System.getProperty("java.rmi.server.hostname") == null) {
             System.setProperty("java.rmi.server.hostname", ccConfig.getClusterPublicAddress());
         }
@@ -228,12 +240,14 @@ public class CCApplication extends BaseCCApplication {
             IGlobalRecoveryManager globalRecoveryManager, INcLifecycleCoordinator lifecycleCoordinator,
             IReceptionistFactory receptionistFactory, IConfigValidatorFactory configValidatorFactory,
             CCExtensionManager ccExtensionManager, IAdapterFactoryService adapterFactoryService,
-            IGlobalTxManager globalTxManager, IOManager ioManager, CloudProperties cloudProperties)
+            IGlobalTxManager globalTxManager, IOManager ioManager, CloudProperties cloudProperties,
+            INamespaceResolver namespaceResolver, INamespacePathResolver namespacePathResolver)
             throws AlgebricksException, IOException {
         return new CcApplicationContext(ccServiceCtx, hcc, () -> MetadataManager.INSTANCE, globalRecoveryManager,
                 lifecycleCoordinator, new ActiveNotificationHandler(), componentProvider, new MetadataLockManager(),
                 createMetadataLockUtil(), receptionistFactory, configValidatorFactory, ccExtensionManager,
-                adapterFactoryService, globalTxManager, ioManager, cloudProperties);
+                adapterFactoryService, globalTxManager, ioManager, cloudProperties, namespaceResolver,
+                namespacePathResolver);
     }
 
     protected IGlobalRecoveryManager createGlobalRecoveryManager() throws Exception {

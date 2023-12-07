@@ -302,6 +302,7 @@ public class LSMPrimaryUpsertOperatorNodePushable extends LSMIndexInsertUpdateDe
                     (INcApplicationContext) ctx.getJobletContext().getServiceContext().getApplicationContext();
             for (int i = 0; i < indexHelpers.length; i++) {
                 IIndexDataflowHelper indexHelper = indexHelpers[i];
+                indexHelpersOpen[i] = true;
                 indexHelper.open();
                 indexes[i] = indexHelper.getIndexInstance();
                 if (((ILSMIndex) indexes[i]).isAtomic()) {
@@ -530,7 +531,7 @@ public class LSMPrimaryUpsertOperatorNodePushable extends LSMIndexInsertUpdateDe
         Throwable failure = CleanupUtils.close(frameOpCallbacks, null);
         failure = CleanupUtils.destroy(failure, cursors);
         failure = CleanupUtils.close(writer, failure);
-        failure = CleanupUtils.close(indexHelpers, failure);
+        failure = closeIndexHelpers(failure);
         if (failure == null && !failed) {
             commitAtomicUpsert();
         } else {
@@ -576,7 +577,7 @@ public class LSMPrimaryUpsertOperatorNodePushable extends LSMIndexInsertUpdateDe
         final Map<String, ILSMComponentId> componentIdMap = new HashMap<>();
         boolean atomic = false;
         for (IIndex index : indexes) {
-            if (((ILSMIndex) index).isAtomic()) {
+            if (index != null && ((ILSMIndex) index).isAtomic()) {
                 PrimaryIndexOperationTracker opTracker =
                         ((PrimaryIndexOperationTracker) ((ILSMIndex) index).getOperationTracker());
                 opTracker.finishAllFlush();
@@ -602,7 +603,7 @@ public class LSMPrimaryUpsertOperatorNodePushable extends LSMIndexInsertUpdateDe
 
     private void abortAtomicUpsert() throws HyracksDataException {
         for (IIndex index : indexes) {
-            if (((ILSMIndex) index).isAtomic()) {
+            if (index != null && ((ILSMIndex) index).isAtomic()) {
                 PrimaryIndexOperationTracker opTracker =
                         ((PrimaryIndexOperationTracker) ((ILSMIndex) index).getOperationTracker());
                 opTracker.abort();

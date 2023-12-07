@@ -25,7 +25,6 @@ import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.core.algebra.base.IHyracksJobBuilder;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
-import org.apache.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalVariable;
 import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
@@ -33,13 +32,8 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOpera
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.IOperatorSchema;
 import org.apache.hyracks.algebricks.core.jobgen.impl.JobGenContext;
 import org.apache.hyracks.algebricks.core.jobgen.impl.JobGenHelper;
-import org.apache.hyracks.algebricks.runtime.base.AlgebricksPipeline;
-import org.apache.hyracks.algebricks.runtime.operators.aggreg.NestedPlansAccumulatingAggregatorFactory;
-import org.apache.hyracks.algebricks.runtime.operators.aggreg.NestedPlansRunningAggregatorFactory;
-import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
-import org.apache.hyracks.dataflow.std.group.AbstractAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.optimize.OptimizeGroupLOperatorDescriptor;
 
 public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperator {
@@ -75,21 +69,19 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
         }
         Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
         AggregateOperator aggOp = (AggregateOperator) r0.getValue();
-        if(aggOp.getExpressions().size()>1){
-            throw new AlgebricksException(
-                    "Optimize group-by currently works only for one aggregate on projection");
+        if (aggOp.getExpressions().size() > 1) {
+            throw new AlgebricksException("Optimize group-by currently works only for one aggregate on projection");
         }
-        String aggOpType =
-                aggOp.getExpressions().get(0).getValue().toString();
+        String aggOpType = aggOp.getExpressions().get(0).getValue().toString();
         String aggType;
-        if(aggOpType.contains("sql-count"))
-            aggType="COUNT";
-        else if(aggOpType.contains("sql-sum"))
-            aggType="SUM";
-        else if(aggOpType.contains("sql-max"))
-            aggType="MAX";
-        else if(aggOpType.contains("sql-min"))
-            aggType="MIN";
+        if (aggOpType.contains("sql-count"))
+            aggType = "COUNT";
+        else if (aggOpType.contains("sql-sum"))
+            aggType = "SUM";
+        else if (aggOpType.contains("sql-max"))
+            aggType = "MAX";
+        else if (aggOpType.contains("sql-min"))
+            aggType = "MIN";
         else {
             aggType = "COUNT";
             //need to add AVG
@@ -102,7 +94,8 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
         RecordDescriptor recordDescriptor =
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), opSchema, context);
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-        OptimizeGroupLOperatorDescriptor opDesc = new OptimizeGroupLOperatorDescriptor(spec, keys, recordDescriptor, groupAll, framesLimit, aggType);
+        OptimizeGroupLOperatorDescriptor opDesc =
+                new OptimizeGroupLOperatorDescriptor(spec, keys, recordDescriptor, groupAll, framesLimit, aggType);
         opDesc.setSourceLocation(gby.getSourceLocation());
 
         contributeOpDesc(builder, gby, opDesc);

@@ -26,7 +26,6 @@ import java.util.Iterator;
 import org.apache.hyracks.api.comm.IFrameWriter;
 import org.apache.hyracks.api.comm.VSizeFrame;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
-import org.apache.hyracks.api.dataflow.value.IBinaryComparator;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.ErrorCode;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
@@ -42,7 +41,6 @@ import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAppender;
 import org.apache.hyracks.dataflow.common.comm.util.FrameUtils;
 import org.apache.hyracks.dataflow.common.data.accessors.FrameTupleReference;
-import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.wailhashmap.AILRuntimeException;
 import org.apache.hyracks.dataflow.std.wailhashmap.EnumDeserializeropt;
 import org.apache.hyracks.dataflow.std.wailhashmap.Types;
@@ -72,8 +70,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
     //    private int counter;
 
     public OptimizeGroupWriter(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDesc,
-            RecordDescriptor outRecordDesc, IFrameWriter writer, boolean groupAll,
-            int framesLimit, String aggregateType) throws HyracksDataException {
+            RecordDescriptor outRecordDesc, IFrameWriter writer, boolean groupAll, int framesLimit,
+            String aggregateType) throws HyracksDataException {
         this.groupFields = groupFields;
         if (framesLimit >= 0 && framesLimit <= 2) {
             throw HyracksDataException.create(ErrorCode.ILLEGAL_MEMORY_BUDGET, "GROUP BY",
@@ -83,7 +81,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
 
         // Deducts input/output frames.
         this.memoryLimit = framesLimit <= 0 ? -1 : ((long) (framesLimit - 2)) * ctx.getInitialFrameSize();
-//        this.memoryLimit = 12000;
+        //        this.memoryLimit = 12000;
         this.aggregateType = aggregateType;
         inFrameAccessor = new FrameTupleAccessor(inRecordDesc);
         VSizeFrame outFrame = new VSizeFrame(ctx);

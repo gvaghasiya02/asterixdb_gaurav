@@ -21,12 +21,9 @@ package org.apache.hyracks.dataflow.std.group.optimize;
 import java.nio.ByteBuffer;
 
 import org.apache.hyracks.api.context.IHyracksTaskContext;
-import org.apache.hyracks.api.dataflow.value.IBinaryComparator;
-import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputUnaryOutputOperatorNodePushable;
-import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 
 class OptimizeGroupLOperatorNodePushable extends AbstractUnaryInputUnaryOutputOperatorNodePushable {
     private final IHyracksTaskContext ctx;
@@ -39,9 +36,8 @@ class OptimizeGroupLOperatorNodePushable extends AbstractUnaryInputUnaryOutputOp
 
     private OptimizeGroupWriter ogw;
 
-    OptimizeGroupLOperatorNodePushable(IHyracksTaskContext ctx, int[] groupFields,
-            RecordDescriptor inRecordDescriptor, RecordDescriptor outRecordDescriptor, boolean groupAll, int frameLimit,
-            String aggType) {
+    OptimizeGroupLOperatorNodePushable(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDescriptor,
+            RecordDescriptor outRecordDescriptor, boolean groupAll, int frameLimit, String aggType) {
         this.ctx = ctx;
         this.groupFields = groupFields;
         this.inRecordDescriptor = inRecordDescriptor;
@@ -53,8 +49,8 @@ class OptimizeGroupLOperatorNodePushable extends AbstractUnaryInputUnaryOutputOp
 
     @Override
     public void open() throws HyracksDataException {
-        ogw = new OptimizeGroupWriter(ctx, groupFields, inRecordDescriptor,
-                outRecordDescriptor, writer, groupAll, frameLimit, aggType);
+        ogw = new OptimizeGroupWriter(ctx, groupFields, inRecordDescriptor, outRecordDescriptor, writer, groupAll,
+                frameLimit, aggType);
         ogw.open();
     }
 

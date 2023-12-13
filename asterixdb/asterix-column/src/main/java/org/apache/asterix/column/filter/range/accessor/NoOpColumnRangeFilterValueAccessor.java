@@ -34,6 +34,6 @@ public class NoOpColumnRangeFilterValueAccessor implements IColumnRangeFilterVal
 
     @Override
     public ATypeTag getTypeTag() {
-        return ATypeTag.MISSING;
+        return ATypeTag.ANY;
     }
 }

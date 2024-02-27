@@ -29,18 +29,15 @@ import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.ErrorCode;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.data.std.api.IPointable;
 import org.apache.hyracks.data.std.primitive.DoublePointable;
 import org.apache.hyracks.data.std.primitive.FloatPointable;
 import org.apache.hyracks.data.std.primitive.IntegerPointable;
 import org.apache.hyracks.data.std.primitive.LongPointable;
-import org.apache.hyracks.data.std.primitive.VoidPointable;
 import org.apache.hyracks.data.std.util.GrowableArray;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAppender;
 import org.apache.hyracks.dataflow.common.comm.util.FrameUtils;
-import org.apache.hyracks.dataflow.common.data.accessors.FrameTupleReference;
 import org.apache.hyracks.dataflow.std.hashmap.AILRuntimeException;
 import org.apache.hyracks.dataflow.std.hashmap.EnumDeserializeropt;
 import org.apache.hyracks.dataflow.std.hashmap.Types;
@@ -96,141 +93,6 @@ public class OptimizeGroupWriter implements IFrameWriter {
         first = true;
     }
 
-    //    @Override
-    //    public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
-    //        inFrameAccessor.reset(buffer);
-    //        int nTuples = inFrameAccessor.getTupleCount();
-    //
-    //        if (nTuples != 0) {
-    //            for (int i = 0; i < nTuples; ++i) {
-    //                tupleBuilder.reset();
-    //                for (int groupFieldIdx : groupFields) {
-    //                    tupleBuilder.addField(inFrameAccessor, i, groupFieldIdx);
-    //                }
-    //                StringEntry st = new StringEntry(tupleBuilder.getFieldData());
-    //                if (first) {
-    //                    if (aggregateType.equals("COUNT")) {
-    //                        LongEntry value = new LongEntry();
-    //                        value.reset(1);
-    //                        computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType), null,
-    //                                UnsafeComparators.STRING_COMPARATOR, memoryLimit);
-    //                        first = false;
-    //                        computer.aggregate(st, value);
-    //                    } else {
-    //                        FrameTupleReference ftr = new FrameTupleReference();
-    //                        ftr.reset(inFrameAccessor, i);
-    //
-    //                        //                    IEvaluatorContext evalCtx = new EvaluatorContext(this.ctx);
-    //                        IPointable res = new VoidPointable();
-    //                        byte[] bfr = ftr.getFieldData(0);
-    //                        int start = ftr.getFieldStart(0);
-    //                        int length = ftr.getFieldLength(0);
-    //                        res.set(bfr, start, length);
-    //                        byte[] data = res.getByteArray();
-    //                        int offset = res.getStartOffset();
-    //
-    //                        // Get the data type tag
-    //                        Types typeTag = EnumDeserializeropt.ATYPETAGDESERIALIZER.deserialize(data[offset]);
-    //                        //                    // Handle MISSING and NULL values
-    //                        if (typeTag == Types.MISSING || typeTag == Types.NULL) {
-    //                            return;
-    //                        }
-    //                        // Non-missing and Non-null
-    //
-    //                        this.aggregateDataType = typeTag;
-    //
-    //                        if (typeTag == Types.TINYINT || typeTag == Types.SMALLINT || typeTag == Types.BIGINT
-    //                                || typeTag == Types.INTEGER) {
-    //                            computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType),
-    //                                    null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
-    //                            LongEntry value = new LongEntry();
-    //                            if (typeTag == Types.TINYINT) {
-    //                                byte val = data[offset + 1];
-    //                                value.reset(val);
-    //                            } else if (typeTag == Types.SMALLINT) {
-    //                                short val =
-    //                                        (short) (((data[offset + 1] & 0xff) << 8) + ((data[offset + 2] & 0xff) << 0));
-    //                                value.reset(val);
-    //                            } else if (typeTag == Types.INTEGER) {
-    //                                int val = IntegerPointable.getInteger(data, offset + 1);
-    //                                value.reset(val);
-    //                            } else {
-    //                                long val = LongPointable.getLong(data, offset + 1);
-    //                                value.reset(val);
-    //                            }
-    //                            computer.aggregate(st, value);
-    //                        } else {
-    //                            computer = new UnsafeHashAggregator(UnsafeAggregators.getDoubleAggregator(aggregateType),
-    //                                    null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
-    //                            DoubleEntry value = new DoubleEntry();
-    //                            if (typeTag == Types.FLOAT) {
-    //                                float val = FloatPointable.getFloat(data, offset + 1);
-    //                                value.reset(val);
-    //                            } else {
-    //                                double val = DoublePointable.getDouble(data, offset + 1);
-    //                                value.reset(val);
-    //                            }
-    //                            computer.aggregate(st, value);
-    //                        }
-    //                        first = false;
-    //                    }
-    //                } else {
-    //                    if (aggregateType.equals("COUNT")) {
-    //                        LongEntry value = new LongEntry();
-    //                        value.reset(1);
-    //                        computer.aggregate(st, value);
-    //                    } else {
-    //                        FrameTupleReference ftr = new FrameTupleReference();
-    //                        ftr.reset(inFrameAccessor, i);
-    //                        IPointable res = new VoidPointable();
-    //                        byte[] bfr = ftr.getFieldData(0);
-    //                        int start = ftr.getFieldStart(0);
-    //                        int length = ftr.getFieldLength(0);
-    //                        res.set(bfr, start, length);
-    //                        byte[] data = res.getByteArray();
-    //                        int offset = res.getStartOffset();
-    //
-    //                        if (aggregateDataType == Types.TINYINT || aggregateDataType == Types.SMALLINT
-    //                                || aggregateDataType == Types.BIGINT || aggregateDataType == Types.INTEGER) {
-    //                            LongEntry value = new LongEntry();
-    //                            if (aggregateDataType == Types.TINYINT) {
-    //                                byte val = data[offset + 1];
-    //                                value.reset(val);
-    //                            } else if (aggregateDataType == Types.SMALLINT) {
-    //                                short val =
-    //                                        (short) (((data[offset + 1] & 0xff) << 8) + ((data[offset + 2] & 0xff) << 0));
-    //                                value.reset(val);
-    //                            } else if (aggregateDataType == Types.INTEGER) {
-    //                                int val = IntegerPointable.getInteger(data, offset + 1);
-    //                                value.reset(val);
-    //                            } else {
-    //                                long val = LongPointable.getLong(data, offset + 1);
-    //                                value.reset(val);
-    //                            }
-    //                            computer.aggregate(st, value);
-    //                        } else {
-    //                            DoubleEntry value = new DoubleEntry();
-    //                            if (aggregateDataType == Types.FLOAT) {
-    //                                float val = FloatPointable.getFloat(data, offset + 1);
-    //                                value.reset(val);
-    //                            } else {
-    //                                double val = DoublePointable.getDouble(data, offset + 1);
-    //                                value.reset(val);
-    //                            }
-    //                            computer.aggregate(st, value);
-    //                        }
-    //                    }
-    //                }
-    //                if (!computer.canGrowMore()) {
-    //                    writeHashmap();
-    //                    computer.reset();
-    //                }
-    //            }
-    //        }
-    //    }
-    //
-    //
-
     @Override
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         inFrameAccessor.reset(buffer);
@@ -243,87 +105,65 @@ public class OptimizeGroupWriter implements IFrameWriter {
                     tupleBuilder.addField(inFrameAccessor, i, groupFieldIdx);
                 }
                 StringEntry st = new StringEntry(tupleBuilder.getFieldData());
+                byte[] data = inFrameAccessor.getBuffer().array();
+                int offset = inFrameAccessor.getTupleStartOffset(i) + inFrameAccessor.getFieldSlotsLength()
+                        + inFrameAccessor.getFieldStartOffset(i, 0);
 
+                Types typeTag = EnumDeserializeropt.ATYPETAGDESERIALIZER.deserialize(data[offset]);
+
+                if (typeTag == Types.MISSING || typeTag == Types.NULL) {
+                    continue;
+                }
                 if (first) {
-                    processFirstTuple(st, i);
+
+                    if (aggregateType.equals("COUNT")) {
+                        computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType), null,
+                                UnsafeComparators.STRING_COMPARATOR, memoryLimit);
+                        LongEntry value = new LongEntry();
+                        value.reset(1);
+                        computer.aggregate(st, value);
+                    } else {
+                        this.aggregateDataType = typeTag;
+
+                        if (typeTag == Types.TINYINT || typeTag == Types.SMALLINT || typeTag == Types.BIGINT
+                                || typeTag == Types.INTEGER) {
+                            computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType),
+                                    null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
+                            LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
+                            computer.aggregate(st, value);
+                        } else if (typeTag == Types.FLOAT || typeTag == Types.DOUBLE) {
+                            computer = new UnsafeHashAggregator(UnsafeAggregators.getDoubleAggregator(aggregateType),
+                                    null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
+                            DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
+                            computer.aggregate(st, value);
+                        } else {
+                            throw new AILRuntimeException();
+                        }
+                    }
+
+                    first = false;
                 } else {
-                    processNonFirstTuple(st, i);
+                    if (aggregateType.equals("COUNT")) {
+                        LongEntry value = new LongEntry();
+                        value.reset(1);
+                        computer.aggregate(st, value);
+                    } else {
+
+                        if (aggregateDataType == Types.TINYINT || aggregateDataType == Types.SMALLINT
+                                || aggregateDataType == Types.BIGINT || aggregateDataType == Types.INTEGER) {
+                            LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
+                            computer.aggregate(st, value);
+                        } else {
+                            DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
+                            computer.aggregate(st, value);
+                        }
+                    }
                 }
-
-                if (!computer.canGrowMore()) {
-                    writeHashmap();
-                    computer.reset();
-                }
-            }
-        }
-    }
-
-    private void processFirstTuple(StringEntry st, int tupleIndex) throws HyracksDataException {
-        if (aggregateType.equals("COUNT")) {
-            LongEntry value = new LongEntry();
-            value.reset(1);
-            computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType), null,
-                    UnsafeComparators.STRING_COMPARATOR, memoryLimit);
-            computer.aggregate(st, value);
-        } else {
-            FrameTupleReference ftr = new FrameTupleReference();
-            ftr.reset(inFrameAccessor, tupleIndex);
-
-            IPointable res = new VoidPointable();
-            byte[] bfr = ftr.getFieldData(0);
-            int start = ftr.getFieldStart(0);
-            int length = ftr.getFieldLength(0);
-            res.set(bfr, start, length);
-            byte[] data = res.getByteArray();
-            int offset = res.getStartOffset();
-
-            Types typeTag = EnumDeserializeropt.ATYPETAGDESERIALIZER.deserialize(data[offset]);
-
-            if (typeTag == Types.MISSING || typeTag == Types.NULL) {
-                return;
             }
 
-            this.aggregateDataType = typeTag;
-
-            if (typeTag == Types.TINYINT || typeTag == Types.SMALLINT || typeTag == Types.BIGINT
-                    || typeTag == Types.INTEGER) {
-                computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType), null,
-                        UnsafeComparators.STRING_COMPARATOR, memoryLimit);
-                LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
-                computer.aggregate(st, value);
-            } else {
-                computer = new UnsafeHashAggregator(UnsafeAggregators.getDoubleAggregator(aggregateType), null,
-                        UnsafeComparators.STRING_COMPARATOR, memoryLimit);
-                DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
-                computer.aggregate(st, value);
-            }
-        }
-        first = false;
-    }
-
-    private void processNonFirstTuple(StringEntry st, int tupleIndex) throws HyracksDataException {
-        if (aggregateType.equals("COUNT")) {
-            LongEntry value = new LongEntry();
-            value.reset(1);
-            computer.aggregate(st, value);
-        } else {
-            FrameTupleReference ftr = new FrameTupleReference();
-            ftr.reset(inFrameAccessor, tupleIndex);
-            IPointable res = new VoidPointable();
-            byte[] bfr = ftr.getFieldData(0);
-            int start = ftr.getFieldStart(0);
-            int length = ftr.getFieldLength(0);
-            res.set(bfr, start, length);
-            byte[] data = res.getByteArray();
-            int offset = res.getStartOffset();
-
-            if (aggregateDataType == Types.TINYINT || aggregateDataType == Types.SMALLINT
-                    || aggregateDataType == Types.BIGINT || aggregateDataType == Types.INTEGER) {
-                LongEntry value = getLongEntryForTypeTag(aggregateDataType, data, offset);
-                computer.aggregate(st, value);
-            } else {
-                DoubleEntry value = getDoubleEntryForTypeTag(aggregateDataType, data, offset);
-                computer.aggregate(st, value);
+            if (!computer.canGrowMore()) {
+                writeHashmap();
+                computer.reset();
             }
         }
     }

@@ -36,6 +36,7 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogi
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.AbstractStableSortPOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.physical.OptimizeGroupByLOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.SortGroupByPOperator;
 import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
 
@@ -59,62 +60,129 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
             return false;
         }
         boolean changed = false;
-        for (Mutable<ILogicalOperator> childRef : op1.getInputs()) {
-            AbstractLogicalOperator op = (AbstractLogicalOperator) childRef.getValue();
-            if (op.getOperatorTag() == LogicalOperatorTag.GROUP) {
-                PhysicalOperatorTag opTag = op.getPhysicalOperator().getOperatorTag();
-                GroupByOperator groupByOperator = (GroupByOperator) op;
-                if (opTag == PhysicalOperatorTag.PRE_CLUSTERED_GROUP_BY) {
+        if (context.getPhysicalOptimizationConfig().isOptimizationGroupBy()) {
+            for (Mutable<ILogicalOperator> childRef : op1.getInputs()) {
+                AbstractLogicalOperator op = (AbstractLogicalOperator) childRef.getValue();
+                if (op.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.PRE_CLUSTERED_GROUP_BY) {
+                    GroupByOperator groupByOperator = (GroupByOperator) op;
                     Mutable<ILogicalOperator> op2Ref = op.getInputs().get(0).getValue().getInputs().get(0);
                     AbstractLogicalOperator op2 = (AbstractLogicalOperator) op2Ref.getValue();
                     if (op2.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.STABLE_SORT) {
-                        AbstractStableSortPOperator sortPhysicalOperator =
-                                (AbstractStableSortPOperator) op2.getPhysicalOperator();
-                        if (groupByOperator.getNestedPlans().size() != 1) {
-                            //Sort group-by currently works only for one nested plan with one root containing
-                            //an aggregate and a nested-tuple-source.
-                            continue;
-                        }
-                        ILogicalPlan p0 = groupByOperator.getNestedPlans().get(0);
-                        if (p0.getRoots().size() != 1) {
-                            //Sort group-by currently works only for one nested plan with one root containing
-                            //an aggregate and a nested-tuple-source.
-                            continue;
-                        }
+                        AbstractLogicalOperator op3 =
+                                (AbstractLogicalOperator) op2Ref.getValue().getInputs().get(0).getValue();
+                        if (op3.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.HASH_PARTITION_EXCHANGE
+                                && groupByOperator.isGlobal()) {
+                            AbstractStableSortPOperator sortPhysicalOperator =
+                                    (AbstractStableSortPOperator) op2.getPhysicalOperator();
+                            if (groupByOperator.getNestedPlans().size() != 1) {
+                                //Sort group-by currently works only for one nested plan with one root containing
+                                //an aggregate and a nested-tuple-source.
+                                continue;
+                            }
+                            ILogicalPlan p0 = groupByOperator.getNestedPlans().get(0);
+                            if (p0.getRoots().size() != 1) {
+                                //Sort group-by currently works only for one nested plan with one root containing
+                                //an aggregate and a nested-tuple-source.
+                                continue;
+                            }
 
-                        Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
-                        AbstractLogicalOperator r0Logical = (AbstractLogicalOperator) r0.getValue();
-                        if (r0Logical.getOperatorTag() != LogicalOperatorTag.AGGREGATE) {
-                            //we only rewrite aggregation function; do nothing for running aggregates
-                            continue;
-                        }
-                        AggregateOperator aggOp = (AggregateOperator) r0.getValue();
-                        AbstractLogicalOperator aggInputOp =
-                                (AbstractLogicalOperator) aggOp.getInputs().get(0).getValue();
-                        if (aggInputOp.getOperatorTag() != LogicalOperatorTag.NESTEDTUPLESOURCE) {
-                            continue;
-                        }
+                            Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
+                            AbstractLogicalOperator r0Logical = (AbstractLogicalOperator) r0.getValue();
+                            if (r0Logical.getOperatorTag() != LogicalOperatorTag.AGGREGATE) {
+                                //we only rewrite aggregation function; do nothing for running aggregates
+                                continue;
+                            }
+                            AggregateOperator aggOp = (AggregateOperator) r0.getValue();
+                            AbstractLogicalOperator aggInputOp =
+                                    (AbstractLogicalOperator) aggOp.getInputs().get(0).getValue();
+                            if (aggInputOp.getOperatorTag() != LogicalOperatorTag.NESTEDTUPLESOURCE) {
+                                continue;
+                            }
 
-                        boolean hasIntermediateAggregate =
-                                generateMergeAggregationExpressions(groupByOperator, context);
-                        if (!hasIntermediateAggregate) {
-                            continue;
-                        }
+                            boolean hasIntermediateAggregate =
+                                    generateMergeAggregationExpressions(groupByOperator, context);
+                            if (!hasIntermediateAggregate) {
+                                continue;
+                            }
 
-                        //replace preclustered gby with sort gby
-                        if (!groupByOperator.isGroupAll()) {
-                            op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
-                                    sortPhysicalOperator.getSortColumns()));
+                            //replace preclustered gby with sort gby
+                            if (!groupByOperator.isGroupAll()) {
+                                op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
+                                        sortPhysicalOperator.getSortColumns()));
+                            }
+                        } else {
+                            if (!groupByOperator.isGroupAll()) {
+                                op.setPhysicalOperator(new OptimizeGroupByLOperator(groupByOperator.getGroupByVarList(),
+                                        groupByOperator.isGroupAll()));
+                            }
                         }
-                        // remove the stable sort operator
                         op.getInputs().clear();
+                        //                        ((GroupByOperator) op).getNestedPlans().clear();
                         op.getInputs().addAll(op2.getInputs());
                         changed = true;
                     }
+
+                } else
+                    continue;
+            }
+        } else {
+            for (Mutable<ILogicalOperator> childRef : op1.getInputs()) {
+                AbstractLogicalOperator op = (AbstractLogicalOperator) childRef.getValue();
+                if (op.getOperatorTag() == LogicalOperatorTag.GROUP) {
+                    PhysicalOperatorTag opTag = op.getPhysicalOperator().getOperatorTag();
+                    GroupByOperator groupByOperator = (GroupByOperator) op;
+                    if (opTag == PhysicalOperatorTag.PRE_CLUSTERED_GROUP_BY) {
+                        Mutable<ILogicalOperator> op2Ref = op.getInputs().get(0).getValue().getInputs().get(0);
+                        AbstractLogicalOperator op2 = (AbstractLogicalOperator) op2Ref.getValue();
+                        if (op2.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.STABLE_SORT) {
+                            AbstractStableSortPOperator sortPhysicalOperator =
+                                    (AbstractStableSortPOperator) op2.getPhysicalOperator();
+                            if (groupByOperator.getNestedPlans().size() != 1) {
+                                //Sort group-by currently works only for one nested plan with one root containing
+                                //an aggregate and a nested-tuple-source.
+                                continue;
+                            }
+                            ILogicalPlan p0 = groupByOperator.getNestedPlans().get(0);
+                            if (p0.getRoots().size() != 1) {
+                                //Sort group-by currently works only for one nested plan with one root containing
+                                //an aggregate and a nested-tuple-source.
+                                continue;
+                            }
+
+                            Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
+                            AbstractLogicalOperator r0Logical = (AbstractLogicalOperator) r0.getValue();
+                            if (r0Logical.getOperatorTag() != LogicalOperatorTag.AGGREGATE) {
+                                //we only rewrite aggregation function; do nothing for running aggregates
+                                continue;
+                            }
+                            AggregateOperator aggOp = (AggregateOperator) r0.getValue();
+                            AbstractLogicalOperator aggInputOp =
+                                    (AbstractLogicalOperator) aggOp.getInputs().get(0).getValue();
+                            if (aggInputOp.getOperatorTag() != LogicalOperatorTag.NESTEDTUPLESOURCE) {
+                                continue;
+                            }
+
+                            boolean hasIntermediateAggregate =
+                                    generateMergeAggregationExpressions(groupByOperator, context);
+                            if (!hasIntermediateAggregate) {
+                                continue;
+                            }
+
+                            //replace preclustered gby with sort gby
+                            if (!groupByOperator.isGroupAll()) {
+                                op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
+                                        sortPhysicalOperator.getSortColumns()));
+                            }
+                            // remove the stable sort operator
+                            op.getInputs().clear();
+                            op.getInputs().addAll(op2.getInputs());
+                            changed = true;
+                        }
+                    }
+                    continue;
+                } else {
+                    continue;
                 }
-                continue;
-            } else {
-                continue;
             }
         }
         return changed;

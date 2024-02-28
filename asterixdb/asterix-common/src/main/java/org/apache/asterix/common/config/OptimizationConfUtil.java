@@ -95,6 +95,8 @@ public class OptimizationConfUtil {
                 compilerProperties.getQueryPlanShapeMode());
         boolean columnFilter = getBoolean(querySpecificConfig, CompilerProperties.COMPILER_COLUMN_FILTER_KEY,
                 compilerProperties.isColumnFilter());
+        boolean OptimizeGroupBy = getBoolean(querySpecificConfig, CompilerProperties.COMPILER_OPTIMIZE_GROUPBY,
+                compilerProperties.isOptimizeGroupBy());
 
         PhysicalOptimizationConfig physOptConf = new PhysicalOptimizationConfig();
         physOptConf.setFrameSize(frameSize);
@@ -119,6 +121,7 @@ public class OptimizationConfUtil {
         physOptConf.setForceJoinOrderMode(forceJoinOrder);
         physOptConf.setQueryPlanShapeMode(queryPlanShape);
         physOptConf.setColumnFilter(columnFilter);
+        physOptConf.setOptimizeGroupByEnabled(OptimizeGroupBy);
 
         // We should have already validated the parameter names at this point...
         Set<String> filteredParameterNames = new HashSet<>(parameterNames);

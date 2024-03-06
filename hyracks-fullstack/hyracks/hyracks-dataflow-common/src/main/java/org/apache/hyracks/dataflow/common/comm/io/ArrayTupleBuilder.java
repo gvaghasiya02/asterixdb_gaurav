@@ -191,25 +191,22 @@ public class ArrayTupleBuilder implements IDataOutputProvider {
         addField(data.getByteArray(), data.getStartOffset(), data.getLength());
     }
 
-    public void addAllFieldEndOffset(int groupFieldslength, long encodeLength)
-    {   int i=0;
-        byte targetbyte=13;
-        byte[] data=fieldData.getByteArray();
-        for(int j=0;j<data.length;j++)
-        {
-            if(data[j]==targetbyte)
-            {
-                if(j==0)
-                {
+    public void addAllFieldEndOffset(int groupFieldslength, long encodeLength) {
+        int i = 0;
+        byte targetbyte = 13;
+        byte[] data = fieldData.getByteArray();
+        for (int j = 0; j < data.length; j++) {
+            if (data[j] == targetbyte) {
+                if (j == 0) {
                     continue;
                 }
-                fEndOffsets[i++]=j;
-                if(i==groupFieldslength)
+                fEndOffsets[i++] = j;
+                if (i == groupFieldslength)
                     break;
             }
         }
 
-        fEndOffsets[groupFieldslength-1]=(int)encodeLength;
-        this.nextField=groupFieldslength;
+        fEndOffsets[groupFieldslength - 1] = (int) encodeLength;
+        this.nextField = groupFieldslength;
     }
 }

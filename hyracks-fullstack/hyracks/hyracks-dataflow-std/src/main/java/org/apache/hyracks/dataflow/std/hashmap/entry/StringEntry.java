@@ -49,7 +49,7 @@ public class StringEntry implements IEntry {
         //        stringValue.set(dd.getByteArray(), 0, dd.getLength());
         //        this.value=stringValue;
         this.value = storage;
-        IValueReference tempvalue=new ArrayBackedValueStorage(dd);
+        IValueReference tempvalue = new ArrayBackedValueStorage(dd);
         wastedSpace = storage.getLength() - value.getLength();
         if (tempvalue.getLength() % 8 != 0) {
             int newLength = ByteArrayMethods.roundNumberOfBytesToNearestWord(tempvalue.getLength());

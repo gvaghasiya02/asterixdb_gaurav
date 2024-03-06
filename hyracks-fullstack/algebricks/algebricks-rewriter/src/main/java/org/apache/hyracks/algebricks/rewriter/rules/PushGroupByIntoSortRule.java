@@ -111,13 +111,61 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                                         sortPhysicalOperator.getSortColumns()));
                             }
                         } else {
-                            if (!groupByOperator.isGroupAll()) {
-                                op.setPhysicalOperator(new OptimizeGroupByLOperator(groupByOperator.getGroupByVarList(),
-                                        groupByOperator.isGroupAll()));
+                            AbstractStableSortPOperator sortPhysicalOperator =
+                                    (AbstractStableSortPOperator) op2.getPhysicalOperator();
+                            if (groupByOperator.getNestedPlans().size() != 1) {
+                                //Sort group-by currently works only for one nested plan with one root containing
+                                //an aggregate and a nested-tuple-source.
+                                continue;
+                            }
+                            ILogicalPlan p0 = groupByOperator.getNestedPlans().get(0);
+                            if (p0.getRoots().size() != 1) {
+                                //Sort group-by currently works only for one nested plan with one root containing
+                                //an aggregate and a nested-tuple-source.
+                                continue;
+                            }
+
+                            Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
+                            AbstractLogicalOperator r0Logical = (AbstractLogicalOperator) r0.getValue();
+                            if (r0Logical.getOperatorTag() != LogicalOperatorTag.AGGREGATE) {
+                                //we only rewrite aggregation function; do nothing for running aggregates
+                                continue;
+                            }
+                            AggregateOperator aggOp = (AggregateOperator) r0.getValue();
+                            AbstractLogicalOperator aggInputOp =
+                                    (AbstractLogicalOperator) aggOp.getInputs().get(0).getValue();
+                            if (aggInputOp.getOperatorTag() != LogicalOperatorTag.NESTEDTUPLESOURCE) {
+                                continue;
+                            }
+
+                            boolean hasIntermediateAggregate =
+                                    generateMergeAggregationExpressions(groupByOperator, context);
+                            if (!hasIntermediateAggregate) {
+                                continue;
+                            }
+                            if (aggOp.getExpressions().size() > 1) {
+                                if (!groupByOperator.isGroupAll()) {
+                                    op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
+                                            sortPhysicalOperator.getSortColumns()));
+
+                                }
+                            } else if (aggOp.getExpressions().get(0).getValue().toString().contains("sql-avg")) {
+                                if (!groupByOperator.isGroupAll()) {
+                                    op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
+                                            sortPhysicalOperator.getSortColumns()));
+                                }
+                            } else if (aggOp.getExpressions().size() == 1 && (aggOp.getExpressions().get(0).getValue()
+                                    .toString().contains("sql-count")
+                                    || aggOp.getExpressions().get(0).getValue().toString().contains("sql-sum")
+                                    || aggOp.getExpressions().get(0).getValue().toString().contains("sql-max")
+                                    || aggOp.getExpressions().get(0).getValue().toString().contains("sql-min"))) {
+                                if (!groupByOperator.isGroupAll()) {
+                                    op.setPhysicalOperator(new OptimizeGroupByLOperator(
+                                            groupByOperator.getGroupByVarList(), groupByOperator.isGroupAll()));
+                                }
                             }
                         }
                         op.getInputs().clear();
-                        //                        ((GroupByOperator) op).getNestedPlans().clear();
                         op.getInputs().addAll(op2.getInputs());
                         changed = true;
                     }

@@ -47,7 +47,9 @@ import org.apache.hyracks.dataflow.std.hashmap.UnsafeHashAggregator;
 import org.apache.hyracks.dataflow.std.hashmap.entry.DoubleEntry;
 import org.apache.hyracks.dataflow.std.hashmap.entry.LongEntry;
 import org.apache.hyracks.dataflow.std.hashmap.entry.StringEntry;
+import org.apache.hyracks.dataflow.std.hashmap.entry.StringEntryUtil;
 import org.apache.hyracks.unsafe.BytesToBytesMap;
+import org.apache.hyracks.util.encoding.VarLenIntEncoderDecoder;
 import org.apache.spark.unsafe.Platform;
 
 public class OptimizeGroupWriter implements IFrameWriter {
@@ -211,15 +213,18 @@ public class OptimizeGroupWriter implements IFrameWriter {
                     Object baseObject = location.getKeyBase();
                     long offset = location.getKeyOffset();
                     long alignedLength = location.getKeyLength();
+                    long encodedLength = StringEntryUtil.decode2(baseObject, offset, alignedLength);
+//                    int actualLength = encodedLength + VarLenIntEncoderDecoder.getBytesRequired(encodedLength);
                     GrowableArray fieldArray = tb.getFieldData();
                     int writeOffset = fieldArray.getLength();
-                    fieldArray.setSize((int) (writeOffset + alignedLength));
+//                    int writeOffset=typeTagOffset+1;
+                    fieldArray.setSize((int) (writeOffset + encodedLength));
 
                     byte[] bytes = fieldArray.getByteArray();
                     int unsafeOffset = writeOffset + Platform.BYTE_ARRAY_OFFSET;
-                    //                bytes[typeTagOffset] = Types.STRING.serialize();
-                    Platform.copyMemory(baseObject, offset, bytes, unsafeOffset, alignedLength);
-                    tb.addFieldEndOffset();
+//                    bytes[typeTagOffset] = Types.STRING.serialize();
+                    Platform.copyMemory(baseObject, offset, bytes, unsafeOffset, encodedLength);
+                    tb.addAllFieldEndOffset(groupFields.length, encodedLength);
                     if (aggregateDataType == Types.TINYINT || aggregateDataType == Types.SMALLINT
                             || aggregateDataType == Types.BIGINT || aggregateDataType == Types.INTEGER) {
                         long val = Platform.getLong(location.getValueBase(), location.getValueOffset());

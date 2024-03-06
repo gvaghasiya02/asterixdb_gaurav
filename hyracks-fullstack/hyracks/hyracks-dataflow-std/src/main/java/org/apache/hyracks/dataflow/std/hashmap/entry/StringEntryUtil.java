@@ -28,6 +28,18 @@ public class StringEntryUtil {
     private StringEntryUtil() {
     }
 
+    public static long decode2(Object srcBytes, long offset, long length)
+    {
+        long endPos = offset + length;
+        int i=1;
+        byte nextByte = Platform.getByte(srcBytes, endPos-i);
+        while(i<=8 && nextByte==(byte)0)
+        {
+            i++;
+            nextByte=Platform.getByte(srcBytes, endPos-i);
+        }
+        return (endPos-offset-i+1);
+    }
     public static int decode(Object srcBytes, long offset, long length) {
         int sum = 0;
         long startPos = offset;

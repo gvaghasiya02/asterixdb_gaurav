@@ -30,7 +30,7 @@
     "compiler\.internal\.sanitycheck" : false,
     "compiler\.joinmemory" : 262144,
     "compiler\.min\.memory\.allocation" : true,
-    "compiler.optimize.groupby" : false,
+    "compiler.optimize.groupby" : true,
     "compiler\.parallelism" : -1,
     "compiler.queryplanshape" : "zigzag",
     "compiler\.sort\.parallel" : true,

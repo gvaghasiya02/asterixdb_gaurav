@@ -123,7 +123,7 @@ public class CompilerProperties extends AbstractProperties {
                 BOOLEAN,
                 AlgebricksConfig.COLUMN_FILTER_DEFAULT,
                 "Enable/disable the use of column min/max filters"),
-        COMPILER_OPTIMIZE_GROUPBY(BOOLEAN, true, "Enable/disable optimize groupby"),
+        COMPILER_OPTIMIZE_GROUPBY(BOOLEAN, false, "Enable/disable optimize groupby"),
         //TODO(DB): remove after
         COMPILER_ENABLE_DB_RESOLUTION(BOOLEAN, true, "Enable/disable the resolution of namespaces to database");
 

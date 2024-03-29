@@ -56,6 +56,9 @@ public interface IIOManager extends Closeable {
     IFileHandle open(FileReference fileRef, FileReadWriteMode rwMode, FileSyncMode syncMode)
             throws HyracksDataException;
 
+    public IFileHandle openDir(FileReference fileRef, FileReadWriteMode rwMode, FileSyncMode syncMode)
+            throws HyracksDataException;
+
     /**
      * Do sync write (utilizes {@link IAsyncRequest})
      *
@@ -94,27 +97,43 @@ public interface IIOManager extends Closeable {
      * @param data    buffer to write
      * @return IAsyncRequest which allows to wait for the write request
      */
-    IAsyncRequest asyncWrite(IFileHandle fHandle, long offset, ByteBuffer data) throws HyracksDataException;
 
-    /**
-     * Do async write
-     *
-     * @param fHandle   handle of the opened file
-     * @param offset    start offset
-     * @param dataArray buffers to write
-     * @return IAsyncRequest which allows to wait for the write request
-     */
-    IAsyncRequest asyncWrite(IFileHandle fHandle, long offset, ByteBuffer[] dataArray) throws HyracksDataException;
+    public int syncDirWrite(IFileHandle fHandle, long offset, ByteBuffer data) throws HyracksDataException;
 
-    /**
-     * Do async read
-     *
-     * @param fHandle handle of the opened file
-     * @param offset  start offset
-     * @param data    destination buffer for the requested content
-     * @return IAsyncRequest which allows to wait for the read request
-     */
-    IAsyncRequest asyncRead(IFileHandle fHandle, long offset, ByteBuffer data) throws HyracksDataException;
+    public long syncDirWrite(IFileHandle fHandle, long offset, ByteBuffer[] dataArray) throws HyracksDataException;
+
+    IAsyncRequest asyncWrite(IFileHandle fHandle, long offset, ByteBuffer data, boolean direct)
+            throws HyracksDataException;
+
+    IAsyncRequest asyncWrite(IFileHandle fHandle, long offset, ByteBuffer[] dataArray, boolean direct)
+            throws HyracksDataException;
+
+    IAsyncRequest asyncRead(IFileHandle fHandle, long offset, ByteBuffer data, boolean direct)
+            throws HyracksDataException;
+
+    public int syncDirRead(IFileHandle fHandle, long offset, ByteBuffer data) throws HyracksDataException;
+    //
+    //    IAsyncRequest asyncWrite(IFileHandle fHandle, long offset, ByteBuffer data) throws HyracksDataException;
+    //
+    //    /**
+    //     * Do async write
+    //     *
+    //     * @param fHandle   handle of the opened file
+    //     * @param offset    start offset
+    //     * @param dataArray buffers to write
+    //     * @return IAsyncRequest which allows to wait for the write request
+    //     */
+    //    IAsyncRequest asyncWrite(IFileHandle fHandle, long offset, ByteBuffer[] dataArray) throws HyracksDataException;
+    //
+    //    /**
+    //     * Do async read
+    //     *
+    //     * @param fHandle handle of the opened file
+    //     * @param offset  start offset
+    //     * @param data    destination buffer for the requested content
+    //     * @return IAsyncRequest which allows to wait for the read request
+    //     */
+    //    IAsyncRequest asyncRead(IFileHandle fHandle, long offset, ByteBuffer data) throws HyracksDataException;
 
     /**
      * Close file
@@ -164,6 +183,8 @@ public interface IIOManager extends Closeable {
     WritableByteChannel newWritableChannel(IFileHandle fileHandle);
 
     void deleteWorkspaceFiles() throws HyracksDataException;
+
+    public void closeDir(IFileHandle fHandle) throws HyracksDataException;
 
     /**
      * Returns a file reference of a file

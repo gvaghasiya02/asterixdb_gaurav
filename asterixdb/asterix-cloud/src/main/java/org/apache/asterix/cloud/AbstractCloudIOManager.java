@@ -165,7 +165,7 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
         CloudFileHandle fHandle = new CloudFileHandle(cloudClient, bucket, fileRef, writeBufferProvider);
         onOpen(fHandle, rwMode, syncMode);
         try {
-            fHandle.open(rwMode, syncMode);
+            fHandle.open(rwMode, syncMode, true);
         } catch (IOException e) {
             throw HyracksDataException.create(e);
         }

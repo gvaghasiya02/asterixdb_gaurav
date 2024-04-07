@@ -21,6 +21,7 @@ package org.apache.hyracks.dataflow.std.group.optimize;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Iterator;
 
 import org.apache.hyracks.api.comm.IFrameWriter;
@@ -47,7 +48,6 @@ import org.apache.hyracks.dataflow.std.hashmap.UnsafeHashAggregator;
 import org.apache.hyracks.dataflow.std.hashmap.entry.DoubleEntry;
 import org.apache.hyracks.dataflow.std.hashmap.entry.LongEntry;
 import org.apache.hyracks.dataflow.std.hashmap.entry.StringEntry;
-import org.apache.hyracks.dataflow.std.hashmap.entry.StringEntryUtil;
 import org.apache.hyracks.unsafe.BytesToBytesMap;
 import org.apache.spark.unsafe.Platform;
 
@@ -211,16 +211,18 @@ public class OptimizeGroupWriter implements IFrameWriter {
                     tb.reset();
                     Object baseObject = location.getKeyBase();
                     long offset = location.getKeyOffset();
-                    long alignedLength = location.getKeyLength();
-                    long encodedLength = StringEntryUtil.decode2(baseObject, offset, alignedLength);
                     GrowableArray fieldArray = tb.getFieldData();
+                    int fEndOffsetLength = this.groupFields.length * 4;
                     int writeOffset = fieldArray.getLength();
-                    fieldArray.setSize((int) (writeOffset + encodedLength));
-
                     byte[] bytes = fieldArray.getByteArray();
                     int unsafeOffset = writeOffset + Platform.BYTE_ARRAY_OFFSET;
-                    Platform.copyMemory(baseObject, offset, bytes, unsafeOffset, encodedLength);
-                    tb.addAllFieldEndOffset(groupFields.length, encodedLength);
+                    Platform.copyMemory(baseObject, offset, bytes, unsafeOffset, fEndOffsetLength);
+                    byte[] fEndOffsetBytes = Arrays.copyOf(bytes, fEndOffsetLength);
+                    tb.addAllFieldEndOffset(fEndOffsetBytes);
+                    int actualLength = tb.getLastAddedOffset();
+                    fieldArray.setSize(writeOffset + actualLength);
+                    Platform.copyMemory(baseObject, offset + fEndOffsetLength, bytes, unsafeOffset, actualLength);
+
                     if (aggregateDataType == Types.TINYINT || aggregateDataType == Types.SMALLINT
                             || aggregateDataType == Types.BIGINT || aggregateDataType == Types.INTEGER) {
                         long val = Platform.getLong(location.getValueBase(), location.getValueOffset());

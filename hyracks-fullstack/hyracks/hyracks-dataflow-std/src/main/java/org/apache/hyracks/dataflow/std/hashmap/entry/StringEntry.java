@@ -20,6 +20,7 @@ package org.apache.hyracks.dataflow.std.hashmap.entry;
 
 import static org.apache.hyracks.unsafe.BytesToBytesMap.SEED;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import org.apache.hyracks.data.std.api.IValueReference;
@@ -44,17 +45,33 @@ public class StringEntry implements IEntry {
     }
 
     public StringEntry(ArrayTupleBuilder tupleBuilder) {
-        storage = new ArrayBackedValueStorage(tupleBuilder.getFieldData());
-        int actualLength = tupleBuilder.getLastFieldEndOffset();
+        int[] fieldEndOffsets = tupleBuilder.getFieldEndOffsets();
+        ByteBuffer byteBuffer = ByteBuffer.allocate(fieldEndOffsets.length * 4);
+
+        // Put each integer into the ByteBuffer
+        for (int i = 0; i < fieldEndOffsets.length; i++) {
+            byteBuffer.putInt(fieldEndOffsets[i]);
+        }
+        byte[] fieldEndOffsetsBytes = byteBuffer.array();
+        storage = new ArrayBackedValueStorage();
+        int actualLength = tupleBuilder.getFieldData().getLength() + fieldEndOffsetsBytes.length;
         IValueReference newValue = new ArrayBackedValueStorage(tupleBuilder.getFieldData());
-        if (newValue.getLength() % 8 != 0) {
-            int newLength = ByteArrayMethods.roundNumberOfBytesToNearestWord(newValue.getLength());
+        if (actualLength % 8 != 0) {
+            int newLength = ByteArrayMethods.roundNumberOfBytesToNearestWord(actualLength);
             storage.reset();
             storage.setSize(newLength);
             byte[] bytes = storage.getByteArray();
-            System.arraycopy(newValue.getByteArray(), newValue.getStartOffset(), bytes, 0, actualLength);
+            System.arraycopy(fieldEndOffsetsBytes, 0, bytes, 0, fieldEndOffsetsBytes.length);
+            System.arraycopy(newValue.getByteArray(), newValue.getStartOffset(), bytes, fieldEndOffsetsBytes.length,
+                    actualLength - fieldEndOffsetsBytes.length);
             Arrays.fill(bytes, actualLength, newLength, (byte) 0);
-            wastedSpace = storage.getLength() - actualLength;
+        } else {
+            storage.reset();
+            storage.setSize(actualLength);
+            byte[] bytes = storage.getByteArray();
+            System.arraycopy(fieldEndOffsetsBytes, 0, bytes, 0, fieldEndOffsetsBytes.length);
+            System.arraycopy(newValue.getByteArray(), newValue.getStartOffset(), bytes, fieldEndOffsetsBytes.length,
+                    actualLength - fieldEndOffsetsBytes.length);
         }
         this.value = storage;
         wastedSpace = storage.getLength() - actualLength;

@@ -32,7 +32,7 @@ public class StringEntryUtil {
         long endPos = offset + length;
         int i = 1;
         byte nextByte = Platform.getByte(srcBytes, endPos - i);
-        while (i <= 8 && nextByte == (byte) 0) {
+        while (i < 8 && nextByte == (byte) 0) {
             i++;
             nextByte = Platform.getByte(srcBytes, endPos - i);
         }

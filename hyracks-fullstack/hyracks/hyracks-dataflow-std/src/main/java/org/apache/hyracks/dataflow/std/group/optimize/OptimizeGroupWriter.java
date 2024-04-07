@@ -83,7 +83,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
         this.appender = new FrameTupleAppender();
         appender.reset(outFrame, true);
         this.writer = writer;
-        tupleBuilder = new ArrayTupleBuilder(outRecordDesc.getFields().length);
+        tupleBuilder = new ArrayTupleBuilder(groupFields.length);
         this.groupAll = groupAll;
         this.outRecordDesc = outRecordDesc;
     }
@@ -105,7 +105,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                 for (int groupFieldIdx : groupFields) {
                     tupleBuilder.addField(inFrameAccessor, i, groupFieldIdx);
                 }
-                StringEntry st = new StringEntry(tupleBuilder.getFieldData());
+                StringEntry st = new StringEntry(tupleBuilder);
                 byte[] data = inFrameAccessor.getBuffer().array();
                 int offset = inFrameAccessor.getTupleStartOffset(i) + inFrameAccessor.getFieldSlotsLength()
                         + inFrameAccessor.getFieldStartOffset(i, 0);
@@ -213,15 +213,12 @@ public class OptimizeGroupWriter implements IFrameWriter {
                     long offset = location.getKeyOffset();
                     long alignedLength = location.getKeyLength();
                     long encodedLength = StringEntryUtil.decode2(baseObject, offset, alignedLength);
-                    //                    int actualLength = encodedLength + VarLenIntEncoderDecoder.getBytesRequired(encodedLength);
                     GrowableArray fieldArray = tb.getFieldData();
                     int writeOffset = fieldArray.getLength();
-                    //                    int writeOffset=typeTagOffset+1;
                     fieldArray.setSize((int) (writeOffset + encodedLength));
 
                     byte[] bytes = fieldArray.getByteArray();
                     int unsafeOffset = writeOffset + Platform.BYTE_ARRAY_OFFSET;
-                    //                    bytes[typeTagOffset] = Types.STRING.serialize();
                     Platform.copyMemory(baseObject, offset, bytes, unsafeOffset, encodedLength);
                     tb.addAllFieldEndOffset(groupFields.length, encodedLength);
                     if (aggregateDataType == Types.TINYINT || aggregateDataType == Types.SMALLINT

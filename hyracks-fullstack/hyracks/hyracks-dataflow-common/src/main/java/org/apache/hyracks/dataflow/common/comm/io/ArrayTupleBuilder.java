@@ -191,6 +191,10 @@ public class ArrayTupleBuilder implements IDataOutputProvider {
         addField(data.getByteArray(), data.getStartOffset(), data.getLength());
     }
 
+    public int getLastFieldEndOffset() {
+        return fEndOffsets[nextField - 1];
+    }
+
     public void addAllFieldEndOffset(int groupFieldslength, long encodeLength) {
         int i = 0;
         byte targetbyte = 13;
@@ -205,7 +209,8 @@ public class ArrayTupleBuilder implements IDataOutputProvider {
                     break;
             }
         }
-
+        if(encodeLength!=18)
+            System.out.println("hi");
         fEndOffsets[groupFieldslength - 1] = (int) encodeLength;
         this.nextField = groupFieldslength;
     }

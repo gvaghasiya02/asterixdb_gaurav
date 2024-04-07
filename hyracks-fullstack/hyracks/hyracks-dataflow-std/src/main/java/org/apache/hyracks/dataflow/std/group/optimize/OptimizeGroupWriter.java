@@ -221,6 +221,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                     tb.addAllFieldEndOffset(fEndOffsetBytes);
                     int actualLength = tb.getLastAddedOffset();
                     fieldArray.setSize(writeOffset + actualLength);
+                    bytes = fieldArray.getByteArray();
                     Platform.copyMemory(baseObject, offset + fEndOffsetLength, bytes, unsafeOffset, actualLength);
 
                     if (aggregateDataType == Types.TINYINT || aggregateDataType == Types.SMALLINT

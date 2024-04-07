@@ -20,12 +20,13 @@ package org.apache.hyracks.dataflow.std.hashmap.entry;
 
 import static org.apache.hyracks.unsafe.BytesToBytesMap.SEED;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import org.apache.hyracks.data.std.api.IValueReference;
 import org.apache.hyracks.data.std.primitive.UTF8StringPointable;
 import org.apache.hyracks.data.std.util.ArrayBackedValueStorage;
-import org.apache.hyracks.data.std.util.GrowableArray;
+import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
 import org.apache.hyracks.dataflow.std.hashmap.Types;
 import org.apache.hyracks.unsafe.BytesToBytesMap.Location;
 import org.apache.hyracks.unsafe.entry.IEntry;
@@ -43,26 +44,37 @@ public class StringEntry implements IEntry {
         storage = new ArrayBackedValueStorage();
     }
 
-    public StringEntry(GrowableArray dd) {
-        storage = new ArrayBackedValueStorage(dd);
-        //        VoidPointable stringValue=new VoidPointable();
-        //        stringValue.set(dd.getByteArray(), 0, dd.getLength());
-        //        this.value=stringValue;
-        this.value = storage;
-        IValueReference tempvalue = new ArrayBackedValueStorage(dd);
-        wastedSpace = storage.getLength() - value.getLength();
-        if (tempvalue.getLength() % 8 != 0) {
-            int newLength = ByteArrayMethods.roundNumberOfBytesToNearestWord(tempvalue.getLength());
+    public StringEntry(ArrayTupleBuilder tupleBuilder) {
+        int[] fieldEndOffsets = tupleBuilder.getFieldEndOffsets();
+        ByteBuffer byteBuffer = ByteBuffer.allocate(fieldEndOffsets.length * 4);
+
+        // Put each integer into the ByteBuffer
+        for (int i = 0; i < fieldEndOffsets.length; i++) {
+            byteBuffer.putInt(fieldEndOffsets[i]);
+        }
+        byte[] fieldEndOffsetsBytes = byteBuffer.array();
+        storage = new ArrayBackedValueStorage();
+        int actualLength = tupleBuilder.getFieldData().getLength() + fieldEndOffsetsBytes.length;
+        IValueReference newValue = new ArrayBackedValueStorage(tupleBuilder.getFieldData());
+        if (actualLength % 8 != 0) {
+            int newLength = ByteArrayMethods.roundNumberOfBytesToNearestWord(actualLength);
             storage.reset();
             storage.setSize(newLength);
             byte[] bytes = storage.getByteArray();
-            System.arraycopy(tempvalue.getByteArray(), tempvalue.getStartOffset(), bytes, 0, tempvalue.getLength());
-            Arrays.fill(bytes, tempvalue.getLength(), newLength, (byte) 0);
-
-            this.value = storage;
-            wastedSpace = storage.getLength() - tempvalue.getLength();
+            System.arraycopy(fieldEndOffsetsBytes, 0, bytes, 0, fieldEndOffsetsBytes.length);
+            System.arraycopy(newValue.getByteArray(), newValue.getStartOffset(), bytes, fieldEndOffsetsBytes.length,
+                    actualLength - fieldEndOffsetsBytes.length);
+            Arrays.fill(bytes, actualLength, newLength, (byte) 0);
+        } else {
+            storage.reset();
+            storage.setSize(actualLength);
+            byte[] bytes = storage.getByteArray();
+            System.arraycopy(fieldEndOffsetsBytes, 0, bytes, 0, fieldEndOffsetsBytes.length);
+            System.arraycopy(newValue.getByteArray(), newValue.getStartOffset(), bytes, fieldEndOffsetsBytes.length,
+                    actualLength - fieldEndOffsetsBytes.length);
         }
-
+        this.value = storage;
+        wastedSpace = storage.getLength() - actualLength;
     }
 
     public void reset(IValueReference value) {

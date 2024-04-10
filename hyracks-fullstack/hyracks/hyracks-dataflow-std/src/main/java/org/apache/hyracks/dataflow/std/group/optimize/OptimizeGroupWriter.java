@@ -101,7 +101,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
 
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
-                boolean added=false;
+                boolean added = false;
                 tupleBuilder.reset();
                 for (int groupFieldIdx : groupFields) {
                     tupleBuilder.addField(inFrameAccessor, i, groupFieldIdx);
@@ -123,7 +123,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                 UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                         LongEntry value = new LongEntry();
                         value.reset(1);
-                        added=computer.aggregate(st, value);
+                        added = computer.aggregate(st, value);
                         if (!computer.canGrowMore()) {
                             try {
                                 writeHashmap();
@@ -133,9 +133,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                 throw e;
                             }
                             computer.reset();
-                            if(!added)
-                            {
-                                added=computer.aggregate(st, value);
+                            if (!added) {
+                                added = computer.aggregate(st, value);
                             }
                         }
                     } else {
@@ -146,7 +145,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType),
                                     null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
-                            added=computer.aggregate(st, value);
+                            added = computer.aggregate(st, value);
                             if (!computer.canGrowMore()) {
                                 try {
                                     writeHashmap();
@@ -156,16 +155,15 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                     throw e;
                                 }
                                 computer.reset();
-                                if(!added)
-                                {
-                                    added=computer.aggregate(st, value);
+                                if (!added) {
+                                    added = computer.aggregate(st, value);
                                 }
                             }
                         } else if (typeTag == Types.FLOAT || typeTag == Types.DOUBLE) {
                             computer = new UnsafeHashAggregator(UnsafeAggregators.getDoubleAggregator(aggregateType),
                                     null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
-                            added=computer.aggregate(st, value);
+                            added = computer.aggregate(st, value);
                             if (!computer.canGrowMore()) {
                                 try {
                                     writeHashmap();
@@ -175,9 +173,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                     throw e;
                                 }
                                 computer.reset();
-                                if(!added)
-                                {
-                                    added=computer.aggregate(st, value);
+                                if (!added) {
+                                    added = computer.aggregate(st, value);
                                 }
                             }
                         } else {
@@ -190,7 +187,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                     if (aggregateType.equals("COUNT")) {
                         LongEntry value = new LongEntry();
                         value.reset(1);
-                        added=computer.aggregate(st, value);
+                        added = computer.aggregate(st, value);
                         if (!computer.canGrowMore()) {
                             try {
                                 writeHashmap();
@@ -200,9 +197,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                 throw e;
                             }
                             computer.reset();
-                            if(!added)
-                            {
-                                added=computer.aggregate(st, value);
+                            if (!added) {
+                                added = computer.aggregate(st, value);
                             }
                         }
                     } else {
@@ -210,7 +206,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         if (aggregateDataType == Types.TINYINT || aggregateDataType == Types.SMALLINT
                                 || aggregateDataType == Types.BIGINT || aggregateDataType == Types.INTEGER) {
                             LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
-                            added=computer.aggregate(st, value);
+                            added = computer.aggregate(st, value);
                             if (!computer.canGrowMore()) {
                                 try {
                                     writeHashmap();
@@ -220,14 +216,13 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                     throw e;
                                 }
                                 computer.reset();
-                                if(!added)
-                                {
-                                    added=computer.aggregate(st, value);
+                                if (!added) {
+                                    added = computer.aggregate(st, value);
                                 }
                             }
                         } else {
                             DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
-                            added=computer.aggregate(st, value);
+                            added = computer.aggregate(st, value);
                             if (!computer.canGrowMore()) {
                                 try {
                                     writeHashmap();
@@ -237,9 +232,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                     throw e;
                                 }
                                 computer.reset();
-                                if(!added)
-                                {
-                                    added=computer.aggregate(st, value);
+                                if (!added) {
+                                    added = computer.aggregate(st, value);
                                 }
                             }
                         }

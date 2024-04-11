@@ -738,7 +738,7 @@ public final class BytesToBytesMap extends MemoryConsumer {
             final long recordLength = (2L * uaoSize) + klen + vlen + 8;
             if (currentPage == null || currentPage.size() - pageCursor < recordLength) {
                 if (!acquireNewPage(recordLength + uaoSize)) {
-                    canGrowArray = false;
+//                    canGrowArray = false;
                     return false;
                 }
             }

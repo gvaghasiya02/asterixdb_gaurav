@@ -84,7 +84,7 @@ public final class UnsafeHashAggregator extends AbstractUnsafeHashAggregator {
     }
 
     public boolean canGrowMore() {
-        return map.getPeakMemoryUsedBytes()< budget;
+        return map.getCanGrowArray();
     }
 
     public void reset() {

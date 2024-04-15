@@ -126,7 +126,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         LongEntry value = new LongEntry();
                         value.reset(1);
                         added = computer.aggregate(st, value);
-                        if (!computer.canGrowMore()) {
+                        if (!computer.canGrowMore() || !added) {
                             try {
                                 writeHashmap();
                                 appender.write(writer, true);
@@ -148,7 +148,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                     null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
                             added = computer.aggregate(st, value);
-                            if (!computer.canGrowMore()) {
+                            if (!computer.canGrowMore() || !added) {
                                 try {
                                     writeHashmap();
                                     appender.write(writer, true);
@@ -166,7 +166,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                     null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
                             added = computer.aggregate(st, value);
-                            if (!computer.canGrowMore()) {
+                            if (!computer.canGrowMore() || !added) {
                                 try {
                                     writeHashmap();
                                     appender.write(writer, true);
@@ -192,7 +192,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         added = computer.aggregate(st, value);
                         if (added == false)
                             System.out.println("hi");
-                        if (!computer.canGrowMore()) {
+                        if (!computer.canGrowMore() || !added) {
                             try {
                                 writeHashmap();
                                 appender.write(writer, true);
@@ -211,7 +211,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                 || aggregateDataType == Types.BIGINT || aggregateDataType == Types.INTEGER) {
                             LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
                             added = computer.aggregate(st, value);
-                            if (!computer.canGrowMore()) {
+                            if (!computer.canGrowMore() || !added) {
                                 try {
                                     writeHashmap();
                                     appender.write(writer, true);
@@ -227,7 +227,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         } else {
                             DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
                             added = computer.aggregate(st, value);
-                            if (!computer.canGrowMore()) {
+                            if (!computer.canGrowMore() || !added) {
                                 try {
                                     writeHashmap();
                                     appender.write(writer, true);

@@ -960,4 +960,8 @@ public final class BytesToBytesMap extends MemoryConsumer {
         return (doubleCapacity > 0 && doubleCapacity <= MAX_ROUNDED_ARRAY_LENGTH) ? doubleCapacity
                 : MAX_ROUNDED_ARRAY_LENGTH;
     }
+
+    public boolean getCanGrowArray() {
+        return canGrowArray;
+    }
 }

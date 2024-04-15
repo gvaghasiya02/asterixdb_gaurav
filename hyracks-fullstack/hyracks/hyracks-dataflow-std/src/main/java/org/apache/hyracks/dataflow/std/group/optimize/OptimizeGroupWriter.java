@@ -65,6 +65,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private RecordDescriptor outRecordDesc;
     private String aggregateType;
     private Types aggregateDataType; // datatype of field
+    private long noOfRecords = 0;
 
     public OptimizeGroupWriter(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDesc,
             RecordDescriptor outRecordDesc, IFrameWriter writer, boolean groupAll, int framesLimit,
@@ -86,6 +87,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
         tupleBuilder = new ArrayTupleBuilder(groupFields.length);
         this.groupAll = groupAll;
         this.outRecordDesc = outRecordDesc;
+        this.noOfRecords = 0;
     }
 
     @Override
@@ -98,7 +100,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         inFrameAccessor.reset(buffer);
         int nTuples = inFrameAccessor.getTupleCount();
-
+        noOfRecords += nTuples;
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
                 boolean added = false;
@@ -188,6 +190,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         LongEntry value = new LongEntry();
                         value.reset(1);
                         added = computer.aggregate(st, value);
+                        if (added == false)
+                            System.out.println("hi");
                         if (!computer.canGrowMore()) {
                             try {
                                 writeHashmap();

@@ -32,12 +32,14 @@ import com.google.common.annotations.VisibleForTesting;
 public final class UnsafeHashAggregator extends AbstractUnsafeHashAggregator {
     private final BytesToBytesMap map;
     private final IEntry aggregate;
+    private final long budget;
 
     public UnsafeHashAggregator(IUnsafeAggregator aggregator, IUnsafeMapResultAppender appender,
             IEntryComparator keyComparator, long budget) {
         super(aggregator, appender);
         map = new BytesToBytesMap(MemoryAllocator.HEAP, budget, 1024, keyComparator);
         aggregate = aggregator.createValueEntry();
+        this.budget = budget;
     }
 
     @Override
@@ -82,7 +84,7 @@ public final class UnsafeHashAggregator extends AbstractUnsafeHashAggregator {
     }
 
     public boolean canGrowMore() {
-        return map.getcanGrowArray();
+        return map.getPeakMemoryUsedBytes()< budget;
     }
 
     public void reset() {

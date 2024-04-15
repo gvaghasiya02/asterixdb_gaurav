@@ -738,7 +738,6 @@ public final class BytesToBytesMap extends MemoryConsumer {
             final long recordLength = (2L * uaoSize) + klen + vlen + 8;
             if (currentPage == null || currentPage.size() - pageCursor < recordLength) {
                 if (!acquireNewPage(recordLength + uaoSize)) {
-//                    canGrowArray = false;
                     return false;
                 }
             }
@@ -960,9 +959,5 @@ public final class BytesToBytesMap extends MemoryConsumer {
         // Guard against overflow
         return (doubleCapacity > 0 && doubleCapacity <= MAX_ROUNDED_ARRAY_LENGTH) ? doubleCapacity
                 : MAX_ROUNDED_ARRAY_LENGTH;
-    }
-
-    public boolean getcanGrowArray() {
-        return canGrowArray;
     }
 }

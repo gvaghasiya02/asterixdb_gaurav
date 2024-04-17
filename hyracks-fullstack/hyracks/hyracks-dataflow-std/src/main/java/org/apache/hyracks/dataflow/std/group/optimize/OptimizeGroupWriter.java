@@ -65,6 +65,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private RecordDescriptor outRecordDesc;
     private String aggregateType;
     private Types aggregateDataType; // datatype of field
+    private long noOfRecords = 0;
 
     public OptimizeGroupWriter(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDesc,
             RecordDescriptor outRecordDesc, IFrameWriter writer, boolean groupAll, int framesLimit,
@@ -86,6 +87,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
         tupleBuilder = new ArrayTupleBuilder(groupFields.length);
         this.groupAll = groupAll;
         this.outRecordDesc = outRecordDesc;
+        this.noOfRecords = 0;
     }
 
     @Override
@@ -98,9 +100,10 @@ public class OptimizeGroupWriter implements IFrameWriter {
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         inFrameAccessor.reset(buffer);
         int nTuples = inFrameAccessor.getTupleCount();
-
+        noOfRecords += nTuples;
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
+                boolean added = false;
                 tupleBuilder.reset();
                 for (int groupFieldIdx : groupFields) {
                     tupleBuilder.addField(inFrameAccessor, i, groupFieldIdx);
@@ -122,7 +125,11 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                 UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                         LongEntry value = new LongEntry();
                         value.reset(1);
-                        computer.aggregate(st, value);
+                        added = computer.aggregate(st, value);
+                        if (!added) {
+                            throw new HyracksDataException(
+                                    "Key is too large for hash table use with complier.optimize.groupby set to false");
+                        }
                     } else {
                         this.aggregateDataType = typeTag;
 
@@ -131,12 +138,20 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType),
                                     null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
-                            computer.aggregate(st, value);
+                            added = computer.aggregate(st, value);
+                            if (!added) {
+                                throw new HyracksDataException(
+                                        "Key is too large for hash table use with complier.optimize.groupby set to false");
+                            }
                         } else if (typeTag == Types.FLOAT || typeTag == Types.DOUBLE) {
                             computer = new UnsafeHashAggregator(UnsafeAggregators.getDoubleAggregator(aggregateType),
                                     null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
-                            computer.aggregate(st, value);
+                            added = computer.aggregate(st, value);
+                            if (!computer.canGrowMore() || !added) {
+                                throw new HyracksDataException(
+                                        "Key is too large for hash table use with complier.optimize.groupby set to false");
+                            }
                         } else {
                             throw new AILRuntimeException();
                         }
@@ -147,24 +162,56 @@ public class OptimizeGroupWriter implements IFrameWriter {
                     if (aggregateType.equals("COUNT")) {
                         LongEntry value = new LongEntry();
                         value.reset(1);
-                        computer.aggregate(st, value);
+                        added = computer.aggregate(st, value);
+                        if (added == false)
+                            System.out.println("hi");
+                        if (!added) {
+                            try {
+                                writeHashmap();
+//                                appender.write(writer, true);
+                            } catch (Exception e) {
+                                writer.fail();
+                                throw e;
+                            }
+                            computer.reset();
+                            added = computer.aggregate(st, value);
+                        }
                     } else {
 
                         if (aggregateDataType == Types.TINYINT || aggregateDataType == Types.SMALLINT
                                 || aggregateDataType == Types.BIGINT || aggregateDataType == Types.INTEGER) {
                             LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
-                            computer.aggregate(st, value);
+                            added = computer.aggregate(st, value);
+                            if (!added) {
+                                try {
+                                    writeHashmap();
+//                                    appender.write(writer, true);
+                                } catch (Exception e) {
+                                    writer.fail();
+                                    throw e;
+                                }
+                                computer.reset();
+                                added = computer.aggregate(st, value);
+                            }
                         } else {
                             DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
-                            computer.aggregate(st, value);
+                            added = computer.aggregate(st, value);
+                            if (!added) {
+                                try {
+                                    writeHashmap();
+//                                    appender.write(writer, true);
+                                } catch (Exception e) {
+                                    writer.fail();
+                                    throw e;
+                                }
+                                computer.reset();
+                                added = computer.aggregate(st, value);
+                            }
                         }
                     }
                 }
-            }
-
-            if (!computer.canGrowMore()) {
-                writeHashmap();
-                computer.reset();
+                if (!computer.canGrowMore())
+                    System.out.println("lol");
             }
         }
     }

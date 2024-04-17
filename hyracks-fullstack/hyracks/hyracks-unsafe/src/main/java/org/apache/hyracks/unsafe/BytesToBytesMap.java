@@ -961,7 +961,7 @@ public final class BytesToBytesMap extends MemoryConsumer {
                 : MAX_ROUNDED_ARRAY_LENGTH;
     }
 
-    public boolean getcanGrowArray() {
+    public boolean getCanGrowArray() {
         return canGrowArray;
     }
 }

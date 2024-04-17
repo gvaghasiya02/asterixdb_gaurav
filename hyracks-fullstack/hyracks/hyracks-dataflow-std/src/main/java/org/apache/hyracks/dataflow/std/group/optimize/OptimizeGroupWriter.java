@@ -168,7 +168,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         if (!added) {
                             try {
                                 writeHashmap();
-                                appender.write(writer, true);
+//                                appender.write(writer, true);
                             } catch (Exception e) {
                                 writer.fail();
                                 throw e;
@@ -185,7 +185,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             if (!added) {
                                 try {
                                     writeHashmap();
-                                    appender.write(writer, true);
+//                                    appender.write(writer, true);
                                 } catch (Exception e) {
                                     writer.fail();
                                     throw e;
@@ -199,7 +199,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             if (!added) {
                                 try {
                                     writeHashmap();
-                                    appender.write(writer, true);
+//                                    appender.write(writer, true);
                                 } catch (Exception e) {
                                     writer.fail();
                                     throw e;

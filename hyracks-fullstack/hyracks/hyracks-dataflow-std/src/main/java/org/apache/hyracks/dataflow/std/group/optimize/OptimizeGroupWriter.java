@@ -103,7 +103,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
         noOfRecords += nTuples;
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
-                boolean added = false;
+                boolean added;
                 tupleBuilder.reset();
                 for (int groupFieldIdx : groupFields) {
                     tupleBuilder.addField(inFrameAccessor, i, groupFieldIdx);
@@ -148,7 +148,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                     null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
                             added = computer.aggregate(st, value);
-                            if (!computer.canGrowMore() || !added) {
+                            if (!added) {
                                 throw new HyracksDataException(
                                         "Key is too large for hash table use with complier.optimize.groupby set to false");
                             }
@@ -163,16 +163,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         LongEntry value = new LongEntry();
                         value.reset(1);
                         added = computer.aggregate(st, value);
-                        if (added == false)
-                            System.out.println("hi");
                         if (!added) {
-                            try {
-                                writeHashmap();
-//                                appender.write(writer, true);
-                            } catch (Exception e) {
-                                writer.fail();
-                                throw e;
-                            }
+                            writeHashmap();
                             computer.reset();
                             added = computer.aggregate(st, value);
                         }
@@ -183,13 +175,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
                             added = computer.aggregate(st, value);
                             if (!added) {
-                                try {
-                                    writeHashmap();
-//                                    appender.write(writer, true);
-                                } catch (Exception e) {
-                                    writer.fail();
-                                    throw e;
-                                }
+                                writeHashmap();
                                 computer.reset();
                                 added = computer.aggregate(st, value);
                             }
@@ -197,21 +183,13 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
                             added = computer.aggregate(st, value);
                             if (!added) {
-                                try {
-                                    writeHashmap();
-//                                    appender.write(writer, true);
-                                } catch (Exception e) {
-                                    writer.fail();
-                                    throw e;
-                                }
+                                writeHashmap();
                                 computer.reset();
                                 added = computer.aggregate(st, value);
                             }
                         }
                     }
                 }
-                if (!computer.canGrowMore())
-                    System.out.println("lol");
             }
         }
     }
@@ -250,6 +228,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
         try {
             if (!isFailed && (!first || groupAll)) {
                 int ss = computer.size();
+                System.out.println("Writing Hashmap of size " + ss);
                 ArrayTupleBuilder tb = new ArrayTupleBuilder(outRecordDesc.getFields().length);
                 DataOutput dos = tb.getDataOutput();
                 Iterator<BytesToBytesMap.Location> iter = computer.aIterator();

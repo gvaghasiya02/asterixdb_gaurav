@@ -96,7 +96,7 @@ public class IoRequest implements IAsyncRequest, InterruptibleAction {
         if (state != State.INITIAL) {
             throw new IllegalStateException("Can't request a write operation through a " + state + " request");
         }
-        state = directWrite ? State.DIRECTREAD_REQUESTED : State.WRITE_REQUESTED;
+        state = directWrite ? State.DIRECTWRITE_REQUESTED : State.WRITE_REQUESTED;
         this.fHandle = fHandle;
         this.offset = offset;
         this.data = data;

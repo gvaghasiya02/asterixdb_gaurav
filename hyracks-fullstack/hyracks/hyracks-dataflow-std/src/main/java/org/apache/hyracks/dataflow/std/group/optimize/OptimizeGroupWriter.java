@@ -48,6 +48,8 @@ import org.apache.hyracks.dataflow.std.hashmap.entry.DoubleEntry;
 import org.apache.hyracks.dataflow.std.hashmap.entry.LongEntry;
 import org.apache.hyracks.dataflow.std.hashmap.entry.StringEntry;
 import org.apache.hyracks.unsafe.BytesToBytesMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.spark.unsafe.Platform;
 
 public class OptimizeGroupWriter implements IFrameWriter {
@@ -64,7 +66,9 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private RecordDescriptor outRecordDesc;
     private String aggregateType;
     private Types aggregateDataType; // datatype of field
-    private long noOfRecords = 0;
+    private long noOfRecords;
+
+    private static final Logger LOGGER = LogManager.getLogger();
 
     public OptimizeGroupWriter(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDesc,
             RecordDescriptor outRecordDesc, IFrameWriter writer, boolean groupAll, int framesLimit,
@@ -91,6 +95,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
 
     @Override
     public void open() throws HyracksDataException {
+        LOGGER.warn(Thread.currentThread().getId()+" Start to open OptimizeGroup writer named " + this);
         writer.open();
         first = true;
     }
@@ -100,6 +105,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
         inFrameAccessor.reset(buffer);
         int nTuples = inFrameAccessor.getTupleCount();
         noOfRecords += nTuples;
+        LOGGER.warn(Thread.currentThread().getId()+" NextFrame no of tuples OptimizeGroup cluster writer " + nTuples);
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
                 boolean added;
@@ -226,6 +232,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private void writeHashmap() {
         try {
             if (!isFailed && (!first || groupAll)) {
+                LOGGER.warn(Thread.currentThread().getId()+" Writing hashmap no of records" + computer.size());
                 ArrayTupleBuilder tb = new ArrayTupleBuilder(outRecordDesc.getFields().length);
                 DataOutput dos = tb.getDataOutput();
                 Iterator<BytesToBytesMap.Location> iter = computer.aIterator();

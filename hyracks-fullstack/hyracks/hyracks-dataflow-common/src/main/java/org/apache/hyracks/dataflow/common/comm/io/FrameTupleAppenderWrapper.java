@@ -25,6 +25,8 @@ import org.apache.hyracks.api.comm.IFrameTupleAppender;
 import org.apache.hyracks.api.comm.IFrameWriter;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.comm.util.FrameUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * This class wraps the calls of FrameTupleAppender and
@@ -37,6 +39,9 @@ public class FrameTupleAppenderWrapper {
     private final IFrameTupleAppender frameTupleAppender;
     private final IFrameWriter outputWriter;
 
+    private static long noOfFrames;
+    private static final Logger LOGGER = LogManager.getLogger();
+
     public FrameTupleAppenderWrapper(IFrameTupleAppender frameTupleAppender, IFrameWriter outputWriter) {
         this.frameTupleAppender = frameTupleAppender;
         this.outputWriter = outputWriter;
@@ -44,9 +49,11 @@ public class FrameTupleAppenderWrapper {
 
     public void open() throws HyracksDataException {
         outputWriter.open();
+        noOfFrames = 0;
     }
 
     public void write() throws HyracksDataException {
+        noOfFrames++;
         frameTupleAppender.write(outputWriter, true);
     }
 
@@ -55,6 +62,7 @@ public class FrameTupleAppenderWrapper {
     }
 
     public void close() throws HyracksDataException {
+        LOGGER.warn(Thread.currentThread().getId()+" Flushing frames " + noOfFrames + " to writer " + outputWriter.toString());
         outputWriter.close();
     }
 

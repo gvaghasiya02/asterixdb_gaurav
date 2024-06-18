@@ -40,6 +40,8 @@ import org.apache.hyracks.dataflow.common.data.accessors.PointableTupleReference
 import org.apache.hyracks.dataflow.std.group.AggregateState;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptor;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class PreclusteredGroupWriter implements IFrameWriter {
     private final int[] groupFields;
@@ -57,6 +59,10 @@ public class PreclusteredGroupWriter implements IFrameWriter {
     private boolean first;
     private boolean isFailed = false;
     private final long memoryLimit;
+
+    private static long aggregatedRecords;
+
+    private static final Logger LOGGER = LogManager.getLogger();
 
     public PreclusteredGroupWriter(IHyracksTaskContext ctx, int[] groupFields, IBinaryComparator[] comparators,
             IAggregatorDescriptorFactory aggregatorFactory, RecordDescriptor inRecordDesc,
@@ -94,10 +100,12 @@ public class PreclusteredGroupWriter implements IFrameWriter {
         tupleBuilder = new ArrayTupleBuilder(outRecordDesc.getFields().length);
         this.outputPartial = outputPartial;
         this.groupAll = groupAll;
+        aggregatedRecords = 0;
     }
 
     @Override
     public void open() throws HyracksDataException {
+        LOGGER.warn(Thread.currentThread().getId()+" Start to open Pre cluster writer named " + this + " intermediate merge " + outputPartial);
         appenderWrapper.open();
         first = true;
     }
@@ -106,6 +114,7 @@ public class PreclusteredGroupWriter implements IFrameWriter {
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         inFrameAccessor.reset(buffer);
         int nTuples = inFrameAccessor.getTupleCount();
+        LOGGER.warn(Thread.currentThread().getId()+" NextFrame no of tuples " + nTuples + " Pre cluster writer " + this);
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
                 if (first) {
@@ -145,6 +154,7 @@ public class PreclusteredGroupWriter implements IFrameWriter {
 
     private void writeOutput(ITupleReference lastTupleGroupFields) throws HyracksDataException {
         tupleBuilder.reset();
+        aggregatedRecords++;
         for (int i = 0; i < groupFields.length; i++) {
             tupleBuilder.addField(lastTupleGroupFields, i);
         }
@@ -187,6 +197,8 @@ public class PreclusteredGroupWriter implements IFrameWriter {
         try {
             if (!isFailed && (!first || groupAll)) {
                 writeOutput(groupFieldsPrevCopy);
+                LOGGER.warn(Thread.currentThread().getId()+ " Close to pre cluster writer named " + this + " with no of aggregated records written "
+                        + aggregatedRecords + " to writer " + appenderWrapper.toString());
                 appenderWrapper.write();
             }
             aggregator.close();

@@ -166,7 +166,8 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
 
         @Override
         public Void visitGroupByOperator(GroupByOperator op, Void arg) throws AlgebricksException {
-            setOperatorMemoryBudget(op, physConfig.getMaxFramesForGroupBy());
+            // each group by operator gets half of total group memory to accommodate both local and global operators
+            setOperatorMemoryBudget(op, physConfig.getMaxFramesForGroupBy() / 2);
             return null;
         }
 

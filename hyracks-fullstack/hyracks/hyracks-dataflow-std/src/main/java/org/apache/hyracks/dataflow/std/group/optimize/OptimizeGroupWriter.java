@@ -124,6 +124,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                     continue;
                 }
                 if (first) {
+                    LOGGER.warn("Key size in hash map"+ st.getLength());
 
                     if (aggregateType.equals("COUNT")) {
                         computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType), null,

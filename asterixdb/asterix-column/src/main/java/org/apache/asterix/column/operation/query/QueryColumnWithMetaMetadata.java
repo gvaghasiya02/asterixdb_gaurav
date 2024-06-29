@@ -18,6 +18,9 @@
  */
 package org.apache.asterix.column.operation.query;
 
+import static org.apache.asterix.column.util.SchemaConstants.META_RECORD_SCHEMA;
+import static org.apache.asterix.column.util.SchemaConstants.RECORD_SCHEMA;
+
 import java.io.ByteArrayInputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
@@ -35,11 +38,11 @@ import org.apache.asterix.column.filter.iterable.IColumnIterableFilterEvaluator;
 import org.apache.asterix.column.filter.iterable.IColumnIterableFilterEvaluatorFactory;
 import org.apache.asterix.column.filter.range.IColumnRangeFilterEvaluatorFactory;
 import org.apache.asterix.column.filter.range.IColumnRangeFilterValueAccessor;
-import org.apache.asterix.column.metadata.FieldNamesDictionary;
+import org.apache.asterix.column.metadata.IFieldNamesDictionary;
+import org.apache.asterix.column.metadata.dictionary.AbstractFieldNamesDictionary;
 import org.apache.asterix.column.metadata.schema.AbstractSchemaNode;
 import org.apache.asterix.column.metadata.schema.ObjectSchemaNode;
 import org.apache.asterix.column.metadata.schema.visitor.SchemaClipperVisitor;
-import org.apache.asterix.column.util.SchemaStringBuilderVisitor;
 import org.apache.asterix.column.values.IColumnValuesReader;
 import org.apache.asterix.column.values.IColumnValuesReaderFactory;
 import org.apache.asterix.column.values.reader.PrimitiveColumnValuesReader;
@@ -51,6 +54,7 @@ import org.apache.hyracks.api.exceptions.IWarningCollector;
 import org.apache.hyracks.data.std.api.IValueReference;
 import org.apache.hyracks.data.std.primitive.IntegerPointable;
 import org.apache.hyracks.storage.am.lsm.btree.column.api.AbstractColumnTupleReader;
+import org.apache.hyracks.storage.am.lsm.btree.column.api.projection.ColumnProjectorType;
 
 /**
  * Query column metadata (with metaRecord)
@@ -60,13 +64,14 @@ public final class QueryColumnWithMetaMetadata extends QueryColumnMetadata {
 
     private QueryColumnWithMetaMetadata(ARecordType datasetType, ARecordType metaType,
             PrimitiveColumnValuesReader[] primaryKeyReaders, IValueReference serializedMetadata,
-            FieldNamesDictionary fieldNamesDictionary, ObjectSchemaNode root, ObjectSchemaNode metaRoot,
+            IFieldNamesDictionary fieldNamesDictionary, ObjectSchemaNode root, ObjectSchemaNode metaRoot,
             IColumnValuesReaderFactory readerFactory, IValueGetterFactory valueGetterFactory,
             IColumnFilterEvaluator filterEvaluator, List<IColumnRangeFilterValueAccessor> filterValueAccessors,
-            IColumnIterableFilterEvaluator columnFilterEvaluator, List<IColumnValuesReader> filterColumnReaders)
-            throws HyracksDataException {
+            IColumnIterableFilterEvaluator columnFilterEvaluator, List<IColumnValuesReader> filterColumnReaders,
+            ColumnProjectorType projectorType) throws HyracksDataException {
         super(datasetType, metaType, primaryKeyReaders, serializedMetadata, fieldNamesDictionary, root, readerFactory,
-                valueGetterFactory, filterEvaluator, filterValueAccessors, columnFilterEvaluator, filterColumnReaders);
+                valueGetterFactory, filterEvaluator, filterValueAccessors, columnFilterEvaluator, filterColumnReaders,
+                projectorType);
         metaAssembler = new ColumnAssembler(metaRoot, metaType, this, readerFactory, valueGetterFactory);
     }
 
@@ -121,7 +126,7 @@ public final class QueryColumnWithMetaMetadata extends QueryColumnMetadata {
             Map<String, FunctionCallInformation> functionCallInfo, ARecordType metaRequestedType,
             IColumnRangeFilterEvaluatorFactory normalizedEvaluatorFactory,
             IColumnIterableFilterEvaluatorFactory columnFilterEvaluatorFactory, IWarningCollector warningCollector,
-            IHyracksTaskContext context) throws IOException {
+            IHyracksTaskContext context, ColumnProjectorType projectorType) throws IOException {
         byte[] bytes = serializedMetadata.getByteArray();
         int offset = serializedMetadata.getStartOffset();
         int length = serializedMetadata.getLength();
@@ -130,7 +135,7 @@ public final class QueryColumnWithMetaMetadata extends QueryColumnMetadata {
         DataInput input = new DataInputStream(new ByteArrayInputStream(bytes, fieldNamesStart, length));
 
         //FieldNames
-        FieldNamesDictionary fieldNamesDictionary = FieldNamesDictionary.deserialize(input);
+        IFieldNamesDictionary fieldNamesDictionary = AbstractFieldNamesDictionary.deserialize(input);
 
         //Schema
         ObjectSchemaNode root = (ObjectSchemaNode) AbstractSchemaNode.deserialize(input, null);
@@ -169,9 +174,9 @@ public final class QueryColumnWithMetaMetadata extends QueryColumnMetadata {
         // log normalized filter
         logFilter(jobId, normalizedFilterEvaluator, normalizedEvaluatorFactory.toString());
         // log requested schema for record
-        logSchema(jobId, clippedRoot, SchemaStringBuilderVisitor.RECORD_SCHEMA, fieldNamesDictionary);
+        logSchema(jobId, clippedRoot, RECORD_SCHEMA, fieldNamesDictionary);
         // log requested schema for meta-record
-        logSchema(jobId, metaClippedRoot, SchemaStringBuilderVisitor.META_RECORD_SCHEMA, fieldNamesDictionary);
+        logSchema(jobId, metaClippedRoot, META_RECORD_SCHEMA, fieldNamesDictionary);
 
         // Primary key readers
         PrimitiveColumnValuesReader[] primaryKeyReaders =
@@ -179,6 +184,7 @@ public final class QueryColumnWithMetaMetadata extends QueryColumnMetadata {
 
         return new QueryColumnWithMetaMetadata(datasetType, metaType, primaryKeyReaders, serializedMetadata,
                 fieldNamesDictionary, clippedRoot, metaClippedRoot, readerFactory, valueGetterFactory,
-                normalizedFilterEvaluator, filterValueAccessors, columnFilterEvaluator, filterColumnReaders);
+                normalizedFilterEvaluator, filterValueAccessors, columnFilterEvaluator, filterColumnReaders,
+                projectorType);
     }
 }

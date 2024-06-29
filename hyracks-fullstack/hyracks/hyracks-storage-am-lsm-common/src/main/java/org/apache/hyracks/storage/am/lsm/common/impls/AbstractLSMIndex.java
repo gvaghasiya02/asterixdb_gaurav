@@ -68,6 +68,8 @@ import org.apache.hyracks.storage.am.lsm.common.api.ILSMOperationTracker;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMPageWriteCallbackFactory;
 import org.apache.hyracks.storage.am.lsm.common.api.IVirtualBufferCache;
 import org.apache.hyracks.storage.am.lsm.common.api.LSMOperationType;
+import org.apache.hyracks.storage.am.lsm.common.cloud.DefaultIndexDiskCacheManager;
+import org.apache.hyracks.storage.am.lsm.common.cloud.IIndexDiskCacheManager;
 import org.apache.hyracks.storage.common.IIndexAccessParameters;
 import org.apache.hyracks.storage.common.IIndexBulkLoader;
 import org.apache.hyracks.storage.common.IIndexCursor;
@@ -116,6 +118,7 @@ public abstract class AbstractLSMIndex implements ILSMIndex {
     private final boolean atomic;
     private final List<ILSMDiskComponent> temporaryDiskComponents;
     private final ILSMMergePolicy mergePolicy;
+    private final ILSMIOOperationScheduler ioScheduler;
 
     public AbstractLSMIndex(IIOManager ioManager, List<IVirtualBufferCache> virtualBufferCaches,
             IBufferCache diskBufferCache, ILSMIndexFileManager fileManager, double bloomFilterFalsePositiveRate,
@@ -146,6 +149,7 @@ public abstract class AbstractLSMIndex implements ILSMIndex {
         this.atomic = atomic;
         this.temporaryDiskComponents = new ArrayList<>();
         this.mergePolicy = mergePolicy;
+        this.ioScheduler = ioScheduler;
 
         fileManager.initLastUsedSeq(ioOpCallback.getLastValidSequence());
         lsmHarness = new LSMHarness(this, ioScheduler, mergePolicy, opTracker, diskBufferCache.isReplicationEnabled(),
@@ -182,6 +186,7 @@ public abstract class AbstractLSMIndex implements ILSMIndex {
     @Override
     public synchronized void create() throws HyracksDataException {
         if (isActive) {
+            LOGGER.warn("Cannot create already active index {}", this);
             throw HyracksDataException.create(ErrorCode.CANNOT_CREATE_ACTIVE_INDEX);
         }
         fileManager.createDirs();
@@ -191,6 +196,7 @@ public abstract class AbstractLSMIndex implements ILSMIndex {
     @Override
     public synchronized void activate() throws HyracksDataException {
         if (isActive) {
+            LOGGER.warn("Cannot activate already active index {}", this);
             throw HyracksDataException.create(ErrorCode.CANNOT_ACTIVATE_ACTIVE_INDEX);
         }
         loadDiskComponents();
@@ -268,6 +274,7 @@ public abstract class AbstractLSMIndex implements ILSMIndex {
     @Override
     public synchronized void destroy() throws HyracksDataException {
         if (isActive) {
+            LOGGER.warn("Cannot destroy already active index {}", this);
             throw HyracksDataException.create(ErrorCode.CANNOT_DESTROY_ACTIVE_INDEX);
         }
         destroyDiskComponents();
@@ -286,6 +293,7 @@ public abstract class AbstractLSMIndex implements ILSMIndex {
     @Override
     public synchronized void clear() throws HyracksDataException {
         if (!isActive) {
+            LOGGER.warn("Cannot clear already inactive index {}", this);
             throw HyracksDataException.create(ErrorCode.CANNOT_CLEAR_INACTIVE_INDEX);
         }
         resetMemoryComponents();
@@ -444,6 +452,13 @@ public abstract class AbstractLSMIndex implements ILSMIndex {
         return mergeOp;
     }
 
+    @Override
+    public void scheduleCleanup(List<ILSMDiskComponent> inactiveDiskComponents) throws HyracksDataException {
+        LSMCleanupOperation cleanupOperation = new LSMCleanupOperation(this, ioOpCallback, inactiveDiskComponents);
+        ioOpCallback.scheduled(cleanupOperation);
+        ioScheduler.scheduleOperation(cleanupOperation);
+    }
+
     private static void propagateMap(ILSMIndexOperationContext src, ILSMIndexOperationContext destination) {
         Map<String, Object> map = src.getParameters();
         if (map != null && !map.isEmpty()) {
@@ -571,6 +586,7 @@ public abstract class AbstractLSMIndex implements ILSMIndex {
     @Override
     public synchronized void allocateMemoryComponents() throws HyracksDataException {
         if (!isActive) {
+            LOGGER.warn("Cannot allocate memory for already inactive index {}", this);
             throw HyracksDataException.create(ErrorCode.CANNOT_ALLOCATE_MEMORY_FOR_INACTIVE_INDEX);
         }
         if (memoryComponentsAllocated || memoryComponents == null) {
@@ -712,10 +728,9 @@ public abstract class AbstractLSMIndex implements ILSMIndex {
 
     @Override
     public final String toString() {
-        return "{\"class\" : \"" + getClass().getSimpleName() + "\", \"dir\" : \"" + fileManager.getBaseDir()
-                + "\", \"memory\" : " + (memoryComponents == null ? 0 : memoryComponents) + ", \"disk\" : "
-                + diskComponents.size() + ", \"num-scheduled-flushes\":" + numScheduledFlushes
-                + ", \"current-memory-component\":"
+        return "{\"dir\" : \"" + fileManager.getBaseDir() + "\", \"memory\" : "
+                + (memoryComponents == null ? 0 : memoryComponents) + ", \"disk\" : " + diskComponents.size()
+                + ", \"num-scheduled-flushes\":" + numScheduledFlushes + ", \"current-memory-component\":"
                 + (currentMutableComponentId == null ? "" : currentMutableComponentId.get()) + "}";
     }
 
@@ -898,8 +913,9 @@ public abstract class AbstractLSMIndex implements ILSMIndex {
         if (!memoryComponent.isModified() || opCtx.getOperation() == IndexOperation.DELETE_COMPONENTS) {
             return EmptyComponent.INSTANCE;
         }
-        LOGGER.debug("flushing component with id {} in the index {}",
-                ((FlushOperation) operation).getFlushingComponent().getId(), this);
+        FlushOperation flushOperation = (FlushOperation) operation;
+        ILSMComponent component = flushOperation.getFlushingComponent();
+        LOGGER.debug("Flushing {} memory component {}", operation, component);
         return doFlush(operation);
     }
 
@@ -957,4 +973,8 @@ public abstract class AbstractLSMIndex implements ILSMIndex {
         return mergePolicy;
     }
 
+    @Override
+    public IIndexDiskCacheManager getDiskCacheManager() {
+        return DefaultIndexDiskCacheManager.INSTANCE;
+    }
 }

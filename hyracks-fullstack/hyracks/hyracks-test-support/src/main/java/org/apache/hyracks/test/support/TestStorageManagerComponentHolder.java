@@ -20,6 +20,7 @@ package org.apache.hyracks.test.support;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ThreadFactory;
 
@@ -38,11 +39,13 @@ import org.apache.hyracks.storage.common.ILocalResourceRepository;
 import org.apache.hyracks.storage.common.IResourceLifecycleManager;
 import org.apache.hyracks.storage.common.buffercache.BufferCache;
 import org.apache.hyracks.storage.common.buffercache.ClockPageReplacementStrategy;
+import org.apache.hyracks.storage.common.buffercache.DefaultDiskCachedPageAllocator;
 import org.apache.hyracks.storage.common.buffercache.DelayPageCleanerPolicy;
 import org.apache.hyracks.storage.common.buffercache.HeapBufferAllocator;
 import org.apache.hyracks.storage.common.buffercache.IBufferCache;
 import org.apache.hyracks.storage.common.buffercache.ICacheMemoryAllocator;
 import org.apache.hyracks.storage.common.buffercache.IPageReplacementStrategy;
+import org.apache.hyracks.storage.common.buffercache.context.read.DefaultBufferCacheReadContextProvider;
 import org.apache.hyracks.storage.common.file.FileMapManager;
 import org.apache.hyracks.storage.common.file.IFileMapManager;
 import org.apache.hyracks.storage.common.file.IFileMapProvider;
@@ -144,10 +147,12 @@ public class TestStorageManagerComponentHolder {
             return bufferCache;
         }
         ICacheMemoryAllocator allocator = new HeapBufferAllocator();
-        IPageReplacementStrategy prs = new ClockPageReplacementStrategy(allocator, pageSize, numPages);
+        IPageReplacementStrategy prs = new ClockPageReplacementStrategy(allocator,
+                DefaultDiskCachedPageAllocator.INSTANCE, pageSize, numPages);
         IFileMapProvider fileMapProvider = getFileMapProvider();
         bufferCache = new BufferCache(ioManager, prs, new DelayPageCleanerPolicy(1000),
-                (IFileMapManager) fileMapProvider, maxOpenFiles, 10, threadFactory);
+                (IFileMapManager) fileMapProvider, maxOpenFiles, 10, threadFactory, new HashMap<>(),
+                DefaultBufferCacheReadContextProvider.DEFAULT);
         return bufferCache;
     }
 }

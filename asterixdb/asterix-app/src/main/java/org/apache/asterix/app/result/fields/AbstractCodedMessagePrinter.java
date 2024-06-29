@@ -33,7 +33,8 @@ public abstract class AbstractCodedMessagePrinter implements IResponseFieldPrint
 
     private enum CodedMessageField {
         CODE("code"),
-        MSG("msg");
+        MSG("msg"),
+        RETRIABLE("retriable");
 
         private final String str;
 
@@ -62,7 +63,14 @@ public abstract class AbstractCodedMessagePrinter implements IResponseFieldPrint
             pw.print("{ \n\t");
             ResultUtil.printField(pw, CodedMessageField.CODE.str(), codedMessage.getCode());
             pw.print("\t");
-            ResultUtil.printField(pw, CodedMessageField.MSG.str(), JSONUtil.escape(codedMessage.getMessage()), false);
+            if (codedMessage.isRetriable()) {
+                ResultUtil.printField(pw, CodedMessageField.MSG.str(), JSONUtil.escape(codedMessage.getMessage()));
+                pw.print("\t");
+                ResultUtil.printField(pw, CodedMessageField.RETRIABLE.str(), codedMessage.isRetriable(), false);
+            } else {
+                ResultUtil.printField(pw, CodedMessageField.MSG.str(), JSONUtil.escape(codedMessage.getMessage()),
+                        false);
+            }
             pw.print("\t} \n\t");
             boolean lastMsg = i == messages.size() - 1;
             if (!lastMsg) {
@@ -78,6 +86,9 @@ public abstract class AbstractCodedMessagePrinter implements IResponseFieldPrint
             ObjectNode error = array.addObject();
             error.put(CodedMessageField.CODE.str(), codedMessage.getCode());
             error.put(CodedMessageField.MSG.str(), codedMessage.getMessage());
+            if (codedMessage.isRetriable()) {
+                error.put(CodedMessageField.RETRIABLE.str(), codedMessage.isRetriable());
+            }
         });
         return objectNode;
     }

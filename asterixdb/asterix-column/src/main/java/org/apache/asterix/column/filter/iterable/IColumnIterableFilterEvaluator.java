@@ -26,5 +26,7 @@ public interface IColumnIterableFilterEvaluator extends IColumnFilterEvaluator {
 
     int getTupleIndex();
 
+    int getValueIndex();
+
     void setAt(int index) throws HyracksDataException;
 }

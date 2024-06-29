@@ -25,10 +25,13 @@ import static org.apache.asterix.common.utils.IdentifierUtil.dataset;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.asterix.common.api.INamespaceResolver;
@@ -76,6 +79,7 @@ import org.apache.asterix.metadata.entities.Dataset;
 import org.apache.asterix.metadata.entities.DatasourceAdapter;
 import org.apache.asterix.metadata.entities.Datatype;
 import org.apache.asterix.metadata.entities.Dataverse;
+import org.apache.asterix.metadata.entities.EntityDetails;
 import org.apache.asterix.metadata.entities.Feed;
 import org.apache.asterix.metadata.entities.FeedConnection;
 import org.apache.asterix.metadata.entities.FeedPolicyEntity;
@@ -106,9 +110,9 @@ import org.apache.asterix.runtime.operators.LSMPrimaryInsertOperatorDescriptor;
 import org.apache.asterix.runtime.operators.LSMSecondaryInsertDeleteWithNestedPlanOperatorDescriptor;
 import org.apache.asterix.runtime.operators.LSMSecondaryUpsertOperatorDescriptor;
 import org.apache.asterix.runtime.operators.LSMSecondaryUpsertWithNestedPlanOperatorDescriptor;
-import org.apache.asterix.runtime.writer.ExternalWriterFactory;
-import org.apache.asterix.runtime.writer.IExternalFilePrinterFactory;
+import org.apache.asterix.runtime.writer.ExternalFileWriterFactory;
 import org.apache.asterix.runtime.writer.IExternalFileWriterFactory;
+import org.apache.asterix.runtime.writer.IExternalPrinterFactory;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksAbsolutePartitionConstraint;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksPartitionConstraint;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
@@ -200,6 +204,8 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
     private final INamespaceResolver namespaceResolver;
     private IDataFormat dataFormat = FormatUtils.getDefaultFormat();
 
+    private final Set<EntityDetails> accessedEntities;
+
     public static MetadataProvider createWithDefaultNamespace(ICcApplicationContext appCtx) {
         java.util.function.Function<ICcApplicationContext, IMetadataProvider<?, ?>> factory =
                 ((ICCExtensionManager) appCtx.getExtensionManager()).getMetadataProviderFactory();
@@ -225,6 +231,7 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         dataPartitioningProvider = (DataPartitioningProvider) appCtx.getDataPartitioningProvider();
         locks = new LockList();
         config = new HashMap<>();
+        accessedEntities = new HashSet<>();
         setDefaultNamespace(MetadataConstants.DEFAULT_NAMESPACE);
     }
 
@@ -761,12 +768,19 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         fileWriterFactory.validate();
         String fileExtension = ExternalWriterProvider.getFileExtension(sink);
         int maxResult = ExternalWriterProvider.getMaxResult(sink);
-        IExternalFilePrinterFactory printerFactory = ExternalWriterProvider.createPrinter(sink, sourceType);
-        ExternalWriterFactory writerFactory = new ExternalWriterFactory(fileWriterFactory, printerFactory,
+        IExternalPrinterFactory printerFactory = ExternalWriterProvider.createPrinter(appCtx, sink, sourceType);
+        ExternalFileWriterFactory writerFactory = new ExternalFileWriterFactory(fileWriterFactory, printerFactory,
                 fileExtension, maxResult, dynamicPathEvalFactory, staticPath, pathSourceLocation);
         SinkExternalWriterRuntimeFactory runtime = new SinkExternalWriterRuntimeFactory(sourceColumn, partitionColumns,
                 partitionComparatorFactories, inputDesc, writerFactory);
         return new Pair<>(runtime, null);
+    }
+
+    @Override
+    public Pair<IPushRuntimeFactory, AlgebricksPartitionConstraint> getWriteDatabaseWithKeyRuntime(int sourceColumn,
+            IScalarEvaluatorFactory[] keyEvaluatorFactories, IWriteDataSink sink, RecordDescriptor inputDesc,
+            Object sourceType) throws AlgebricksException {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -961,7 +975,7 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
             Map<String, String> configuration, ARecordType itemType, IWarningCollector warningCollector,
             IExternalFilterEvaluatorFactory filterEvaluatorFactory) throws AlgebricksException {
         try {
-            configuration.put(ExternalDataConstants.KEY_DATABASE_DATAVERSE, dataset.getDatabaseName());
+            configuration.put(ExternalDataConstants.KEY_DATASET_DATABASE, dataset.getDatabaseName());
             configuration.put(ExternalDataConstants.KEY_DATASET_DATAVERSE,
                     dataset.getDataverseName().getCanonicalForm());
             return AdapterFactoryProvider.getAdapterFactory(getApplicationContext().getServiceContext(), adapterName,
@@ -1936,6 +1950,14 @@ public class MetadataProvider implements IMetadataProvider<DataSourceId, String>
         if (namespaceResolver.isUsingDatabase()) {
             validateChars(objectName, sourceLoc);
         }
+    }
+
+    public void addAccessedEntity(EntityDetails entityDetails) {
+        accessedEntities.add(entityDetails);
+    }
+
+    public Set<EntityDetails> getAccessedEntities() {
+        return Collections.unmodifiableSet(accessedEntities);
     }
 
     private void validateDatabaseObjectNameImpl(String name, SourceLocation sourceLoc) throws AlgebricksException {

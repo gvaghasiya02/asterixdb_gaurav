@@ -61,7 +61,6 @@ import org.apache.asterix.common.api.INcApplicationContext;
 import org.apache.asterix.common.api.IPropertiesFactory;
 import org.apache.asterix.common.api.IReceptionistFactory;
 import org.apache.asterix.common.config.AsterixExtension;
-import org.apache.asterix.common.config.CompilerProperties;
 import org.apache.asterix.common.config.ExtensionProperties;
 import org.apache.asterix.common.config.ExternalProperties;
 import org.apache.asterix.common.config.GlobalConfig;
@@ -160,14 +159,12 @@ public class NCApplication extends BaseNCApplication {
         }
         MetadataBuiltinFunctions.init();
 
-        boolean isDbResolutionEnabled =
-                ncServiceCtx.getAppConfig().getBoolean(CompilerProperties.Option.COMPILER_ENABLE_DB_RESOLUTION);
         boolean cloudDeployment = ncServiceCtx.getAppConfig().getBoolean(CLOUD_DEPLOYMENT);
-        boolean useDatabaseResolution = cloudDeployment && isDbResolutionEnabled;
-        NamespaceResolver namespaceResolver = new NamespaceResolver(useDatabaseResolution);
+        boolean useDatabaseResolution = cloudDeployment;
+        INamespaceResolver namespaceResolver = createNamespaceResolver(useDatabaseResolution);
         NamespacePathResolver namespacePathResolver = new NamespacePathResolver(useDatabaseResolution);
-        ncExtensionManager =
-                new NCExtensionManager(new ArrayList<>(getExtensions()), cloudDeployment, namespaceResolver);
+        ncExtensionManager = new NCExtensionManager(new ArrayList<>(getExtensions()), cloudDeployment,
+                namespaceResolver, ncServiceCtx);
         runtimeContext = createNCApplicationContext(ncServiceCtx, ncExtensionManager, getPropertiesFactory(),
                 namespaceResolver, namespacePathResolver);
         MetadataProperties metadataProperties = runtimeContext.getMetadataProperties();
@@ -199,6 +196,10 @@ public class NCApplication extends BaseNCApplication {
         }
         webManager = new WebManager();
         performLocalCleanUp();
+    }
+
+    protected INamespaceResolver createNamespaceResolver(boolean useDatabaseResolution) {
+        return new NamespaceResolver(useDatabaseResolution);
     }
 
     protected INcApplicationContext createNCApplicationContext(INCServiceContext ncServiceCtx,
@@ -334,7 +335,7 @@ public class NCApplication extends BaseNCApplication {
     @Override
     public NodeCapacity getCapacity() {
         StorageProperties storageProperties = runtimeContext.getStorageProperties();
-        final long memorySize = storageProperties.getJobExecutionMemoryBudget();
+        final long memorySize = storageProperties.getJobExecutionMemoryBudget(runtimeContext);
         int allCores = Runtime.getRuntime().availableProcessors();
         return new NodeCapacity(memorySize, allCores);
     }

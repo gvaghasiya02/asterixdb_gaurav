@@ -25,11 +25,13 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.asterix.cloud.clients.ICloudGuardian;
 import org.apache.asterix.cloud.clients.IParallelDownloader;
 import org.apache.asterix.common.api.INamespacePathResolver;
 import org.apache.asterix.common.config.CloudProperties;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
+import org.apache.hyracks.api.io.IFileHandle;
 import org.apache.hyracks.api.util.IoUtil;
 import org.apache.hyracks.control.nc.io.IOManager;
 import org.apache.logging.log4j.LogManager;
@@ -46,8 +48,8 @@ final class EagerCloudIOManager extends AbstractCloudIOManager {
     private static final Logger LOGGER = LogManager.getLogger();
 
     public EagerCloudIOManager(IOManager ioManager, CloudProperties cloudProperties,
-            INamespacePathResolver nsPathResolver) throws HyracksDataException {
-        super(ioManager, cloudProperties, nsPathResolver);
+            INamespacePathResolver nsPathResolver, ICloudGuardian guardian) throws HyracksDataException {
+        super(ioManager, cloudProperties, nsPathResolver, guardian);
     }
 
     /*
@@ -65,7 +67,7 @@ final class EagerCloudIOManager extends AbstractCloudIOManager {
     }
 
     @Override
-    protected void onOpen(CloudFileHandle fileHandle, FileReadWriteMode rwMode, FileSyncMode syncMode) {
+    protected void onOpen(CloudFileHandle fileHandle) {
         // NoOp
     }
 
@@ -93,5 +95,15 @@ final class EagerCloudIOManager extends AbstractCloudIOManager {
         // Write here will overwrite the older object if exists
         cloudClient.write(bucket, fileRef.getRelativePath(), bytes);
         localIoManager.overwrite(fileRef, bytes);
+    }
+
+    @Override
+    public int punchHole(IFileHandle fHandle, long offset, long length) {
+        throw new UnsupportedOperationException("punchHole is not supported with Eager caching");
+    }
+
+    @Override
+    public void evict(String resourcePath) {
+        throw new UnsupportedOperationException("evict is not supported with Eager caching");
     }
 }

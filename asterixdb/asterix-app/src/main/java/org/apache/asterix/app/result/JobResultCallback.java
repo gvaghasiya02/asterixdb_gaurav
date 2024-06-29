@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.translator.ResultMetadata;
@@ -73,6 +74,9 @@ public class JobResultCallback implements IJobResultCallback {
         long aggregateTotalWarningsCount = 0;
         long pagesRead = 0;
         long nonPagedReads = 0;
+        long cloudReadRequestsCount = 0;
+        long cloudPagesRead = 0;
+        long cloudPagesPersisted = 0;
         Set<Warning> AggregateWarnings = new HashSet<>();
         IJobManager jobManager =
                 ((ClusterControllerService) appCtx.getServiceContext().getControllerService()).getJobManager();
@@ -87,6 +91,10 @@ public class JobResultCallback implements IJobResultCallback {
                     processedObjects += tp.getStatsCollector().getAggregatedStats().getInputTupleCounter().get();
                     pagesRead += tp.getStatsCollector().getAggregatedStats().getPageReads().get();
                     nonPagedReads += tp.getStatsCollector().getAggregatedStats().coldReadCounter().get();
+                    cloudReadRequestsCount +=
+                            tp.getStatsCollector().getAggregatedStats().cloudReadRequestCounter().get();
+                    cloudPagesRead += tp.getStatsCollector().getAggregatedStats().cloudReadPageCounter().get();
+                    cloudPagesPersisted += tp.getStatsCollector().getAggregatedStats().cloudPersistPageCounter().get();
                     aggregateTotalWarningsCount += tp.getTotalWarningsCount();
                     Set<Warning> taskWarnings = tp.getWarnings();
                     if (AggregateWarnings.size() < maxWarnings && !taskWarnings.isEmpty()) {
@@ -97,11 +105,14 @@ public class JobResultCallback implements IJobResultCallback {
                     }
                 }
             }
-            metadata.setQueueWaitTimeInNanos(run.getJobProfile().getQueueWaitTimeInNanos());
+            metadata.setQueueWaitTimeInNanos(TimeUnit.MILLISECONDS.toNanos(run.getQueueWaitTimeInMillis()));
         }
         metadata.setProcessedObjects(processedObjects);
         metadata.setBufferCacheHitRatio(pagesRead > 0 ? (pagesRead - nonPagedReads) / (double) pagesRead : Double.NaN);
         metadata.setBufferCachePageReadCount(pagesRead);
+        metadata.setCloudReadRequestsCount(cloudReadRequestsCount);
+        metadata.setCloudPagesReadCount(cloudPagesRead);
+        metadata.setCloudPagesPersistedCount(cloudPagesPersisted);
         metadata.setWarnings(AggregateWarnings);
         metadata.setTotalWarningsCount(aggregateTotalWarningsCount);
         if (run != null && run.getFlags() != null && run.getFlags().contains(JobFlag.PROFILE_RUNTIME)) {

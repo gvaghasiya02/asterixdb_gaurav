@@ -18,6 +18,9 @@
  */
 package org.apache.hyracks.storage.am.lsm.btree.column.impls.lsm.tuples;
 
+import static org.apache.hyracks.storage.am.lsm.btree.column.utils.ColumnUtil.getColumnStartOffset;
+import static org.apache.hyracks.storage.am.lsm.btree.column.utils.ColumnUtil.getNumberOfRemainingPages;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -26,6 +29,7 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.storage.am.lsm.btree.column.api.IColumnBufferProvider;
 import org.apache.hyracks.storage.am.lsm.btree.column.api.IColumnReadMultiPageOp;
 import org.apache.hyracks.storage.am.lsm.btree.column.impls.btree.ColumnBTreeReadLeafFrame;
+import org.apache.hyracks.storage.am.lsm.btree.column.utils.ColumnUtil;
 import org.apache.hyracks.storage.common.buffercache.CachedPage;
 import org.apache.hyracks.storage.common.buffercache.ICachedPage;
 
@@ -36,7 +40,7 @@ public final class ColumnMultiBufferProvider implements IColumnBufferProvider {
     private final IColumnReadMultiPageOp multiPageOp;
     private final Queue<ICachedPage> pages;
     private final LongSet pinnedPages;
-    private int numberOfPages;
+    private int numberOfRemainingPages;
     private int startPage;
     private int startOffset;
     private int length;
@@ -51,25 +55,27 @@ public final class ColumnMultiBufferProvider implements IColumnBufferProvider {
     @Override
     public void reset(ColumnBTreeReadLeafFrame frame) throws HyracksDataException {
         if (columnIndex >= frame.getNumberOfColumns()) {
-            numberOfPages = 0;
+            numberOfRemainingPages = 0;
             length = 0;
             return;
         }
+        int pageSize = multiPageOp.getPageSize();
 
         int offset = frame.getColumnOffset(columnIndex);
         startPage = frame.getPageId() + getColumnPageIndex(offset);
-        startOffset = offset % multiPageOp.getPageSize();
-        //Duplicate as the buffer could be shared by more than one column
+        startOffset = getColumnStartOffset(offset, pageSize);
+        // Duplicate as the buffer could be shared by more than one column
         ByteBuffer firstPage = readNext().duplicate();
-        firstPage.position(startOffset);
-        //Read the length
-        length = firstPage.getInt();
-        int remainingLength = length - firstPage.remaining();
-        numberOfPages = (int) Math.ceil((double) remainingLength / multiPageOp.getPageSize());
-        //+4-bytes after reading the length
+        // Read the column's length
+        length = ColumnUtil.readColumnLength(firstPage, startOffset, pageSize);
+        // +4-bytes after reading the length
         startOffset += Integer.BYTES;
-        //-4-bytes after reading the length
+        // -4-bytes after reading the length
         length -= Integer.BYTES;
+        // Get the remaining length of the column
+        int remainingLength = length - firstPage.remaining();
+        // Get the number of remaining pages this column occupies
+        numberOfRemainingPages = getNumberOfRemainingPages(remainingLength, pageSize);
     }
 
     @Override
@@ -78,12 +84,12 @@ public final class ColumnMultiBufferProvider implements IColumnBufferProvider {
         buffer.clear();
         buffer.position(startOffset);
         buffers.add(buffer);
-        for (int i = 0; i < numberOfPages; i++) {
+        for (int i = 0; i < numberOfRemainingPages; i++) {
             buffer = readNext().duplicate();
             buffer.clear();
             buffers.add(buffer);
         }
-        numberOfPages = 0;
+        numberOfRemainingPages = 0;
     }
 
     @Override
@@ -117,6 +123,6 @@ public final class ColumnMultiBufferProvider implements IColumnBufferProvider {
     }
 
     private int getColumnPageIndex(int columnOffset) {
-        return (int) Math.floor((double) columnOffset / multiPageOp.getPageSize());
+        return ColumnUtil.getColumnPageIndex(columnOffset, multiPageOp.getPageSize());
     }
 }

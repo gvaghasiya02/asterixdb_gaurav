@@ -40,6 +40,8 @@ import org.apache.hyracks.storage.common.MultiComparator;
 import org.apache.hyracks.storage.common.NoOpIndexCursorStats;
 import org.apache.hyracks.storage.common.buffercache.IBufferCache;
 import org.apache.hyracks.storage.common.buffercache.ICachedPage;
+import org.apache.hyracks.storage.common.buffercache.context.IBufferCacheReadContext;
+import org.apache.hyracks.storage.common.buffercache.context.read.DefaultBufferCacheReadContextProvider;
 import org.apache.hyracks.storage.common.file.BufferedFileHandle;
 
 public class DiskBTree extends BTree {
@@ -56,7 +58,7 @@ public class DiskBTree extends BTree {
         RangePredicate diskOrderScanPred = new RangePredicate(null, null, true, true, ctx.getCmp(), ctx.getCmp());
         int maxPageId = freePageManager.getMaxPageId(ctx.getMetaFrame());
         int currentPageId = bulkloadLeafStart;
-        ICachedPage page = bufferCache.pin(BufferedFileHandle.getDiskPageId(getFileId(), currentPageId), false);
+        ICachedPage page = bufferCache.pin(BufferedFileHandle.getDiskPageId(getFileId(), currentPageId));
         try {
             cursor.setBufferCache(bufferCache);
             cursor.setFileId(getFileId());
@@ -72,8 +74,8 @@ public class DiskBTree extends BTree {
         }
     }
 
-    private void search(ITreeIndexCursor cursor, ISearchPredicate searchPred, BTreeOpContext ctx)
-            throws HyracksDataException {
+    private void search(ITreeIndexCursor cursor, ISearchPredicate searchPred, BTreeOpContext ctx,
+            IBufferCacheReadContext bcOpCtx) throws HyracksDataException {
         ctx.reset();
         RangePredicate rangePredicate = (RangePredicate) searchPred;
         ctx.setPred(rangePredicate);
@@ -101,8 +103,8 @@ public class DiskBTree extends BTree {
                 }
             }
         }
-        ICachedPage rootNode = bufferCache.pin(BufferedFileHandle.getDiskPageId(getFileId(), rootPage), false);
-        searchDown(rootNode, rootPage, ctx, cursor);
+        ICachedPage rootNode = bufferCache.pin(BufferedFileHandle.getDiskPageId(getFileId(), rootPage), bcOpCtx);
+        searchDown(rootNode, rootPage, ctx, cursor, bcOpCtx);
     }
 
     private boolean fitInPage(ITupleReference key, MultiComparator comparator, ITreeIndexFrame frame)
@@ -113,8 +115,8 @@ public class DiskBTree extends BTree {
         return cmp <= 0;
     }
 
-    private void searchDown(ICachedPage page, int pageId, BTreeOpContext ctx, ITreeIndexCursor cursor)
-            throws HyracksDataException {
+    private void searchDown(ICachedPage page, int pageId, BTreeOpContext ctx, ITreeIndexCursor cursor,
+            IBufferCacheReadContext bcOpCtx) throws HyracksDataException {
         ICachedPage currentPage = page;
         ctx.getInteriorFrame().setPage(currentPage);
         try {
@@ -122,10 +124,9 @@ public class DiskBTree extends BTree {
             while (!ctx.getInteriorFrame().isLeaf()) {
                 // walk down the tree until we find the leaf
                 childPageId = ctx.getInteriorFrame().getChildPageId(ctx.getPred());
-                bufferCache.unpin(currentPage);
-                pageId = childPageId;
+                bufferCache.unpin(currentPage, bcOpCtx);
 
-                currentPage = bufferCache.pin(BufferedFileHandle.getDiskPageId(getFileId(), childPageId), false);
+                currentPage = bufferCache.pin(BufferedFileHandle.getDiskPageId(getFileId(), childPageId), bcOpCtx);
                 ctx.getInteriorFrame().setPage(currentPage);
             }
 
@@ -135,19 +136,12 @@ public class DiskBTree extends BTree {
             ctx.getCursorInitialState().setPageId(childPageId);
             ctx.getLeafFrame().setPage(currentPage);
             cursor.open(ctx.getCursorInitialState(), ctx.getPred());
-        } catch (HyracksDataException e) {
-            if (!ctx.isExceptionHandled() && currentPage != null) {
-                bufferCache.unpin(currentPage);
-                ctx.setExceptionHandled(true);
-            }
-            throw e;
         } catch (Exception e) {
-            if (currentPage != null) {
-                bufferCache.unpin(currentPage);
+            if (!ctx.isExceptionHandled() && currentPage != null) {
+                bufferCache.unpin(currentPage, bcOpCtx);
             }
-            HyracksDataException wrappedException = HyracksDataException.create(e);
             ctx.setExceptionHandled(true);
-            throw wrappedException;
+            throw HyracksDataException.create(e);
         }
     }
 
@@ -198,7 +192,7 @@ public class DiskBTree extends BTree {
         @Override
         public void search(IIndexCursor cursor, ISearchPredicate searchPred) throws HyracksDataException {
             ctx.setOperation(IndexOperation.SEARCH);
-            ((DiskBTree) btree).search((ITreeIndexCursor) cursor, searchPred, ctx);
+            ((DiskBTree) btree).search((ITreeIndexCursor) cursor, searchPred, ctx, getBufferCacheOperationContext());
         }
 
         @Override
@@ -211,6 +205,10 @@ public class DiskBTree extends BTree {
         public void diskOrderScan(ITreeIndexCursor cursor) throws HyracksDataException {
             ctx.setOperation(IndexOperation.DISKORDERSCAN);
             ((DiskBTree) btree).diskOrderScan(cursor, ctx);
+        }
+
+        protected IBufferCacheReadContext getBufferCacheOperationContext() {
+            return DefaultBufferCacheReadContextProvider.DEFAULT;
         }
     }
 
@@ -230,7 +228,7 @@ public class DiskBTree extends BTree {
 
         @Override
         protected ICachedPage acquireNextPage() throws HyracksDataException {
-            ICachedPage nextPage = bufferCache.pin(BufferedFileHandle.getDiskPageId(fileId, currentPageId), false);
+            ICachedPage nextPage = bufferCache.pin(BufferedFileHandle.getDiskPageId(fileId, currentPageId));
             return nextPage;
         }
 

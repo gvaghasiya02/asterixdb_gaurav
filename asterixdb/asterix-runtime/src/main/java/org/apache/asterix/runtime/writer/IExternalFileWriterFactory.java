@@ -20,15 +20,14 @@ package org.apache.asterix.runtime.writer;
 
 import java.io.Serializable;
 
-import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 
 /**
  * An interface for writing to a storage device
- * Implementer should also provide a singleton to {@link IExternalFileFilterWriterFactoryProvider}
+ * Implementer should also provide a singleton to {@link IExternalFileWriterFactoryProvider}
  */
-public interface IExternalFileWriterFactory extends Serializable {
+public interface IExternalFileWriterFactory extends IExternalWriterFactoryValidator, Serializable {
     /**
      * Create a writer
      *
@@ -36,16 +35,11 @@ public interface IExternalFileWriterFactory extends Serializable {
      * @param printerFactory printer factory for writing the final result
      * @return a new file writer
      */
-    IExternalFileWriter createWriter(IHyracksTaskContext context, IExternalFilePrinterFactory printerFactory)
+    IExternalFileWriter createWriter(IHyracksTaskContext context, IExternalPrinterFactory printerFactory)
             throws HyracksDataException;
 
     /**
      * @return file (or path) separator
      */
     char getSeparator();
-
-    /**
-     * Validate the writer by running a test write routine to ensure the writer has the appropriate permissions
-     */
-    void validate() throws AlgebricksException;
 }

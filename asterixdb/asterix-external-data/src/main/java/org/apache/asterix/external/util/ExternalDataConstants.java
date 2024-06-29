@@ -39,7 +39,7 @@ public class ExternalDataConstants {
     // used to specify the stream factory for an adapter that has a stream data source
     public static final String KEY_STREAM = "stream";
     //TODO(DB): check adapter configuration
-    public static final String KEY_DATABASE_DATAVERSE = "dataset-database";
+    public static final String KEY_DATASET_DATABASE = "dataset-database";
     // used to specify the dataverse of the adapter
     public static final String KEY_DATASET_DATAVERSE = "dataset-dataverse";
     // used to specify the socket addresses when reading data from sockets
@@ -246,6 +246,8 @@ public class ExternalDataConstants {
      * Constant characters
      */
     public static final char ESCAPE = '\\';
+
+    public static final char CSV_ESCAPE = '\"';
     public static final char QUOTE = '"';
     public static final char SPACE = ' ';
     public static final char TAB = '\t';
@@ -304,20 +306,24 @@ public class ExternalDataConstants {
      * Compression constants
      */
     public static final String KEY_COMPRESSION_GZIP = "gzip";
+    public static final String KEY_COMPRESSION_GZIP_COMPRESSION_LEVEL = "gzipCompressionLevel";
 
     /**
      * Writer Constants
      */
     public static final String KEY_WRITER_MAX_RESULT = "max-objects-per-file";
+    public static final String KEY_VALIDATE_WRITE_PERMISSION = "validate-write-permission";
     public static final String KEY_WRITER_COMPRESSION = "compression";
-    public static final int WRITER_MAX_RESULT_DEFAULT = 1000;
+    public static final int WRITER_MAX_RESULT_DEFAULT = 10000;
+    public static final int WRITER_MAX_RESULT_MINIMUM = 1000;
     public static final Set<String> WRITER_SUPPORTED_FORMATS;
     public static final Set<String> WRITER_SUPPORTED_ADAPTERS;
     public static final Set<String> WRITER_SUPPORTED_COMPRESSION;
 
     static {
         WRITER_SUPPORTED_FORMATS = Set.of(FORMAT_JSON_LOWER_CASE);
-        WRITER_SUPPORTED_ADAPTERS = Set.of(ALIAS_LOCALFS_ADAPTER.toLowerCase(), KEY_ADAPTER_NAME_AWS_S3.toLowerCase());
+        WRITER_SUPPORTED_ADAPTERS = Set.of(ALIAS_LOCALFS_ADAPTER.toLowerCase(), KEY_ADAPTER_NAME_AWS_S3.toLowerCase(),
+                KEY_ADAPTER_NAME_GCS.toLowerCase());
         WRITER_SUPPORTED_COMPRESSION = Set.of(KEY_COMPRESSION_GZIP);
     }
 

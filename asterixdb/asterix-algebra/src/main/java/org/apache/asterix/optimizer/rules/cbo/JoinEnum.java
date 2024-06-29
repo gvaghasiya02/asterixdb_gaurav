@@ -30,6 +30,7 @@ import java.util.Set;
 
 import org.apache.asterix.common.annotations.IndexedNLJoinExpressionAnnotation;
 import org.apache.asterix.common.annotations.SecondaryIndexSearchPreferenceAnnotation;
+import org.apache.asterix.common.annotations.SkipSecondaryIndexSearchExpressionAnnotation;
 import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.common.exceptions.ErrorCode;
 import org.apache.asterix.metadata.declared.DataSource;
@@ -266,12 +267,22 @@ public class JoinEnum {
     }
 
     protected ILogicalExpression getNestedLoopJoinExpr(List<Integer> newJoinConditions) {
-        if (newJoinConditions.size() != 1) {
-            // may remove this restriction later if possible
-            return null;
+        if (newJoinConditions.size() == 0) {
+            // this is a cartesian product
+            return ConstantExpression.TRUE;
         }
-        JoinCondition jc = joinConditions.get(newJoinConditions.get(0));
-        return jc.joinCondition;
+        if (newJoinConditions.size() == 1) {
+            JoinCondition jc = joinConditions.get(newJoinConditions.get(0));
+            return jc.joinCondition;
+        }
+        ScalarFunctionCallExpression andExpr = new ScalarFunctionCallExpression(
+                BuiltinFunctions.getBuiltinFunctionInfo(AlgebricksBuiltinFunctions.AND));
+        for (int joinNum : newJoinConditions) {
+            // need to AND all the expressions.
+            JoinCondition jc = joinConditions.get(joinNum);
+            andExpr.getArguments().add(new MutableObject<>(jc.joinCondition));
+        }
+        return andExpr;
     }
 
     protected ILogicalExpression getHashJoinExpr(List<Integer> newJoinConditions) {
@@ -289,14 +300,15 @@ public class JoinEnum {
         ScalarFunctionCallExpression andExpr = new ScalarFunctionCallExpression(
                 BuiltinFunctions.getBuiltinFunctionInfo(AlgebricksBuiltinFunctions.AND));
 
-        // at least one equality predicate needs to be present for a hash join to be possible.
+        // All the join predicates need to be equality predicates for a hash join to be possible.
         boolean eqPredFound = false;
         for (int joinNum : newJoinConditions) {
             // need to AND all the expressions.
             JoinCondition jc = joinConditions.get(joinNum);
-            if (jc.comparisonType == JoinCondition.comparisonOp.OP_EQ) {
-                eqPredFound = true;
+            if (jc.comparisonType != JoinCondition.comparisonOp.OP_EQ) {
+                return null;
             }
+            eqPredFound = true;
             andExpr.getArguments().add(new MutableObject<>(jc.joinCondition));
         }
         // return null if no equality predicates were found
@@ -366,6 +378,9 @@ public class JoinEnum {
     }
 
     public boolean findUseIndexHint(AbstractFunctionCallExpression condition) {
+        if (condition == null) {
+            return false;
+        }
         if (condition.getFunctionIdentifier().equals(AlgebricksBuiltinFunctions.AND)) {
             for (int i = 0; i < condition.getArguments().size(); i++) {
                 ILogicalExpression expr = condition.getArguments().get(i).getValue();
@@ -382,6 +397,29 @@ public class JoinEnum {
             }
         }
         return false;
+    }
+
+    public SkipSecondaryIndexSearchExpressionAnnotation findSkipIndexHint(AbstractFunctionCallExpression condition) {
+        if (condition.getFunctionIdentifier().equals(AlgebricksBuiltinFunctions.AND)) {
+            for (int i = 0; i < condition.getArguments().size(); i++) {
+                ILogicalExpression expr = condition.getArguments().get(i).getValue();
+                if (expr.getExpressionTag().equals(LogicalExpressionTag.FUNCTION_CALL)) {
+                    AbstractFunctionCallExpression AFCexpr = (AbstractFunctionCallExpression) expr;
+                    SkipSecondaryIndexSearchExpressionAnnotation skipAnno =
+                            AFCexpr.getAnnotation(SkipSecondaryIndexSearchExpressionAnnotation.class);
+                    if (skipAnno != null) {
+                        return skipAnno;
+                    }
+                }
+            }
+        } else if (condition.getExpressionTag().equals(LogicalExpressionTag.FUNCTION_CALL)) {
+            SkipSecondaryIndexSearchExpressionAnnotation skipAnno =
+                    condition.getAnnotation(SkipSecondaryIndexSearchExpressionAnnotation.class);
+            if (skipAnno != null) {
+                return skipAnno;
+            }
+        }
+        return null;
     }
 
     protected int findJoinNodeIndexByName(String name) {
@@ -490,10 +528,24 @@ public class JoinEnum {
         for (int i = 0; i < joinConditions.size() - 1; i++) {
             for (int j = i + 1; j < joinConditions.size(); j++) {
                 if (joinConditions.get(i).datasetBits == joinConditions.get(j).datasetBits) {
+                    joinConditions.get(i).selectivity = 1.0 / smallerDatasetSize(joinConditions.get(i).datasetBits);
+                    // 1/P will be the selectivity of the composite clause
                     joinConditions.get(j).partOfComposite = true;
+                    joinConditions.get(j).selectivity = 1.0;
                 }
             }
         }
+    }
+
+    private double smallerDatasetSize(int datasetBits) {
+        double size = Cost.MAX_CARD;
+        for (JoinNode jn : this.jnArray)
+            if ((jn.datasetBits & datasetBits) > 0) {
+                if (jn.origCardinality < size) {
+                    size = jn.origCardinality;
+                }
+            }
+        return size;
     }
 
     private boolean verticesMatch(JoinCondition jc1, JoinCondition jc2) {

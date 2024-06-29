@@ -90,6 +90,7 @@ import org.apache.hyracks.control.common.controllers.CCConfig;
 import org.apache.hyracks.http.api.IServletRequest;
 import org.apache.hyracks.http.api.IServletResponse;
 import org.apache.hyracks.http.server.utils.HttpUtil;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -166,7 +167,7 @@ public class QueryServiceServlet extends AbstractQueryApiServlet {
             return resultStatus;
         }
 
-        HttpResponseStatus getHttpStatus() {
+        public HttpResponseStatus getHttpStatus() {
             return httpResponseStatus;
         }
 
@@ -269,6 +270,7 @@ public class QueryServiceServlet extends AbstractQueryApiServlet {
         ResponsePrinter responsePrinter = new ResponsePrinter(sessionOutput);
         ResultDelivery delivery = ResultDelivery.IMMEDIATE;
         QueryServiceRequestParameters param = newQueryRequestParameters();
+        param.setRequestId(requestRef.getUuid());
         RequestExecutionState executionState = newRequestExecutionState();
         try {
             // buffer the output until we are ready to set the status of the response message correctly
@@ -347,7 +349,8 @@ public class QueryServiceServlet extends AbstractQueryApiServlet {
     }
 
     protected void buildResponseResults(ResponsePrinter responsePrinter, SessionOutput sessionOutput,
-            ExecutionPlans plans, List<Warning> warnings) throws HyracksDataException {
+            ExecutionPlans plans, List<Warning> warnings, RequestExecutionState executionState)
+            throws HyracksDataException {
         responsePrinter.addResultPrinter(new PlansPrinter(plans, sessionOutput.config().getPlanFormat()));
         if (!warnings.isEmpty()) {
             List<ICodedMessage> codedWarnings = new ArrayList<>();
@@ -366,7 +369,8 @@ public class QueryServiceServlet extends AbstractQueryApiServlet {
         final ResponseMetrics metrics = ResponseMetrics.of(System.nanoTime() - elapsedStart, executionState.duration(),
                 stats.getCount(), stats.getSize(), stats.getProcessedObjects(), errorCount,
                 stats.getTotalWarningsCount(), stats.getCompileTime(), stats.getQueueWaitTime(),
-                stats.getBufferCacheHitRatio(), stats.getBufferCachePageReadCount());
+                stats.getBufferCacheHitRatio(), stats.getBufferCachePageReadCount(), stats.getCloudReadRequestsCount(),
+                stats.getCloudPagesReadCount(), stats.getCloudPagesPersistedCount());
         responsePrinter.addFooterPrinter(new MetricsPrinter(metrics, resultCharset));
         if (isPrintingProfile(stats)) {
             responsePrinter.addFooterPrinter(new ProfilePrinter(stats.getJobProfile()));
@@ -423,7 +427,7 @@ public class QueryServiceServlet extends AbstractQueryApiServlet {
         executionState.end();
         translator.getWarnings(warnings, maxWarnings - warnings.size());
         stats.updateTotalWarningsCount(parserTotalWarningsCount);
-        buildResponseResults(responsePrinter, sessionOutput, translator.getExecutionPlans(), warnings);
+        buildResponseResults(responsePrinter, sessionOutput, translator.getExecutionPlans(), warnings, executionState);
     }
 
     protected boolean handleIFormattedException(IError error, IFormattedException ex,
@@ -436,12 +440,13 @@ public class QueryServiceServlet extends AbstractQueryApiServlet {
                     executionState.setStatus(ResultStatus.FATAL, HttpResponseStatus.BAD_REQUEST);
                     return true;
                 case REQUEST_TIMEOUT:
-                    LOGGER.info(() -> "handleException: request execution timed out: " + param.toString());
+                    logException(Level.INFO, "request execution timed out", param.getRequestId(),
+                            param.getClientContextID());
                     executionState.setStatus(ResultStatus.TIMEOUT, HttpResponseStatus.OK);
                     return true;
                 case REJECT_NODE_UNREGISTERED:
                 case REJECT_BAD_CLUSTER_STATE:
-                    LOGGER.warn(() -> "handleException: " + ex.getMessage() + ": " + param.toString());
+                    logException(Level.WARN, ex.getMessage(), param.getRequestId(), param.getClientContextID());
                     executionState.setStatus(ResultStatus.FATAL, HttpResponseStatus.SERVICE_UNAVAILABLE);
                     return true;
                 default:
@@ -461,9 +466,9 @@ public class QueryServiceServlet extends AbstractQueryApiServlet {
             QueryServiceRequestParameters param, IServletResponse response) {
         if (t instanceof org.apache.asterix.lang.sqlpp.parser.TokenMgrError || t instanceof AlgebricksException) {
             if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("handleException: {}: {}", t.getMessage(), param.toString(), t);
+                logException(Level.DEBUG, t.getMessage(), param.getRequestId(), param.getClientContextID(), t);
             } else {
-                LOGGER.info(() -> "handleException: " + t.getMessage() + ": " + param.toString());
+                logException(Level.INFO, t.getMessage(), param.getRequestId(), param.getClientContextID());
             }
             executionState.setStatus(ResultStatus.FATAL, HttpResponseStatus.BAD_REQUEST);
             return;
@@ -475,7 +480,7 @@ public class QueryServiceServlet extends AbstractQueryApiServlet {
                 return;
             }
         }
-        LOGGER.warn(() -> "handleException: unexpected exception: " + param.toString(), t);
+        logException(Level.WARN, "unexpected exception", param.getRequestId(), param.getClientContextID(), t);
         executionState.setStatus(ResultStatus.FATAL, HttpResponseStatus.INTERNAL_SERVER_ERROR);
     }
 
@@ -546,5 +551,13 @@ public class QueryServiceServlet extends AbstractQueryApiServlet {
 
     protected String getApplicationVersion() {
         return ApplicationConfigurator.getApplicationVersion(appCtx.getBuildProperties());
+    }
+
+    private void logException(Level lvl, String msg, String clientCtxId, String uuid) {
+        LOGGER.log(lvl, "handleException: {}: uuid={}, clientContextID={}", msg, uuid, clientCtxId);
+    }
+
+    private void logException(Level lvl, String msg, String clientCtxId, String uuid, Throwable t) {
+        LOGGER.log(lvl, "handleException: {}: uuid={}, clientContextID={}", msg, uuid, clientCtxId, t);
     }
 }

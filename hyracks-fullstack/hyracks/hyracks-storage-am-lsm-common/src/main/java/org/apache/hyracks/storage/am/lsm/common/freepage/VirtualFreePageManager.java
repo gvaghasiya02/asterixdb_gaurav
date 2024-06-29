@@ -19,6 +19,8 @@
 
 package org.apache.hyracks.storage.am.lsm.common.freepage;
 
+import static org.apache.hyracks.storage.common.buffercache.context.read.DefaultBufferCacheReadContextProvider.NEW;
+
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.hyracks.api.exceptions.HyracksDataException;
@@ -97,17 +99,20 @@ public class VirtualFreePageManager implements IPageManager {
     public void init(ITreeIndexFrameFactory interiorFrameFactory, ITreeIndexFrameFactory leafFrameFactory)
             throws HyracksDataException {
         currentPageId.set(1);
-        ICachedPage page = bufferCache.pin(BufferedFileHandle.getDiskPageId(fileId, 0), true);
+        ICachedPage page = bufferCache.pin(BufferedFileHandle.getDiskPageId(fileId, 0), NEW);
         page.acquireWriteLatch();
         page.releaseWriteLatch(false);
         bufferCache.unpin(page);
-        page = bufferCache.pin(BufferedFileHandle.getDiskPageId(fileId, currentPageId.get()), true);
+        page = bufferCache.pin(BufferedFileHandle.getDiskPageId(fileId, currentPageId.get()), NEW);
         if (leafFrameFactory != null) {
             page.acquireWriteLatch();
-            ITreeIndexFrame leafFrame = leafFrameFactory.createFrame();
-            leafFrame.setPage(page);
-            leafFrame.initBuffer((byte) 0);
-            page.releaseWriteLatch(true);
+            try {
+                ITreeIndexFrame leafFrame = leafFrameFactory.createFrame();
+                leafFrame.setPage(page);
+                leafFrame.initBuffer((byte) 0);
+            } finally {
+                page.releaseWriteLatch(true);
+            }
         }
         bufferCache.unpin(page);
     }
@@ -130,7 +135,7 @@ public class VirtualFreePageManager implements IPageManager {
 
     @Override
     public boolean isEmpty(ITreeIndexFrame frame, int rootPage) throws HyracksDataException {
-        ICachedPage rootNode = bufferCache.pin(BufferedFileHandle.getDiskPageId(fileId, rootPage), false);
+        ICachedPage rootNode = bufferCache.pin(BufferedFileHandle.getDiskPageId(fileId, rootPage));
         rootNode.acquireReadLatch();
         try {
             frame.setPage(rootNode);

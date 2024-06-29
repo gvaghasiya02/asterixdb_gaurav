@@ -22,8 +22,10 @@ import static org.apache.hyracks.control.common.config.OptionTypes.BOOLEAN;
 import static org.apache.hyracks.control.common.config.OptionTypes.INTEGER;
 import static org.apache.hyracks.control.common.config.OptionTypes.INTEGER_BYTE_UNIT;
 import static org.apache.hyracks.control.common.config.OptionTypes.LONG_BYTE_UNIT;
+import static org.apache.hyracks.control.common.config.OptionTypes.NONNEGATIVE_INTEGER;
 import static org.apache.hyracks.control.common.config.OptionTypes.POSITIVE_INTEGER;
 import static org.apache.hyracks.control.common.config.OptionTypes.STRING;
+import static org.apache.hyracks.control.common.config.OptionTypes.getRangedIntegerType;
 import static org.apache.hyracks.util.StorageUtil.StorageUnit.KILOBYTE;
 import static org.apache.hyracks.util.StorageUtil.StorageUnit.MEGABYTE;
 
@@ -124,8 +126,14 @@ public class CompilerProperties extends AbstractProperties {
                 AlgebricksConfig.COLUMN_FILTER_DEFAULT,
                 "Enable/disable the use of column min/max filters"),
         COMPILER_OPTIMIZE_GROUPBY(BOOLEAN, true, "Enable/disable optimize groupby"),
-        //TODO(DB): remove after
-        COMPILER_ENABLE_DB_RESOLUTION(BOOLEAN, true, "Enable/disable the resolution of namespaces to database");
+        COMPILER_RUNTIME_MEMORY_OVERHEAD(
+                NONNEGATIVE_INTEGER,
+                5,
+                "A percentage of the job's required memory to be added to account for runtime memory overhead"),
+        COMPILER_COPY_TO_WRITE_BUFFER_SIZE(
+                getRangedIntegerType(5, Integer.MAX_VALUE),
+                StorageUtil.getIntSizeInBytes(8, StorageUtil.StorageUnit.MEGABYTE),
+                "The COPY TO write buffer size in bytes. (default: 8MB, min: 5MB)");
 
         private final IOptionType type;
         private final Object defaultValue;
@@ -159,8 +167,7 @@ public class CompilerProperties extends AbstractProperties {
 
         @Override
         public boolean hidden() {
-            return this == COMPILER_EXTERNALSCANMEMORY || this == COMPILER_CBOTEST
-                    || this == COMPILER_ENABLE_DB_RESOLUTION;
+            return this == COMPILER_EXTERNALSCANMEMORY || this == COMPILER_CBOTEST;
         }
     }
 
@@ -207,8 +214,6 @@ public class CompilerProperties extends AbstractProperties {
     public static final String COMPILER_QUERY_PLAN_SHAPE_KEY = Option.COMPILER_QUERYPLANSHAPE.ini();
 
     public static final String COMPILER_COLUMN_FILTER_KEY = Option.COMPILER_COLUMN_FILTER.ini();
-
-    public static final String COMPILER_ENABLE_DB_RESOLUTION_KEY = Option.COMPILER_ENABLE_DB_RESOLUTION.ini();
 
     public static final String COMPILER_OPTIMIZE_GROUPBY = Option.COMPILER_OPTIMIZE_GROUPBY.ini();
 
@@ -311,6 +316,11 @@ public class CompilerProperties extends AbstractProperties {
         return queryPlanShapeMode;
     }
 
+    public int getSortMemoryFrames() {
+        int numFrames = (int) getSortMemorySize() / getFrameSize();
+        return Math.max(numFrames, OptimizationConfUtil.MIN_FRAME_LIMIT_FOR_SORT);
+    }
+
     public boolean isColumnFilter() {
         return accessor.getBoolean(Option.COMPILER_COLUMN_FILTER);
     }
@@ -319,7 +329,15 @@ public class CompilerProperties extends AbstractProperties {
         return accessor.getBoolean(Option.COMPILER_OPTIMIZE_GROUPBY);
     }
 
-    public boolean isDbResolutionEnabled() {
-        return accessor.getBoolean(Option.COMPILER_ENABLE_DB_RESOLUTION);
+    public boolean isOptimizeGroupBy() {
+        return accessor.getBoolean(Option.COMPILER_OPTIMIZE_GROUPBY);
+    }
+
+    public int getRuntimeMemoryOverheadPercentage() {
+        return accessor.getInt(Option.COMPILER_RUNTIME_MEMORY_OVERHEAD);
+    }
+
+    public int getCopyToWriteBufferSize() {
+        return accessor.getInt(Option.COMPILER_COPY_TO_WRITE_BUFFER_SIZE);
     }
 }

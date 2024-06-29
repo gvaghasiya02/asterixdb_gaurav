@@ -20,6 +20,7 @@ package org.apache.asterix.external.input.record.reader.stream;
 
 import static org.apache.asterix.external.util.ExternalDataConstants.EMPTY_STRING;
 import static org.apache.asterix.external.util.ExternalDataConstants.KEY_REDACT_WARNINGS;
+import static org.apache.hyracks.api.util.ExceptionUtils.getMessageOrToString;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -28,6 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import org.apache.asterix.common.exceptions.ErrorCode;
+import org.apache.asterix.common.exceptions.RuntimeDataException;
 import org.apache.asterix.external.api.AsterixInputStream;
 import org.apache.asterix.external.api.IRawRecord;
 import org.apache.asterix.external.dataflow.AbstractFeedDataFlowController;
@@ -35,6 +38,7 @@ import org.apache.asterix.external.input.stream.DiscretizedMultipleInputStream;
 import org.apache.asterix.external.util.ExternalDataConstants;
 import org.apache.asterix.external.util.ExternalDataUtils;
 import org.apache.asterix.external.util.IFeedLogManager;
+import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.file.DataFileStream;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericRecord;
@@ -52,7 +56,7 @@ public class AvroRecordReader extends AbstractStreamRecordReader<GenericRecord> 
     private static final List<String> recordReaderFormats =
             Collections.unmodifiableList(Arrays.asList(ExternalDataConstants.FORMAT_AVRO));
 
-    public AvroRecordReader(AsterixInputStream inputStream, Map<String, String> config) throws IOException {
+    public AvroRecordReader(AsterixInputStream inputStream, Map<String, String> config) throws HyracksDataException {
         record = new org.apache.asterix.external.input.record.GenericRecord<>();
         this.inputStream = new DiscretizedMultipleInputStream(inputStream);
         done = false;
@@ -88,21 +92,29 @@ public class AvroRecordReader extends AbstractStreamRecordReader<GenericRecord> 
     }
 
     @Override
-    public IRawRecord<GenericRecord> next() throws IOException {
-        avroRecord = dataFileStream.next(avroRecord);
-        record.set(avroRecord);
-        return record;
+    public IRawRecord<GenericRecord> next() throws HyracksDataException {
+        try {
+            avroRecord = dataFileStream.next(avroRecord);
+            record.set(avroRecord);
+            return record;
+        } catch (AvroRuntimeException | IOException e) {
+            throw RuntimeDataException.create(ErrorCode.EXTERNAL_SOURCE_ERROR, e, getMessageOrToString(e));
+        }
     }
 
     @Override
-    public boolean hasNext() throws IOException {
-        if (dataFileStream == null) {
-            return false;
+    public boolean hasNext() throws HyracksDataException {
+        try {
+            if (dataFileStream == null) {
+                return false;
+            }
+            if (dataFileStream.hasNext()) {
+                return true;
+            }
+            return advance() && dataFileStream.hasNext();
+        } catch (AvroRuntimeException e) {
+            throw RuntimeDataException.create(ErrorCode.EXTERNAL_SOURCE_ERROR, e, getMessageOrToString(e));
         }
-        if (dataFileStream.hasNext()) {
-            return true;
-        }
-        return advance() && dataFileStream.hasNext();
     }
 
     @Override
@@ -123,7 +135,6 @@ public class AvroRecordReader extends AbstractStreamRecordReader<GenericRecord> 
     @Override
     public List<String> getRecordReaderFormats() {
         return recordReaderFormats;
-
     }
 
     @Override
@@ -132,14 +143,16 @@ public class AvroRecordReader extends AbstractStreamRecordReader<GenericRecord> 
 
     }
 
-    private boolean advance() throws IOException {
-        if (inputStream.advance()) {
-            DatumReader<GenericRecord> datumReader = new GenericDatumReader<>();
-            dataFileStream = new DataFileStream<>(inputStream, datumReader);
-            return true;
+    private boolean advance() throws HyracksDataException {
+        try {
+            if (inputStream.advance()) {
+                DatumReader<GenericRecord> datumReader = new GenericDatumReader<>();
+                dataFileStream = new DataFileStream<>(inputStream, datumReader);
+                return true;
+            }
+        } catch (AvroRuntimeException | IOException e) {
+            throw RuntimeDataException.create(ErrorCode.EXTERNAL_SOURCE_ERROR, e, getMessageOrToString(e));
         }
-
         return false;
     }
-
 }

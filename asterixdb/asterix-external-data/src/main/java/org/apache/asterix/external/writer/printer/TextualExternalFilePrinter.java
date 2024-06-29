@@ -18,54 +18,17 @@
  */
 package org.apache.asterix.external.writer.printer;
 
-import java.io.OutputStream;
-import java.io.PrintStream;
-
 import org.apache.asterix.external.writer.compressor.IExternalFileCompressStreamFactory;
-import org.apache.asterix.runtime.writer.IExternalFilePrinter;
 import org.apache.hyracks.algebricks.data.IPrinter;
-import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.data.std.api.IValueReference;
 
-final class TextualExternalFilePrinter implements IExternalFilePrinter {
-    private final IPrinter printer;
-    private final IExternalFileCompressStreamFactory compressStreamFactory;
-    private TextualOutputStreamDelegate delegate;
-    private PrintStream printStream;
+final class TextualExternalFilePrinter extends AbstractTextualExternalPrinter {
 
     TextualExternalFilePrinter(IPrinter printer, IExternalFileCompressStreamFactory compressStreamFactory) {
-        this.printer = printer;
-        this.compressStreamFactory = compressStreamFactory;
+        super(printer, compressStreamFactory);
     }
 
     @Override
-    public void open() throws HyracksDataException {
-        printer.init();
-    }
-
-    @Override
-    public void newStream(OutputStream outputStream) throws HyracksDataException {
-        if (printStream != null) {
-            close();
-        }
-        delegate = new TextualOutputStreamDelegate(compressStreamFactory.createStream(outputStream));
-        printStream = new PrintStream(delegate);
-    }
-
-    @Override
-    public void print(IValueReference value) throws HyracksDataException {
-        printer.print(value.getByteArray(), value.getStartOffset(), value.getLength(), printStream);
+    void afterPrint() {
         printStream.println();
-        delegate.checkError();
-    }
-
-    @Override
-    public void close() throws HyracksDataException {
-        if (printStream != null) {
-            printStream.close();
-            printStream = null;
-            delegate.checkError();
-            delegate = null;
-        }
     }
 }

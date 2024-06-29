@@ -61,7 +61,8 @@ import org.apache.asterix.app.config.ConfigValidator;
 import org.apache.asterix.app.io.PersistedResourceRegistry;
 import org.apache.asterix.app.replication.NcLifecycleCoordinator;
 import org.apache.asterix.app.result.JobResultCallback;
-import org.apache.asterix.cloud.CloudManagerProvider;
+import org.apache.asterix.cloud.CloudConfigurator;
+import org.apache.asterix.cloud.clients.ICloudGuardian;
 import org.apache.asterix.common.api.AsterixThreadFactory;
 import org.apache.asterix.common.api.IConfigValidatorFactory;
 import org.apache.asterix.common.api.INamespacePathResolver;
@@ -72,7 +73,6 @@ import org.apache.asterix.common.cluster.IGlobalRecoveryManager;
 import org.apache.asterix.common.cluster.IGlobalTxManager;
 import org.apache.asterix.common.config.AsterixExtension;
 import org.apache.asterix.common.config.CloudProperties;
-import org.apache.asterix.common.config.CompilerProperties;
 import org.apache.asterix.common.config.ExtensionProperties;
 import org.apache.asterix.common.config.ExternalProperties;
 import org.apache.asterix.common.config.GlobalConfig;
@@ -170,13 +170,11 @@ public class CCApplication extends BaseCCApplication {
                 new ReplicationProperties(PropertiesAccessor.getInstance(ccServiceCtx.getAppConfig()));
         INcLifecycleCoordinator lifecycleCoordinator = createNcLifeCycleCoordinator(repProp.isReplicationEnabled());
         componentProvider = new StorageComponentProvider();
-        boolean isDbResolutionEnabled =
-                ccServiceCtx.getAppConfig().getBoolean(CompilerProperties.Option.COMPILER_ENABLE_DB_RESOLUTION);
         boolean cloudDeployment = ccServiceCtx.getAppConfig().getBoolean(CLOUD_DEPLOYMENT);
-        boolean useDatabaseResolution = cloudDeployment && isDbResolutionEnabled;
-        INamespaceResolver namespaceResolver = new NamespaceResolver(useDatabaseResolution);
+        boolean useDatabaseResolution = cloudDeployment;
+        INamespaceResolver namespaceResolver = createNamespaceResolver(useDatabaseResolution);
         INamespacePathResolver namespacePathResolver = new NamespacePathResolver(useDatabaseResolution);
-        ccExtensionManager = new CCExtensionManager(new ArrayList<>(getExtensions()), namespaceResolver);
+        ccExtensionManager = new CCExtensionManager(new ArrayList<>(getExtensions()), namespaceResolver, ccServiceCtx);
         IGlobalRecoveryManager globalRecoveryManager = createGlobalRecoveryManager();
         final CCConfig ccConfig = controllerService.getCCConfig();
 
@@ -186,8 +184,8 @@ public class CCApplication extends BaseCCApplication {
         CloudProperties cloudProperties = null;
         if (cloudDeployment) {
             cloudProperties = new CloudProperties(PropertiesAccessor.getInstance(ccServiceCtx.getAppConfig()));
-            ioManager =
-                    (IOManager) CloudManagerProvider.createIOManager(cloudProperties, ioManager, namespacePathResolver);
+            ioManager = CloudConfigurator.createIOManager(ioManager, cloudProperties, namespacePathResolver,
+                    getCloudGuardian(cloudProperties));
         }
         IGlobalTxManager globalTxManager = createGlobalTxManager(ioManager);
         appCtx = createApplicationContext(null, globalRecoveryManager, lifecycleCoordinator, Receptionist::new,
@@ -202,6 +200,7 @@ public class CCApplication extends BaseCCApplication {
         ccServiceCtx.setDistributedState(proxy);
         MetadataManager.initialize(proxy, metadataProperties, appCtx);
         ccServiceCtx.addJobLifecycleListener(appCtx.getActiveNotificationHandler());
+        ccServiceCtx.addJobLifecycleListener(appCtx.getRequestTracker());
 
         // create event loop groups
         webManager = new WebManager();
@@ -214,6 +213,14 @@ public class CCApplication extends BaseCCApplication {
         ccServiceCtx.addJobLifecycleListener(globalTxManager);
 
         jobCapacityController = new JobCapacityController(controllerService.getResourceManager());
+    }
+
+    protected INamespaceResolver createNamespaceResolver(boolean useDatabaseResolution) {
+        return new NamespaceResolver(useDatabaseResolution);
+    }
+
+    protected ICloudGuardian getCloudGuardian(CloudProperties cloudProperties) {
+        return ICloudGuardian.NoOpCloudGuardian.INSTANCE;
     }
 
     private Map<String, String> parseCredentialMap(String credPath) {
@@ -286,6 +293,7 @@ public class CCApplication extends BaseCCApplication {
     @Override
     public void stop() throws Exception {
         LOGGER.info("Stopping Asterix cluster controller");
+        super.stop();
         appCtx.getClusterStateManager().setState(SHUTTING_DOWN);
         ((ActiveNotificationHandler) appCtx.getActiveNotificationHandler()).stop();
         AsterixStateProxy.unregisterRemoteObject();

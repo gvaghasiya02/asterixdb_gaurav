@@ -28,6 +28,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 
 public final class S3ClientConfig {
+
     // The maximum number of file that can be deleted (AWS restriction)
     static final int DELETE_BATCH_SIZE = 1000;
     private final String region;
@@ -35,23 +36,25 @@ public final class S3ClientConfig {
     private final String prefix;
     private final boolean anonymousAuth;
     private final long profilerLogInterval;
+    private final int writeBufferSize;
 
     public S3ClientConfig(String region, String endpoint, String prefix, boolean anonymousAuth,
-            long profilerLogInterval) {
+            long profilerLogInterval, int writeBufferSize) {
         this.region = region;
         this.endpoint = endpoint;
         this.prefix = prefix;
         this.anonymousAuth = anonymousAuth;
         this.profilerLogInterval = profilerLogInterval;
+        this.writeBufferSize = writeBufferSize;
     }
 
     public static S3ClientConfig of(CloudProperties cloudProperties) {
         return new S3ClientConfig(cloudProperties.getStorageRegion(), cloudProperties.getStorageEndpoint(),
                 cloudProperties.getStoragePrefix(), cloudProperties.isStorageAnonymousAuth(),
-                cloudProperties.getProfilerLogInterval());
+                cloudProperties.getProfilerLogInterval(), cloudProperties.getWriteBufferSize());
     }
 
-    public static S3ClientConfig of(Map<String, String> configuration) {
+    public static S3ClientConfig of(Map<String, String> configuration, int writeBufferSize) {
         // Used to determine local vs. actual S3
         String endPoint = configuration.getOrDefault(S3Constants.SERVICE_END_POINT_FIELD_NAME, "");
         // Disabled
@@ -62,7 +65,7 @@ public final class S3ClientConfig {
         String prefix = "";
         boolean anonymousAuth = false;
 
-        return new S3ClientConfig(region, endPoint, prefix, anonymousAuth, profilerLogInterval);
+        return new S3ClientConfig(region, endPoint, prefix, anonymousAuth, profilerLogInterval, writeBufferSize);
     }
 
     public String getRegion() {
@@ -88,6 +91,10 @@ public final class S3ClientConfig {
 
     public long getProfilerLogInterval() {
         return profilerLogInterval;
+    }
+
+    public int getWriteBufferSize() {
+        return writeBufferSize;
     }
 
     private boolean isS3Mock() {

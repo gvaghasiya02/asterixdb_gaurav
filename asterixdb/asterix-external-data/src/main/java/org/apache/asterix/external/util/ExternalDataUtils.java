@@ -143,7 +143,10 @@ public class ExternalDataUtils {
         return quote;
     }
 
-    public static char validateGetEscape(Map<String, String> configuration) throws HyracksDataException {
+    public static char validateGetEscape(Map<String, String> configuration, String format) throws HyracksDataException {
+        if (ExternalDataConstants.FORMAT_CSV.equals(format)) {
+            return validateCharOrDefault(configuration, KEY_ESCAPE, ExternalDataConstants.CSV_ESCAPE);
+        }
         return validateCharOrDefault(configuration, KEY_ESCAPE, ExternalDataConstants.ESCAPE);
     }
 
@@ -212,7 +215,7 @@ public class ExternalDataUtils {
     }
 
     public static String getDatasetDatabase(Map<String, String> configuration) throws AsterixException {
-        return configuration.get(ExternalDataConstants.KEY_DATABASE_DATAVERSE);
+        return configuration.get(ExternalDataConstants.KEY_DATASET_DATABASE);
     }
 
     public static DataverseName getDatasetDataverse(Map<String, String> configuration) throws AsterixException {
@@ -353,8 +356,8 @@ public class ExternalDataUtils {
         if (!configuration.containsKey(ExternalDataConstants.KEY_IS_FEED)) {
             configuration.put(ExternalDataConstants.KEY_IS_FEED, ExternalDataConstants.TRUE);
         }
-        configuration.computeIfAbsent(ExternalDataConstants.KEY_LOG_INGESTION_EVENTS, k -> ExternalDataConstants.TRUE);
-        configuration.put(ExternalDataConstants.KEY_DATABASE_DATAVERSE, databaseName);
+        configuration.putIfAbsent(ExternalDataConstants.KEY_LOG_INGESTION_EVENTS, ExternalDataConstants.TRUE);
+        configuration.put(ExternalDataConstants.KEY_DATASET_DATABASE, databaseName);
         configuration.put(ExternalDataConstants.KEY_DATASET_DATAVERSE, dataverseName.getCanonicalForm());
         configuration.put(ExternalDataConstants.KEY_FEED_NAME, feedName);
     }
@@ -578,7 +581,7 @@ public class ExternalDataUtils {
         }
         char delimiter = validateGetDelimiter(configuration);
         validateGetQuote(configuration, delimiter);
-        validateGetEscape(configuration);
+        validateGetEscape(configuration, format);
         String value = configuration.get(ExternalDataConstants.KEY_REDACT_WARNINGS);
         if (value != null && !isBoolean(value)) {
             throw new RuntimeDataException(ErrorCode.INVALID_REQ_PARAM_VAL, ExternalDataConstants.KEY_REDACT_WARNINGS,
@@ -917,6 +920,19 @@ public class ExternalDataUtils {
                 || ExternalDataConstants.FORMAT_PARQUET.equals(properties.get(ExternalDataConstants.KEY_FORMAT));
     }
 
+    public static void validateAvroTypeAndConfiguration(Map<String, String> properties, ARecordType datasetRecordType)
+            throws CompilationException {
+        if (isAvroFormat(properties)) {
+            if (datasetRecordType.getFieldTypes().length != 0) {
+                throw new CompilationException(ErrorCode.UNSUPPORTED_TYPE_FOR_AVRO, datasetRecordType.getTypeName());
+            }
+        }
+    }
+
+    public static boolean isAvroFormat(Map<String, String> properties) {
+        return ExternalDataConstants.FORMAT_AVRO.equals(properties.get(ExternalDataConstants.KEY_FORMAT));
+    }
+
     public static void setExternalDataProjectionInfo(ExternalDatasetProjectionFiltrationInfo projectionInfo,
             Map<String, String> properties) throws IOException {
         properties.put(ExternalDataConstants.KEY_REQUESTED_FIELDS,
@@ -1071,5 +1087,9 @@ public class ExternalDataUtils {
             default:
                 return ExternalDataConstants.KEY_PATH;
         }
+    }
+
+    public static boolean isGzipCompression(String compression) {
+        return ExternalDataConstants.KEY_COMPRESSION_GZIP.equalsIgnoreCase(compression);
     }
 }

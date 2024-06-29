@@ -110,8 +110,13 @@ public class BTreeRangeSearchCursor extends EnforcedIndexCursor implements ITree
 
     protected void fetchNextLeafPage(int nextLeafPage) throws HyracksDataException {
         do {
-            ICachedPage nextLeaf = acquirePage(nextLeafPage);
-            releasePage();
+            ICachedPage nextLeaf;
+            try {
+                nextLeaf = acquirePage(nextLeafPage);
+            } finally {
+                // release page in finally, don't leak lock on pin failure
+                releasePage();
+            }
             page = nextLeaf;
             isPageDirty = false;
             frame.setPage(page);
@@ -303,7 +308,7 @@ public class BTreeRangeSearchCursor extends EnforcedIndexCursor implements ITree
     }
 
     protected ICachedPage acquirePage(int pageId) throws HyracksDataException {
-        ICachedPage nextPage = bufferCache.pin(BufferedFileHandle.getDiskPageId(fileId, pageId), false);
+        ICachedPage nextPage = bufferCache.pin(BufferedFileHandle.getDiskPageId(fileId, pageId));
         if (exclusiveLatchNodes) {
             nextPage.acquireWriteLatch();
         } else {

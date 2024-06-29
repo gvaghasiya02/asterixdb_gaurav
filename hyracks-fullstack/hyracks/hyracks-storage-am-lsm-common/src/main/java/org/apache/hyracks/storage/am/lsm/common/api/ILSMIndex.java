@@ -26,6 +26,7 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.replication.IReplicationJob.ReplicationOperation;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.storage.am.common.api.IIndexOperationContext;
+import org.apache.hyracks.storage.am.lsm.common.cloud.IIndexDiskCacheManager;
 import org.apache.hyracks.storage.am.lsm.common.impls.LSMHarness;
 import org.apache.hyracks.storage.common.IIndex;
 import org.apache.hyracks.storage.common.IIndexAccessParameters;
@@ -99,12 +100,8 @@ public interface ILSMIndex extends IIndex {
      * Create a flush operation.
      * This is an atomic operation. If an exception is thrown, no partial effect is left
      *
+     * @param ctx the operation context
      * @return the flush operation
-     *
-     * @param ctx
-     *            the operation context
-     * @param callback
-     *            the IO callback
      * @throws HyracksDataException
      */
     ILSMIOOperation createFlushOperation(ILSMIndexOperationContext ctx) throws HyracksDataException;
@@ -115,10 +112,7 @@ public interface ILSMIndex extends IIndex {
      * Create a merge operation.
      * This is an atomic operation. If an exception is thrown, no partial effect is left
      *
-     * @param ctx
-     *            the operation context
-     * @param callback
-     *            the IO callback
+     * @param ctx the operation context
      * @throws HyracksDataException
      */
     ILSMIOOperation createMergeOperation(ILSMIndexOperationContext ctx) throws HyracksDataException;
@@ -141,8 +135,7 @@ public interface ILSMIndex extends IIndex {
     /**
      * Populates the context's component holder with a snapshot of the components involved in the operation.
      *
-     * @param ctx
-     *            - the operation's context
+     * @param ctx - the operation's context
      * @throws HyracksDataException
      */
     void getOperationalComponents(ILSMIndexOperationContext ctx) throws HyracksDataException;
@@ -231,4 +224,16 @@ public interface ILSMIndex extends IIndex {
      */
     void resetCurrentComponentIndex();
 
+    /**
+     * @return disk cache manager
+     */
+    IIndexDiskCacheManager getDiskCacheManager();
+
+    /**
+     * Schedules a cleanup opeartion on the components {@code inactiveDiskComponents}
+     *
+     * @param inactiveDiskComponents
+     * @throws HyracksDataException
+     */
+    void scheduleCleanup(List<ILSMDiskComponent> inactiveDiskComponents) throws HyracksDataException;
 }

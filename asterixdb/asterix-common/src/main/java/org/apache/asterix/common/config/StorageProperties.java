@@ -32,6 +32,7 @@ import static org.apache.hyracks.util.StorageUtil.StorageUnit.MEGABYTE;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import org.apache.asterix.common.api.INcApplicationContext;
 import org.apache.asterix.common.metadata.MetadataIndexImmutableProperties;
 import org.apache.asterix.common.utils.PartitioningScheme;
 import org.apache.hyracks.api.config.IApplicationConfig;
@@ -69,7 +70,8 @@ public class StorageProperties extends AbstractProperties {
         STORAGE_COLUMN_MAX_LEAF_NODE_SIZE(INTEGER_BYTE_UNIT, StorageUtil.getIntSizeInBytes(10, MEGABYTE)),
         STORAGE_FORMAT(STRING, "row"),
         STORAGE_PARTITIONING(STRING, "dynamic"),
-        STORAGE_PARTITIONS_COUNT(INTEGER, 8);
+        STORAGE_PARTITIONS_COUNT(INTEGER, 8),
+        STORAGE_MAX_COMPONENT_SIZE(LONG_BYTE_UNIT, StorageUtil.getLongSizeInBytes(1, StorageUtil.StorageUnit.TERABYTE));
 
         private final IOptionType interpreter;
         private final Object defaultValue;
@@ -159,6 +161,8 @@ public class StorageProperties extends AbstractProperties {
                 case STORAGE_PARTITIONS_COUNT:
                     return "The number of storage partitions to use for static partitioning. This value should not be"
                             + " changed after any dataset has been created";
+                case STORAGE_MAX_COMPONENT_SIZE:
+                    return "The resultant disk component after a merge must not exceed the specified maximum size.";
                 default:
                     throw new IllegalStateException("NYI: " + this);
             }
@@ -237,15 +241,17 @@ public class StorageProperties extends AbstractProperties {
         return accessor.getInt(Option.STORAGE_MEMORYCOMPONENT_MAX_SCHEDULED_FLUSHES);
     }
 
-    public long getJobExecutionMemoryBudget() {
-        final long jobExecutionMemory = MAX_HEAP_BYTES - getBufferCacheSize() - getMemoryComponentGlobalBudget();
-        if (jobExecutionMemory <= 0) {
-            final String msg = String.format(
-                    "Invalid node memory configuration, more memory budgeted than available in JVM. Runtime max memory:"
-                            + " (%d), Buffer cache memory (%d), memory component global budget (%d)",
-                    MAX_HEAP_BYTES, getBufferCacheSize(), getMemoryComponentGlobalBudget());
-            throw new IllegalStateException(msg);
+    public long getJobExecutionMemoryBudget(INcApplicationContext runtimeContext) {
+        long jobExecutionMemory = MAX_HEAP_BYTES - getBufferCacheSize() - getMemoryComponentGlobalBudget();
+        if (runtimeContext.isCloudDeployment()) {
+            int numPartitions = runtimeContext.getIoManager().getIODevices().size();
+            int maxConcurrentMerges = getMaxConcurrentMerges(numPartitions);
+            int maxConcurrentFlushes = getMaxConcurrentFlushes(numPartitions);
+            int writeBufferSize = runtimeContext.getCloudProperties().getWriteBufferSize();
+            jobExecutionMemory -= (long) (maxConcurrentFlushes + maxConcurrentMerges) * writeBufferSize;
+
         }
+        ensureJobExecutionMemory(jobExecutionMemory, runtimeContext);
         return jobExecutionMemory;
     }
 
@@ -257,7 +263,7 @@ public class StorageProperties extends AbstractProperties {
         return accessor.getString(Option.STORAGE_IO_SCHEDULER);
     }
 
-    public int geMaxConcurrentFlushes(int numPartitions) {
+    public int getMaxConcurrentFlushes(int numPartitions) {
         int value = accessor.getInt(Option.STORAGE_MAX_CONCURRENT_FLUSHES_PER_PARTITION);
         return value != 0 ? value * numPartitions : Integer.MAX_VALUE;
     }
@@ -318,5 +324,28 @@ public class StorageProperties extends AbstractProperties {
 
     public int getStoragePartitionsCount() {
         return accessor.getInt(Option.STORAGE_PARTITIONS_COUNT);
+    }
+
+    public long getStorageMaxComponentSize() {
+        return accessor.getLong(Option.STORAGE_MAX_COMPONENT_SIZE);
+    }
+
+    private void ensureJobExecutionMemory(long jobExecutionMemory, INcApplicationContext runtimeContext) {
+        if (jobExecutionMemory <= 0) {
+            String msg;
+            if (runtimeContext.isCloudDeployment()) {
+                msg = String.format(
+                        "Invalid node memory configuration, more memory budgeted than available in JVM. Runtime max memory:"
+                                + " (%d), Buffer cache memory (%d), memory component global budget (%d), cloud write buffer size (%d)",
+                        MAX_HEAP_BYTES, getBufferCacheSize(), getMemoryComponentGlobalBudget(),
+                        runtimeContext.getCloudProperties().getWriteBufferSize());
+            } else {
+                msg = String.format(
+                        "Invalid node memory configuration, more memory budgeted than available in JVM. Runtime max memory:"
+                                + " (%d), Buffer cache memory (%d), memory component global budget (%d)",
+                        MAX_HEAP_BYTES, getBufferCacheSize(), getMemoryComponentGlobalBudget());
+            }
+            throw new IllegalStateException(msg);
+        }
     }
 }

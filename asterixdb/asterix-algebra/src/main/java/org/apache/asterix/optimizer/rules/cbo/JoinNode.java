@@ -21,8 +21,10 @@ package org.apache.asterix.optimizer.rules.cbo;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -85,10 +87,12 @@ public class JoinNode {
     protected List<String> datasetNames;
     protected List<String> aliases;
     protected int cheapestPlanIndex;
+    protected PlanNode cheapestPlanNode;
     private ICost cheapestPlanCost;
     protected double origCardinality; // without any selections
     protected double cardinality;
     protected double size; // avg size of whole document; available from the sample
+    protected double unnestFactor;
     protected double diskProjectionSize; // what is coming out of the disk; in case of row format, it is the entire document
                                          // in case of columnar we need to add sizes of individual fields.
     protected double projectionSizeAfterScan; // excludes fields only used for selections
@@ -117,6 +121,7 @@ public class JoinNode {
         this.jnArrayIndex = i;
         planIndexesArray = new ArrayList<>();
         cheapestPlanIndex = PlanNode.NO_PLAN;
+        cheapestPlanNode = null;
         size = 1; // for now, will be the size of the doc for this joinNode
     }
 
@@ -147,6 +152,10 @@ public class JoinNode {
         return origCardinality;
     }
 
+    public PlanNode getCheapestPlanNode() {
+        return cheapestPlanNode;
+    }
+
     protected void setOrigCardinality(double card, boolean setMinCard) {
         // Minimum cardinality for operators is MIN_CARD to prevent bad plans due to cardinality under estimation errors.
         origCardinality = setMinCard ? Math.max(card, Cost.MIN_CARD) : card;
@@ -158,6 +167,10 @@ public class JoinNode {
 
     public double getAvgDocSize() {
         return size;
+    }
+
+    public double getUnnestFactor() {
+        return unnestFactor;
     }
 
     public void setLimitVal(int val) {
@@ -239,30 +252,19 @@ public class JoinNode {
     public void setCardsAndSizes(Index.SampleIndexDetails idxDetails, ILogicalOperator leafInput)
             throws AlgebricksException {
 
-        double origDatasetCard, finalDatasetCard;
-        finalDatasetCard = origDatasetCard = idxDetails.getSourceCardinality();
+        double origDatasetCard, finalDatasetCard, sampleCard;
+        unnestFactor = 1.0;
 
         DataSourceScanOperator scanOp = joinEnum.findDataSourceScanOperator(leafInput);
         if (scanOp == null) {
             return; // what happens to the cards and sizes then? this may happen in case of in lists
         }
 
-        double sampleCard = Math.min(idxDetails.getSampleCardinalityTarget(), origDatasetCard);
-        if (sampleCard == 0) { // should not happen unless the original dataset is empty
-            sampleCard = 1; // we may have to make some adjustments to costs when the sample returns very rows.
-
-            IWarningCollector warningCollector = joinEnum.optCtx.getWarningCollector();
-            if (warningCollector.shouldWarn()) {
-                warningCollector.warn(Warning.of(scanOp.getSourceLocation(),
-                        org.apache.asterix.common.exceptions.ErrorCode.SAMPLE_HAS_ZERO_ROWS));
-            }
-        }
-
         List<List<IAObject>> result;
-        SelectOperator selop = (SelectOperator) joinEnum.findASelectOp(leafInput);
-        if (selop == null) { // add a SelectOperator with TRUE condition. The code below becomes simpler with a select operator.
-            selop = new SelectOperator(new MutableObject<>(ConstantExpression.TRUE));
-            ILogicalOperator op = selop;
+        SelectOperator selOp = (SelectOperator) joinEnum.findASelectOp(leafInput);
+        if (selOp == null) { // add a SelectOperator with TRUE condition. The code below becomes simpler with a select operator.
+            selOp = new SelectOperator(new MutableObject<>(ConstantExpression.TRUE));
+            ILogicalOperator op = selOp;
             op.getInputs().add(new MutableObject<>(leafInput));
             leafInput = op;
         }
@@ -292,9 +294,31 @@ public class JoinNode {
         } else {
             primaryKey = deepCopyofScan.getVariables().get(0);
         }
+
         // if there is only one conjunct, I do not have to call the sampling query during index selection!
         // insert this in place of the scandatasourceOp.
         parent.getInputs().get(0).setValue(deepCopyofScan);
+        finalDatasetCard = origDatasetCard = idxDetails.getSourceCardinality();
+        sampleCard = Math.min(idxDetails.getSampleCardinalityTarget(), origDatasetCard);
+        boolean unnest = joinEnum.findUnnestOp(selOp);
+        if (unnest) {
+            ILogicalExpression saveExpr = selOp.getCondition().getValue();
+            double unnestSampleCard = joinEnum.stats.computeUnnestedOriginalCardinality(selOp);
+            selOp.getCondition().setValue(saveExpr); // restore the expression
+            unnestFactor = unnestSampleCard / sampleCard;
+            sampleCard = unnestSampleCard;
+            finalDatasetCard = origDatasetCard = origDatasetCard * unnestFactor;
+        }
+        if (sampleCard == 0) { // should not happen unless the original dataset is empty
+            sampleCard = 1; // we may have to make some adjustments to costs when the sample returns very rows.
+
+            IWarningCollector warningCollector = joinEnum.optCtx.getWarningCollector();
+            if (warningCollector.shouldWarn()) {
+                warningCollector.warn(Warning.of(scanOp.getSourceLocation(),
+                        org.apache.asterix.common.exceptions.ErrorCode.SAMPLE_HAS_ZERO_ROWS));
+            }
+        }
+
         // There are predicates here. So skip the predicates and get the original dataset card.
         // Now apply all the predicates and get the card after all predicates are applied.
         result = joinEnum.getStatsHandle().runSamplingQueryProjection(joinEnum.optCtx, leafInput, jnArrayIndex,
@@ -308,8 +332,8 @@ public class JoinNode {
             sizeVarsFromDisk = joinEnum.getStatsHandle().findSizeVarsFromDisk(result, getNumVarsFromDisk());
             sizeVarsAfterScan = joinEnum.getStatsHandle().findSizeVarsAfterScan(result, getNumVarsFromDisk());
         } else { // in case we did not get any tuples from the sample, get the size by setting the predicate to true.
-            ILogicalExpression saveExpr = selop.getCondition().getValue();
-            selop.getCondition().setValue(ConstantExpression.TRUE);
+            ILogicalExpression saveExpr = selOp.getCondition().getValue();
+            selOp.getCondition().setValue(ConstantExpression.TRUE);
             result = joinEnum.getStatsHandle().runSamplingQueryProjection(joinEnum.optCtx, leafInput, jnArrayIndex,
                     primaryKey);
             double x = joinEnum.getStatsHandle().findPredicateCardinality(result, true);
@@ -321,7 +345,7 @@ public class JoinNode {
                 sizeVarsFromDisk = joinEnum.getStatsHandle().findSizeVarsFromDisk(result, getNumVarsFromDisk());
                 sizeVarsAfterScan = joinEnum.getStatsHandle().findSizeVarsAfterScan(result, getNumVarsFromDisk());
             }
-            selop.getCondition().setValue(saveExpr); // restore the expression
+            selOp.getCondition().setValue(saveExpr); // restore the expression
         }
 
         // Adjust for zero predicate cardinality from the sample.
@@ -342,6 +366,7 @@ public class JoinNode {
             // is small), no need to assign any artificial min. cardinality as the sample is accurate.
             setCardinality(finalDatasetCard, scaleUp);
         }
+        setOrigCardinality(origDatasetCard, false);
 
         setSizeVarsFromDisk(sizeVarsFromDisk);
         setSizeVarsAfterScan(sizeVarsAfterScan);
@@ -411,9 +436,7 @@ public class JoinNode {
 
         double productJoinSels = 1.0;
         for (int idx : this.applicableJoinConditions) {
-            if (!joinConditions.get(idx).partOfComposite) {
-                productJoinSels *= joinConditions.get(idx).selectivity;
-            }
+            productJoinSels *= joinConditions.get(idx).selectivity;
         }
         joinCard = productJoinCardinality * productJoinSels;
 
@@ -546,9 +569,20 @@ public class JoinNode {
         for (int i = 0; i < IndexCostInfo.size(); i++) {
             if (IndexCostInfo.get(i).second == -1.0) {
                 AbstractFunctionCallExpression afce = IndexCostInfo.get(i).third;
-                // this index has to be skipped, so find the corresponding expression
-                EnumerateJoinsRule.setAnnotation(afce, SkipSecondaryIndexSearchExpressionAnnotation
-                        .newInstance(Collections.singleton(IndexCostInfo.get(i).first.getIndexName())));
+                SkipSecondaryIndexSearchExpressionAnnotation skipAnno = joinEnum.findSkipIndexHint(afce);
+                Collection<String> indexNames = new HashSet<>();
+                if (skipAnno != null && skipAnno.getIndexNames() != null) {
+                    indexNames.addAll(skipAnno.getIndexNames());
+                }
+                if (indexNames.isEmpty()) {
+                    // this index has to be skipped, so find the corresponding expression
+                    EnumerateJoinsRule.setAnnotation(afce, SkipSecondaryIndexSearchExpressionAnnotation
+                            .newInstance(Collections.singleton(IndexCostInfo.get(i).first.getIndexName())));
+                } else {
+                    indexNames.add(IndexCostInfo.get(i).first.getIndexName());
+                    EnumerateJoinsRule.setAnnotation(afce,
+                            SkipSecondaryIndexSearchExpressionAnnotation.newInstance(indexNames));
+                }
             }
         }
     }
@@ -655,7 +689,11 @@ public class JoinNode {
                 // dataCost (0) will contain the dataScan cost with the first index
                 //dataCost (1) will contain the dataScan cost with the first index and the 2nd index and so on.
                 sel *= optionalIndexesInfo.get(i).second; // assuming selectivities are independent for now
-                dataCosts.add(joinEnum.getCostMethodsHandle().costIndexDataScan(this, sel)); // D0; D01; D012; ...
+                if (optionalIndexesInfo.get(i).first.isPrimaryIndex()) {
+                    dataCosts.add(joinEnum.getCostHandle().zeroCost());
+                } else {
+                    dataCosts.add(joinEnum.getCostMethodsHandle().costIndexDataScan(this, sel)); // D0; D01; D012; ...
+                }
             }
 
             // At the of of the above loop, I0, I1, I2 ... have been computed
@@ -696,7 +734,7 @@ public class JoinNode {
         boolean forceEnum = mandatoryIndexesInfo.size() > 0 || level <= joinEnum.cboFullEnumLevel;
         if (opCost.costLT(this.cheapestPlanCost) || forceEnum) {
             pn = new PlanNode(allPlans.size(), joinEnum, this, datasetNames.get(0), leafInput);
-            pn.setScanAndHintInfo(PlanNode.ScanMethod.INDEX_SCAN, mandatoryIndexesInfo);
+            pn.setScanAndHintInfo(PlanNode.ScanMethod.INDEX_SCAN, mandatoryIndexesInfo, optionalIndexesInfo);
             pn.setScanCosts(totalCost);
             planIndexesArray.add(pn.allPlansIndex);
             allPlans.add(pn);
@@ -837,37 +875,46 @@ public class JoinNode {
         return true;
     }
 
-    private boolean nestedLoopsApplicable(ILogicalExpression joinExpr) throws AlgebricksException {
-
-        List<LogicalVariable> usedVarList = new ArrayList<>();
-        joinExpr.getUsedVariables(usedVarList);
-        if (usedVarList.size() != 2) {
-            return false;
-        }
+    private boolean nestedLoopsApplicable(ILogicalExpression joinExpr, boolean outerJoin,
+            List<Pair<IAccessMethod, Index>> chosenIndexes, Map<IAccessMethod, AccessMethodAnalysisContext> analyzedAMs)
+            throws AlgebricksException {
 
         if (joinExpr.getExpressionTag() != LogicalExpressionTag.FUNCTION_CALL) {
             return false;
         }
-
-        LogicalVariable var0 = usedVarList.get(0);
-        LogicalVariable var1 = usedVarList.get(1);
-
+        List<LogicalVariable> usedVarList = new ArrayList<>();
+        joinExpr.getUsedVariables(usedVarList);
+        if (usedVarList.size() != 2 && outerJoin) {
+            return false;
+        }
+        ILogicalOperator joinLeafInput0 = null;
+        ILogicalOperator joinLeafInput1 = null;
         // Find which joinLeafInput these vars belong to.
-        // go thru the leaf inputs and see where these variables came from
-        ILogicalOperator joinLeafInput0 = joinEnum.findLeafInput(Collections.singletonList(var0));
-        if (joinLeafInput0 == null) {
-            return false; // this should not happen unless an assignment is between two joins.
+        // go through the leaf inputs and see where these variables came from
+        for (LogicalVariable usedVar : usedVarList) {
+            ILogicalOperator joinLeafInput = joinEnum.findLeafInput(Collections.singletonList(usedVar));
+            if (joinLeafInput0 == null) {
+                joinLeafInput0 = joinLeafInput;
+            } else if (joinLeafInput1 == null && joinLeafInput != joinLeafInput0) {
+                joinLeafInput1 = joinLeafInput;
+            }
+            // This check ensures that the used variables in the join expression
+            // refer to not more than two leaf inputs.
+            if (joinLeafInput != joinLeafInput0 && joinLeafInput != joinLeafInput1) {
+                return false;
+            }
         }
 
-        ILogicalOperator joinLeafInput1 = joinEnum.findLeafInput(Collections.singletonList(var1));
-        if (joinLeafInput1 == null) {
+        // This check ensures that the used variables in the join expression
+        // refer to not less than two leaf inputs.
+        if (joinLeafInput0 == null || joinLeafInput1 == null) {
             return false;
         }
 
         ILogicalOperator innerLeafInput = this.leafInput;
 
         // This must equal one of the two joinLeafInputsHashMap found above. check for sanity!!
-        if (innerLeafInput != joinLeafInput1 && innerLeafInput != joinLeafInput0) {
+        if (innerLeafInput != joinLeafInput0 && innerLeafInput != joinLeafInput1) {
             return false; // This should not happen. So debug to find out why this happened.
         }
 
@@ -885,13 +932,15 @@ public class JoinNode {
 
         // Now call the rewritePre code
         IntroduceJoinAccessMethodRule tmp = new IntroduceJoinAccessMethodRule();
-        boolean retVal = tmp.checkApplicable(new MutableObject<>(joinEnum.localJoinOp), joinEnum.optCtx);
+        boolean retVal = tmp.checkApplicable(new MutableObject<>(joinEnum.localJoinOp), joinEnum.optCtx, chosenIndexes,
+                analyzedAMs);
 
         return retVal;
     }
 
     private boolean NLJoinApplicable(JoinNode leftJn, JoinNode rightJn, boolean outerJoin,
-            ILogicalExpression nestedLoopJoinExpr) throws AlgebricksException {
+            ILogicalExpression nestedLoopJoinExpr, List<Pair<IAccessMethod, Index>> chosenIndexes,
+            Map<IAccessMethod, AccessMethodAnalysisContext> analyzedAMs) throws AlgebricksException {
         if (nullExtendingSide(leftJn.datasetBits, outerJoin)) {
             return false;
         }
@@ -901,7 +950,8 @@ public class JoinNode {
             return false; // nested loop plan not possible.
         }
 
-        if (nestedLoopJoinExpr == null || !rightJn.nestedLoopsApplicable(nestedLoopJoinExpr)) {
+        if (nestedLoopJoinExpr == null
+                || !rightJn.nestedLoopsApplicable(nestedLoopJoinExpr, outerJoin, chosenIndexes, analyzedAMs)) {
             return false;
         }
 
@@ -947,7 +997,7 @@ public class JoinNode {
             totalCost = hjCost.costAdd(leftExchangeCost).costAdd(rightExchangeCost).costAdd(childCosts);
             if (this.cheapestPlanIndex == PlanNode.NO_PLAN || totalCost.costLT(this.cheapestPlanCost) || forceEnum) {
                 pn = new PlanNode(allPlans.size(), joinEnum, this, leftPlan, rightPlan, outerJoin);
-                pn.setJoinAndHintInfo(PlanNode.JoinMethod.HYBRID_HASH_JOIN, hashJoinExpr,
+                pn.setJoinAndHintInfo(PlanNode.JoinMethod.HYBRID_HASH_JOIN, hashJoinExpr, null,
                         HashJoinExpressionAnnotation.BuildSide.RIGHT, hintHashJoin);
                 pn.setJoinCosts(hjCost, totalCost, leftExchangeCost, rightExchangeCost);
                 planIndexesArray.add(pn.allPlansIndex);
@@ -987,7 +1037,7 @@ public class JoinNode {
             totalCost = bcastHjCost.costAdd(rightExchangeCost).costAdd(childCosts);
             if (this.cheapestPlanIndex == PlanNode.NO_PLAN || totalCost.costLT(this.cheapestPlanCost) || forceEnum) {
                 pn = new PlanNode(allPlans.size(), joinEnum, this, leftPlan, rightPlan, outerJoin);
-                pn.setJoinAndHintInfo(PlanNode.JoinMethod.BROADCAST_HASH_JOIN, hashJoinExpr,
+                pn.setJoinAndHintInfo(PlanNode.JoinMethod.BROADCAST_HASH_JOIN, hashJoinExpr, null,
                         HashJoinExpressionAnnotation.BuildSide.RIGHT, hintBroadcastHashJoin);
                 pn.setJoinCosts(bcastHjCost, totalCost, leftExchangeCost, rightExchangeCost);
                 planIndexesArray.add(pn.allPlansIndex);
@@ -1013,11 +1063,39 @@ public class JoinNode {
         this.leftJn = leftJn;
         this.rightJn = rightJn;
 
-        if (!NLJoinApplicable(leftJn, rightJn, outerJoin, nestedLoopJoinExpr)) {
+        List<Pair<IAccessMethod, Index>> chosenIndexes = new ArrayList<>();
+        Map<IAccessMethod, AccessMethodAnalysisContext> analyzedAMs = new TreeMap<>();
+        if (!NLJoinApplicable(leftJn, rightJn, outerJoin, nestedLoopJoinExpr, chosenIndexes, analyzedAMs)) {
+            return PlanNode.NO_PLAN;
+        }
+        if (chosenIndexes.isEmpty()) {
             return PlanNode.NO_PLAN;
         }
 
-        nljCost = joinEnum.getCostMethodsHandle().costIndexNLJoin(this);
+        Pair<AbstractFunctionCallExpression, IndexedNLJoinExpressionAnnotation> exprAndHint = new Pair<>(null, null);
+        nljCost = joinEnum.getCostHandle().maxCost();
+        ICost curNljCost;
+        for (Map.Entry<IAccessMethod, AccessMethodAnalysisContext> amEntry : analyzedAMs.entrySet()) {
+            AccessMethodAnalysisContext analysisCtx = amEntry.getValue();
+            Iterator<Map.Entry<Index, List<Pair<Integer, Integer>>>> indexIt =
+                    analysisCtx.getIteratorForIndexExprsAndVars();
+            List<IOptimizableFuncExpr> exprs = analysisCtx.getMatchedFuncExprs();
+            while (indexIt.hasNext()) {
+                Collection<String> indexNames = new ArrayList<>();
+                Map.Entry<Index, List<Pair<Integer, Integer>>> indexEntry = indexIt.next();
+                Index index = indexEntry.getKey();
+                AbstractFunctionCallExpression afce = buildExpr(exprs, indexEntry.getValue());
+                curNljCost = joinEnum.getCostMethodsHandle().costIndexNLJoin(this, index);
+                if (curNljCost.costLE(nljCost)) {
+                    nljCost = curNljCost;
+                    indexNames.add(index.getIndexName());
+                    exprAndHint = new Pair<>(afce, IndexedNLJoinExpressionAnnotation.newInstance(indexNames));
+                }
+            }
+        }
+        if (exprAndHint.first == null) {
+            return PlanNode.NO_PLAN;
+        }
         leftExchangeCost = joinEnum.getCostMethodsHandle().computeNLJOuterExchangeCost(this);
         rightExchangeCost = joinEnum.getCostHandle().zeroCost();
         childCosts = allPlans.get(leftPlan.allPlansIndex).totalCost;
@@ -1026,8 +1104,8 @@ public class JoinNode {
                 hintNLJoin != null || joinEnum.forceJoinOrderMode || outerJoin || level <= joinEnum.cboFullEnumLevel;
         if (this.cheapestPlanIndex == PlanNode.NO_PLAN || totalCost.costLT(this.cheapestPlanCost) || forceEnum) {
             pn = new PlanNode(allPlans.size(), joinEnum, this, leftPlan, rightPlan, outerJoin);
-
-            pn.setJoinAndHintInfo(PlanNode.JoinMethod.INDEX_NESTED_LOOP_JOIN, nestedLoopJoinExpr, null, hintNLJoin);
+            pn.setJoinAndHintInfo(PlanNode.JoinMethod.INDEX_NESTED_LOOP_JOIN, nestedLoopJoinExpr, exprAndHint, null,
+                    hintNLJoin);
             pn.setJoinCosts(nljCost, totalCost, leftExchangeCost, rightExchangeCost);
             planIndexesArray.add(pn.allPlansIndex);
             allPlans.add(pn);
@@ -1082,7 +1160,7 @@ public class JoinNode {
         if (this.cheapestPlanIndex == PlanNode.NO_PLAN || totalCost.costLT(this.cheapestPlanCost) || forceEnum) {
             pn = new PlanNode(allPlans.size(), joinEnum, this, leftPlan, rightPlan, outerJoin);
             pn.setJoinAndHintInfo(PlanNode.JoinMethod.CARTESIAN_PRODUCT_JOIN,
-                    Objects.requireNonNullElse(cpJoinExpr, ConstantExpression.TRUE), null, null);
+                    Objects.requireNonNullElse(cpJoinExpr, ConstantExpression.TRUE), null, null, null);
             pn.setJoinCosts(cpCost, totalCost, leftExchangeCost, rightExchangeCost);
             planIndexesArray.add(pn.allPlansIndex);
             allPlans.add(pn);
@@ -1268,8 +1346,19 @@ public class JoinNode {
         int nljPlan, commutativeNljPlan;
         nljPlan = commutativeNljPlan = PlanNode.NO_PLAN;
         nljPlan = buildNLJoinPlan(leftPlan, rightPlan, nestedLoopJoinExpr, hintNLJoin, outerJoin);
+
+        // The indexnl hint may have been removed during applicability checking
+        // and is no longer available for a hintedNL plan.
+        if (joinEnum.findNLJoinHint(newJoinConditions) == null) {
+            return false;
+        }
         if (!joinEnum.forceJoinOrderMode || level <= joinEnum.cboFullEnumLevel) {
             commutativeNljPlan = buildNLJoinPlan(rightPlan, leftPlan, nestedLoopJoinExpr, hintNLJoin, outerJoin);
+            // The indexnl hint may have been removed during applicability checking
+            // and is no longer available for a hintedNL plan.
+            if (joinEnum.findNLJoinHint(newJoinConditions) == null) {
+                return false;
+            }
         }
 
         return handleHints(nljPlan, commutativeNljPlan, hintNLJoin, newJoinConditions);
@@ -1381,6 +1470,7 @@ public class JoinNode {
         PlanNode cheapestPlan = forceEnum ? findCheapestPlan() : pn;
         cheapestPlanCost = cheapestPlan.totalCost;
         cheapestPlanIndex = cheapestPlan.allPlansIndex;
+        cheapestPlanNode = cheapestPlan;
     }
 
     @Override

@@ -21,7 +21,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.apache.hyracks</groupId>
   <artifactId>apache-hyracks</artifactId>
-  <version>0.3.9-SNAPSHOT</version>
+  <version>0.3.10-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>hyracks-ecosystem-full-stack</name>
   <url>${implementation.url}</url>
@@ -49,7 +49,7 @@
     <root.dir>${basedir}</root.dir>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <file.encoding>UTF-8</file.encoding>
-    <maven.compiler.release>11</maven.compiler.release>
+    <maven.compiler.release>17</maven.compiler.release>
     <javac.xlint.value>all</javac.xlint.value>
     <jvm.extraargs />
     <sonar.jacoco.reportPath>${env.PWD}/target/jacoco-merged.exec</sonar.jacoco.reportPath>
@@ -76,6 +76,7 @@
     <jackson.version>2.14.3</jackson.version>
     <jackson-databind.version>${jackson.version}</jackson-databind.version>
     <netty.version>4.1.101.Final</netty.version>
+    <asm.version>9.3</asm.version>
 
     <implementation.title>Apache Hyracks and Algebricks - ${project.name}</implementation.title>
     <implementation.url>https://asterixdb.apache.org/</implementation.url>
@@ -473,6 +474,31 @@
         <artifactId>json-smart</artifactId>
         <version>2.4.11</version>
       </dependency>
+      <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm</artifactId>
+        <version>${asm.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm-commons</artifactId>
+        <version>${asm.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm-analysis</artifactId>
+        <version>${asm.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm-tree</artifactId>
+        <version>${asm.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm-util</artifactId>
+        <version>${asm.version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
   <build>
@@ -550,6 +576,7 @@
           <reuseForks>false</reuseForks>
           <argLine>-enableassertions -Xmx2048m -Dfile.encoding=UTF-8 -Xdebug
             -Xrunjdwp:transport=dt_socket,server=y,address=8000,suspend=n ${coverageArgLine}
+            --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED --add-opens=java.management/sun.management=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED
           </argLine>
           <systemPropertyVariables>
             <log4j.configurationFile>${testLog4jConfigFile}</log4j.configurationFile>

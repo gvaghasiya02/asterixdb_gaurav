@@ -19,8 +19,8 @@
 package org.apache.asterix.column.test.bytes;
 
 import static org.apache.hyracks.storage.am.lsm.btree.column.impls.btree.AbstractColumnBTreeLeafFrame.HEADER_SIZE;
+import static org.apache.hyracks.storage.am.lsm.btree.column.impls.btree.AbstractColumnBTreeLeafFrame.MEGA_LEAF_NODE_LENGTH;
 import static org.apache.hyracks.storage.am.lsm.btree.column.impls.btree.AbstractColumnBTreeLeafFrame.NUMBER_OF_COLUMNS_OFFSET;
-import static org.apache.hyracks.storage.am.lsm.btree.column.impls.btree.AbstractColumnBTreeLeafFrame.NUMBER_OF_COLUMN_PAGES;
 import static org.apache.hyracks.storage.am.lsm.btree.column.impls.btree.AbstractColumnBTreeLeafFrame.TUPLE_COUNT_OFFSET;
 
 import java.io.File;
@@ -62,6 +62,7 @@ import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexTupleWriter;
 import org.apache.hyracks.storage.am.lsm.btree.column.api.AbstractColumnTupleWriter;
 import org.apache.hyracks.storage.am.lsm.btree.column.api.IColumnWriteMultiPageOp;
+import org.apache.hyracks.storage.am.lsm.btree.column.cloud.buffercache.write.DefaultColumnWriteContext;
 import org.apache.hyracks.util.StorageUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -151,7 +152,7 @@ public abstract class AbstractBytesTest extends TestBase {
             int numberOfTuplesToWrite) throws IOException {
         IColumnWriteMultiPageOp multiPageOp = columnMetadata.getMultiPageOpRef().getValue();
         FlushColumnTupleWriter writer = new FlushColumnTupleWriter(columnMetadata, PAGE_SIZE, MAX_NUMBER_OF_TUPLES,
-                TOLERANCE, MAX_LEAF_NODE_SIZE);
+                TOLERANCE, MAX_LEAF_NODE_SIZE, DefaultColumnWriteContext.INSTANCE);
 
         try {
             return writeTuples(fileId, writer, records, numberOfTuplesToWrite, multiPageOp);
@@ -170,7 +171,7 @@ public abstract class AbstractBytesTest extends TestBase {
         for (int i = 0; i < numberOfTuplesToWrite; i++) {
             tuple.set(records.get(i % records.size()));
             if (isFull(writer, tupleCount, tuple)) {
-                writeFullPage(pageZero, writer, tupleCount, multiPageOp);
+                writeFullPage(pageZero, writer, tupleCount);
                 pageZero = allocate(pageZeroList, fileId);
                 tupleCount = 0;
             }
@@ -180,23 +181,22 @@ public abstract class AbstractBytesTest extends TestBase {
 
         //Flush remaining tuples
         if (tupleCount > 0) {
-            writeFullPage(pageZero, writer, tupleCount, multiPageOp);
+            writeFullPage(pageZero, writer, tupleCount);
         }
         return pageZeroList;
     }
 
-    protected void writeFullPage(ByteBuffer pageZero, AbstractColumnTupleWriter writer, int tupleCount,
-            IColumnWriteMultiPageOp multiPageOp) throws HyracksDataException {
+    protected void writeFullPage(ByteBuffer pageZero, AbstractColumnTupleWriter writer, int tupleCount)
+            throws HyracksDataException {
         pageZero.clear();
         //Reserve the header space
         pageZero.position(HEADER_SIZE);
-        writer.flush(pageZero);
+        pageZero.putInt(MEGA_LEAF_NODE_LENGTH, writer.flush(pageZero));
         //Write page header
         int numberOfColumn = writer.getNumberOfColumns();
-        int numberOfColumnsPages = multiPageOp.getNumberOfPersistentBuffers() - 1;
         pageZero.putInt(TUPLE_COUNT_OFFSET, tupleCount);
         pageZero.putInt(NUMBER_OF_COLUMNS_OFFSET, numberOfColumn);
-        pageZero.putInt(NUMBER_OF_COLUMN_PAGES, numberOfColumnsPages);
+
     }
 
     protected boolean isFull(AbstractColumnTupleWriter columnWriter, int tupleCount, ITupleReference tuple) {

@@ -24,13 +24,13 @@ import java.util.Set;
 
 import org.apache.asterix.cloud.CloudFileHandle;
 import org.apache.asterix.cloud.bulk.IBulkOperationCallBack;
+import org.apache.asterix.cloud.clients.CloudFile;
 import org.apache.asterix.cloud.clients.ICloudClient;
 import org.apache.asterix.cloud.lazy.IParallelCacher;
 import org.apache.asterix.common.utils.StorageConstants;
 import org.apache.asterix.common.utils.StoragePathUtil;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
-import org.apache.hyracks.api.io.IIOManager;
 import org.apache.hyracks.control.nc.io.IOManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,7 +43,7 @@ public class ReplaceableCloudAccessor extends AbstractLazyAccessor {
     private static final Logger LOGGER = LogManager.getLogger();
     private final Set<Integer> partitions;
     private final ILazyAccessorReplacer replacer;
-    private final IParallelCacher cacher;
+    protected final IParallelCacher cacher;
     private final IBulkOperationCallBack deleteCallBack;
 
     public ReplaceableCloudAccessor(ICloudClient cloudClient, String bucket, IOManager localIoManager,
@@ -70,11 +70,12 @@ public class ReplaceableCloudAccessor extends AbstractLazyAccessor {
     }
 
     @Override
-    public void doOnOpen(CloudFileHandle fileHandle, IIOManager.FileReadWriteMode rwMode,
-            IIOManager.FileSyncMode syncMode) throws HyracksDataException {
+    public void doOnOpen(CloudFileHandle fileHandle) throws HyracksDataException {
         FileReference fileRef = fileHandle.getFileReference();
-        if (!localIoManager.exists(fileRef) && cloudClient.exists(bucket, fileRef.getRelativePath())) {
-            if (cacher.downloadData(fileRef)) {
+        if (!localIoManager.exists(fileRef) && cacher.isCacheable(fileRef)) {
+            boolean shouldReplace = fileRef.areHolesAllowed() ? cacher.createEmptyDataFiles(fileRef)
+                    : cacher.downloadDataFiles(fileRef);
+            if (shouldReplace) {
                 replace();
             }
         }
@@ -91,14 +92,9 @@ public class ReplaceableCloudAccessor extends AbstractLazyAccessor {
         return localList;
     }
 
-    private static boolean isTxnDir(FileReference dir) {
-        return dir.getRelativePath().startsWith(StorageConstants.METADATA_TXN_NOWAL_DIR_NAME)
-                || dir.getName().equals(StorageConstants.GLOBAL_TXN_DIR_NAME);
-    }
-
     @Override
     public boolean doExists(FileReference fileRef) throws HyracksDataException {
-        return localIoManager.exists(fileRef) || cloudClient.exists(bucket, fileRef.getRelativePath());
+        return localIoManager.exists(fileRef) || cacher.isCacheable(fileRef);
     }
 
     @Override
@@ -106,13 +102,13 @@ public class ReplaceableCloudAccessor extends AbstractLazyAccessor {
         if (localIoManager.exists(fileReference)) {
             return localIoManager.getSize(fileReference);
         }
-        return cloudClient.getObjectSize(bucket, fileReference.getRelativePath());
+        return cacher.getSize(fileReference);
     }
 
     @Override
     public byte[] doReadAllBytes(FileReference fileRef) throws HyracksDataException {
         if (!localIoManager.exists(fileRef) && isInNodePartition(fileRef.getRelativePath())) {
-            if (cacher.downloadMetadata(fileRef)) {
+            if (cacher.downloadMetadataFiles(fileRef)) {
                 replace();
             }
         }
@@ -140,9 +136,14 @@ public class ReplaceableCloudAccessor extends AbstractLazyAccessor {
         }
     }
 
+    @Override
+    public void doEvict(FileReference directory) throws HyracksDataException {
+        throw new UnsupportedOperationException("evict is not supported");
+    }
+
     private Set<FileReference> cloudBackedList(FileReference dir, FilenameFilter filter) throws HyracksDataException {
         LOGGER.debug("CLOUD LIST: {}", dir);
-        Set<String> cloudFiles = cloudClient.listObjects(bucket, dir.getRelativePath(), filter);
+        Set<CloudFile> cloudFiles = cloudClient.listObjects(bucket, dir.getRelativePath(), filter);
         if (cloudFiles.isEmpty()) {
             return Collections.emptySet();
         }
@@ -152,7 +153,7 @@ public class ReplaceableCloudAccessor extends AbstractLazyAccessor {
 
         // Reconcile local files and cloud files
         for (FileReference file : localFiles) {
-            String path = file.getRelativePath();
+            CloudFile path = CloudFile.of(file.getRelativePath());
             if (!cloudFiles.contains(path)) {
                 throw new IllegalStateException("Local file is not clean. Offending path: " + path);
             } else {
@@ -162,9 +163,9 @@ public class ReplaceableCloudAccessor extends AbstractLazyAccessor {
         }
 
         // Add the remaining files that are not stored locally in their designated partitions (if any)
-        for (String cloudFile : cloudFiles) {
-            FileReference localFile = localIoManager.resolve(cloudFile);
-            if (isInNodePartition(cloudFile) && StoragePathUtil.hasSameStorageRoot(dir, localFile)) {
+        for (CloudFile cloudFile : cloudFiles) {
+            FileReference localFile = localIoManager.resolve(cloudFile.getPath());
+            if (isInNodePartition(cloudFile.getPath()) && StoragePathUtil.hasSameStorageRoot(dir, localFile)) {
                 localFiles.add(localFile);
             }
         }
@@ -175,8 +176,13 @@ public class ReplaceableCloudAccessor extends AbstractLazyAccessor {
         return partitions.contains(StoragePathUtil.getPartitionNumFromRelativePath(path));
     }
 
-    private void replace() {
+    protected void replace() throws HyracksDataException {
         cacher.close();
         replacer.replace();
+    }
+
+    private static boolean isTxnDir(FileReference dir) {
+        return dir.getRelativePath().startsWith(StorageConstants.METADATA_TXN_NOWAL_DIR_NAME)
+                || dir.getName().equals(StorageConstants.GLOBAL_TXN_DIR_NAME);
     }
 }

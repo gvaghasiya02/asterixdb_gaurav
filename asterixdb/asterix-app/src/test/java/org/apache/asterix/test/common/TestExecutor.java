@@ -359,6 +359,9 @@ public class TestExecutor {
             } else if (actualFile.toString().endsWith(".plan")) {
                 runScriptAndCompareWithResultPlan(scriptFile, readerExpected, readerActual);
                 return;
+            } else if (actualFile.toString().endsWith(".jsonl")) {
+                runScriptAndCompareWithResultJsonl(scriptFile, readerExpected, readerActual, statement);
+                return;
             }
 
             String lineExpected, lineActual;
@@ -636,6 +639,49 @@ public class TestExecutor {
         }
     }
 
+    private static void runScriptAndCompareWithResultJsonl(File scriptFile, BufferedReader readerExpected,
+            BufferedReader readerActual, String statement) throws ComparisonException, IOException {
+        List<String> expectedLines = readerExpected.lines().collect(Collectors.toList());
+        List<String> actualLines = readerActual.lines().collect(Collectors.toList());
+        boolean compareUnorderedArray = statement != null && getCompareUnorderedArray(statement);
+        boolean ignoreExtraFields = statement != null && getIgnoreExtraFields(statement);
+
+        JsonNode expectedJson, actualJson;
+        int i = 0;
+        for (String expectedLine : expectedLines) {
+            if (actualLines.size() <= i) {
+                throw new ComparisonException("Result for " + canonicalize(scriptFile) + " expected json line at " + i
+                        + " not found: " + truncateIfLong(expectedLine));
+            }
+            String actualLine = actualLines.get(i);
+            i += 1;
+            try {
+                expectedJson = SINGLE_JSON_NODE_READER.readTree(expectedLine);
+            } catch (JsonProcessingException e) {
+                throw new ComparisonException("Invalid expected JSON for: " + scriptFile, e);
+            }
+            try {
+                actualJson = SINGLE_JSON_NODE_READER.readTree(actualLine);
+            } catch (JsonProcessingException e) {
+                throw new ComparisonException("Invalid actual JSON for: " + scriptFile, e);
+            }
+            if (expectedJson == null) {
+                throw new ComparisonException("No expected result for: " + scriptFile);
+            } else if (actualJson == null) {
+                throw new ComparisonException("No actual result for: " + scriptFile);
+            }
+            if (!TestHelper.equalJson(expectedJson, actualJson, compareUnorderedArray, ignoreExtraFields, false,
+                    null)) {
+                throw new ComparisonException("Result for " + scriptFile + " didn't match the expected JSON"
+                        + "\nexpected result:\n" + expectedJson + "\nactual result:\n" + actualJson);
+            }
+        }
+        if (actualLines.size() > i) {
+            throw new ComparisonException("Result for " + canonicalize(scriptFile) + " extra json line at " + i
+                    + " found: " + truncateIfLong(actualLines.get(i)));
+        }
+    }
+
     public void runScriptAndCompareWithResultUnorderedLinesText(File scriptFile, BufferedReader readerExpected,
             BufferedReader readerActual) throws Exception {
         // Using Lists to allow duplicate lines in the result
@@ -692,7 +738,7 @@ public class TestExecutor {
         return checkResponse(executeBasicAuthHttpRequest(method, credentials), responseCodeValidator);
     }
 
-    protected HttpResponse executeHttpRequest(HttpUriRequest method) throws Exception {
+    public HttpResponse executeHttpRequest(HttpUriRequest method) throws Exception {
         // https://issues.apache.org/jira/browse/ASTERIXDB-2315
         ExecutorService executor = Executors.newSingleThreadExecutor();
         CloseableHttpClient client = HttpClients.custom().addInterceptorFirst(new PreemptiveAuthInterceptor())
@@ -933,7 +979,7 @@ public class TestExecutor {
         return false;
     }
 
-    protected List<Parameter> upsertParam(List<Parameter> params, String name, ParameterTypeEnum type, String value) {
+    public List<Parameter> upsertParam(List<Parameter> params, String name, ParameterTypeEnum type, String value) {
         boolean replaced = false;
         List<Parameter> result = new ArrayList<>();
         for (Parameter param : params) {
@@ -2376,6 +2422,8 @@ public class TestExecutor {
                     str = applyS3Substitution(str, placeholders);
                 } else if (placeholder.getValue().equalsIgnoreCase("AzureBlob")) {
                     str = applyAzureSubstitution(str, placeholders);
+                } else if (placeholder.getValue().equalsIgnoreCase("GCS")) {
+                    str = applyGCSSubstitution(str, placeholders);
                 }
             } else {
                 // Any other place holders, just replace with the value
@@ -2481,12 +2529,21 @@ public class TestExecutor {
         return str;
     }
 
+    protected String applyGCSSubstitution(String str, List<Placeholder> placeholders) {
+        str = setGCSTemplateDefault(str);
+        return str;
+    }
+
     protected String setAzureTemplate(String str) {
         return str.replace("%template%", TEMPLATE);
     }
 
     protected String setAzureTemplateDefault(String str) {
         return str.replace("%template%", TEMPLATE_DEFAULT);
+    }
+
+    protected String setGCSTemplateDefault(String str) {
+        return str;
     }
 
     protected void fail(boolean runDiagnostics, TestCaseContext testCaseCtx, CompilationUnit cUnit,
@@ -2983,7 +3040,7 @@ public class TestExecutor {
     }
 
     // adapted from https://stackoverflow.com/questions/2014700/preemptive-basic-authentication-with-apache-httpclient-4
-    static class PreemptiveAuthInterceptor implements HttpRequestInterceptor {
+    public static class PreemptiveAuthInterceptor implements HttpRequestInterceptor {
 
         public void process(final HttpRequest request, final HttpContext context) throws HttpException, IOException {
             AuthState authState = (AuthState) context.getAttribute(HttpClientContext.TARGET_AUTH_STATE);

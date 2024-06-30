@@ -36,7 +36,7 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogi
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.AbstractStableSortPOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.physical.OptimizeGroupByLOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.physical.OptimizeGroupByPOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.SortGroupByPOperator;
 import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
 
@@ -160,7 +160,7 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                                     || aggOp.getExpressions().get(0).getValue().toString().contains("sql-max")
                                     || aggOp.getExpressions().get(0).getValue().toString().contains("sql-min"))) {
                                 if (!groupByOperator.isGroupAll()) {
-                                    op.setPhysicalOperator(new OptimizeGroupByLOperator(
+                                    op.setPhysicalOperator(new OptimizeGroupByPOperator(
                                             groupByOperator.getGroupByVarList(), groupByOperator.isGroupAll()));
                                 }
                             }

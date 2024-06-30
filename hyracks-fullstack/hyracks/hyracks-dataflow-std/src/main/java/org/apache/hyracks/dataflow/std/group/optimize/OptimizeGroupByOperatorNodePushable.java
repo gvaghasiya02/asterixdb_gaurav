@@ -25,7 +25,7 @@ import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputUnaryOutputOperatorNodePushable;
 
-class OptimizeGroupLOperatorNodePushable extends AbstractUnaryInputUnaryOutputOperatorNodePushable {
+class OptimizeGroupByOperatorNodePushable extends AbstractUnaryInputUnaryOutputOperatorNodePushable {
     private final IHyracksTaskContext ctx;
     private final int[] groupFields;
     private final RecordDescriptor inRecordDescriptor;
@@ -36,7 +36,7 @@ class OptimizeGroupLOperatorNodePushable extends AbstractUnaryInputUnaryOutputOp
 
     private OptimizeGroupWriter ogw;
 
-    OptimizeGroupLOperatorNodePushable(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDescriptor,
+    OptimizeGroupByOperatorNodePushable(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDescriptor,
             RecordDescriptor outRecordDescriptor, boolean groupAll, int frameLimit, String aggType) {
         this.ctx = ctx;
         this.groupFields = groupFields;

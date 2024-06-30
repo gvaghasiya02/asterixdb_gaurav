@@ -329,10 +329,6 @@ public class CompilerProperties extends AbstractProperties {
         return accessor.getBoolean(Option.COMPILER_OPTIMIZE_GROUPBY);
     }
 
-    public boolean isOptimizeGroupBy() {
-        return accessor.getBoolean(Option.COMPILER_OPTIMIZE_GROUPBY);
-    }
-
     public int getRuntimeMemoryOverheadPercentage() {
         return accessor.getInt(Option.COMPILER_RUNTIME_MEMORY_OVERHEAD);
     }

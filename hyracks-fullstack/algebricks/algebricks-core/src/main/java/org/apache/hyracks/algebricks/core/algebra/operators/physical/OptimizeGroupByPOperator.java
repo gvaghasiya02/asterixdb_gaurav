@@ -34,20 +34,20 @@ import org.apache.hyracks.algebricks.core.jobgen.impl.JobGenContext;
 import org.apache.hyracks.algebricks.core.jobgen.impl.JobGenHelper;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
-import org.apache.hyracks.dataflow.std.group.optimize.OptimizeGroupLOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.group.optimize.OptimizeGroupByOperatorDescriptor;
 
-public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperator {
+public class OptimizeGroupByPOperator extends AbstractPreclusteredGroupByPOperator {
 
     private final boolean groupAll;
 
-    public OptimizeGroupByLOperator(List<LogicalVariable> columnList, boolean groupAll) {
+    public OptimizeGroupByPOperator(List<LogicalVariable> columnList, boolean groupAll) {
         super(columnList);
         this.groupAll = groupAll;
     }
 
     @Override
     public PhysicalOperatorTag getOperatorTag() {
-        return PhysicalOperatorTag.OPTIMIZE_GROUP_BY_L;
+        return PhysicalOperatorTag.OPTIMIZE_GROUP_BY;
     }
 
     @Override
@@ -94,8 +94,8 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
         RecordDescriptor recordDescriptor =
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), opSchema, context);
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-        OptimizeGroupLOperatorDescriptor opDesc =
-                new OptimizeGroupLOperatorDescriptor(spec, keys, recordDescriptor, groupAll, framesLimit, aggType);
+        OptimizeGroupByOperatorDescriptor opDesc =
+                new OptimizeGroupByOperatorDescriptor(spec, keys, recordDescriptor, groupAll, framesLimit, aggType);
         opDesc.setSourceLocation(gby.getSourceLocation());
 
         contributeOpDesc(builder, gby, opDesc);

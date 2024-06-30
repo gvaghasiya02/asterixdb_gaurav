@@ -26,7 +26,7 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
 import org.apache.hyracks.dataflow.std.base.AbstractSingleActivityOperatorDescriptor;
 
-public class OptimizeGroupLOperatorDescriptor extends AbstractSingleActivityOperatorDescriptor {
+public class OptimizeGroupByOperatorDescriptor extends AbstractSingleActivityOperatorDescriptor {
     private static final long serialVersionUID = 1L;
 
     private final int[] groupFields;
@@ -34,7 +34,7 @@ public class OptimizeGroupLOperatorDescriptor extends AbstractSingleActivityOper
     private final int framesLimit;
     private final String aggType;
 
-    public OptimizeGroupLOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] groupFields,
+    public OptimizeGroupByOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] groupFields,
             RecordDescriptor recordDescriptor, boolean groupAll, int framesLimit, String aggType) {
         super(spec, 1, 1);
         this.groupFields = groupFields;
@@ -48,7 +48,7 @@ public class OptimizeGroupLOperatorDescriptor extends AbstractSingleActivityOper
     public IOperatorNodePushable createPushRuntime(final IHyracksTaskContext ctx,
             final IRecordDescriptorProvider recordDescProvider, int partition, int nPartitions)
             throws HyracksDataException {
-        return new OptimizeGroupLOperatorNodePushable(ctx, groupFields,
+        return new OptimizeGroupByOperatorNodePushable(ctx, groupFields,
                 recordDescProvider.getInputRecordDescriptor(getActivityId(), 0), outRecDescs[0], groupAll, framesLimit,
                 aggType);
     }

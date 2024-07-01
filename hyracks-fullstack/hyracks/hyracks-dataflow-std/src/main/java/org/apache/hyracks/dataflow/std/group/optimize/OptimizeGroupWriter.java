@@ -114,9 +114,6 @@ public class OptimizeGroupWriter implements IFrameWriter {
 
                 Types typeTag = EnumDeserializeropt.ATYPETAGDESERIALIZER.deserialize(data[offset]);
 
-                if (typeTag == Types.MISSING || typeTag == Types.NULL) {
-                    continue;
-                }
                 if (first) {
 
                     if (aggregateType.equals("COUNT")) {

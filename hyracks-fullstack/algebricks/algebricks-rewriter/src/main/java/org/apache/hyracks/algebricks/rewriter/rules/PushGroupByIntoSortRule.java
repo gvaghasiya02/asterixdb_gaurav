@@ -143,25 +143,20 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                             if (!hasIntermediateAggregate) {
                                 continue;
                             }
-                            if (aggOp.getExpressions().size() > 1) {
-                                if (!groupByOperator.isGroupAll()) {
-                                    op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
-                                            sortPhysicalOperator.getSortColumns()));
-
-                                }
-                            } else if (aggOp.getExpressions().get(0).getValue().toString().contains("sql-avg")) {
-                                if (!groupByOperator.isGroupAll()) {
-                                    op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
-                                            sortPhysicalOperator.getSortColumns()));
-                                }
-                            } else if (aggOp.getExpressions().size() == 1 && (aggOp.getExpressions().get(0).getValue()
-                                    .toString().contains("sql-count")
-                                    || aggOp.getExpressions().get(0).getValue().toString().contains("sql-sum")
-                                    || aggOp.getExpressions().get(0).getValue().toString().contains("sql-max")
-                                    || aggOp.getExpressions().get(0).getValue().toString().contains("sql-min"))) {
+                            if (aggOp.getExpressions().size() == 1 && (aggOp.getExpressions().get(0).getValue()
+                                    .toString().contains("local-sql-count")
+                                    || aggOp.getExpressions().get(0).getValue().toString().contains("local-sql-sum")
+                                    || aggOp.getExpressions().get(0).getValue().toString().contains("local-sql-max")
+                                    || aggOp.getExpressions().get(0).getValue().toString().contains("local-sql-min"))) {
                                 if (!groupByOperator.isGroupAll()) {
                                     op.setPhysicalOperator(new OptimizeGroupByPOperator(
                                             groupByOperator.getGroupByVarList(), groupByOperator.isGroupAll()));
+                                }
+                            } else
+                            {
+                                if (!groupByOperator.isGroupAll()) {
+                                    op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
+                                            sortPhysicalOperator.getSortColumns()));
                                 }
                             }
                         }

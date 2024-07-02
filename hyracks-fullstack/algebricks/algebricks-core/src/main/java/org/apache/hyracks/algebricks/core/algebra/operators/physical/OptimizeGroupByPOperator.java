@@ -86,7 +86,7 @@ public class OptimizeGroupByPOperator extends AbstractPreclusteredGroupByPOperat
             aggType = "COUNT";
             //need to add AVG
         }
-        int i=0;
+        int i = 0;
         int keys[] = JobGenHelper.variablesToFieldIndexes(columnList, inputSchemas[0]);
         int fdColumns[] = getFdColumns(gby, inputSchemas[0]);
         int[] keyAndDecFields = new int[keys.length + fdColumns.length];
@@ -102,8 +102,8 @@ public class OptimizeGroupByPOperator extends AbstractPreclusteredGroupByPOperat
         RecordDescriptor recordDescriptor =
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), opSchema, context);
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-        OptimizeGroupByOperatorDescriptor opDesc =
-                new OptimizeGroupByOperatorDescriptor(spec, keyAndDecFields, recordDescriptor, groupAll, framesLimit, aggType);
+        OptimizeGroupByOperatorDescriptor opDesc = new OptimizeGroupByOperatorDescriptor(spec, keyAndDecFields,
+                recordDescriptor, groupAll, framesLimit, aggType);
         opDesc.setSourceLocation(gby.getSourceLocation());
 
         contributeOpDesc(builder, gby, opDesc);

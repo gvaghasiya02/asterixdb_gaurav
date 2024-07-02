@@ -223,7 +223,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private void writeHashmap() {
         try {
             if (!isFailed && (!first || groupAll)) {
-                ArrayTupleBuilder tb = new ArrayTupleBuilder(groupFields.length+1);
+                ArrayTupleBuilder tb = new ArrayTupleBuilder(groupFields.length + 1);
                 DataOutput dos = tb.getDataOutput();
                 Iterator<BytesToBytesMap.Location> iter = computer.aIterator();
                 while (iter.hasNext()) {

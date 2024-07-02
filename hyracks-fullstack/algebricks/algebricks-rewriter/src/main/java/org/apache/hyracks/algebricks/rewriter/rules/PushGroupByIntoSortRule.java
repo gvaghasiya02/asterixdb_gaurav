@@ -60,172 +60,93 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
             return false;
         }
         boolean changed = false;
-        if (context.getPhysicalOptimizationConfig().isOptimizationGroupBy()) {
-            for (Mutable<ILogicalOperator> childRef : op1.getInputs()) {
-                AbstractLogicalOperator op = (AbstractLogicalOperator) childRef.getValue();
-                if (op.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.PRE_CLUSTERED_GROUP_BY) {
-                    GroupByOperator groupByOperator = (GroupByOperator) op;
+        for (Mutable<ILogicalOperator> childRef : op1.getInputs()) {
+            AbstractLogicalOperator op = (AbstractLogicalOperator) childRef.getValue();
+            if (op.getOperatorTag() == LogicalOperatorTag.GROUP) {
+                PhysicalOperatorTag opTag = op.getPhysicalOperator().getOperatorTag();
+                GroupByOperator groupByOperator = (GroupByOperator) op;
+                if (opTag == PhysicalOperatorTag.PRE_CLUSTERED_GROUP_BY) {
                     Mutable<ILogicalOperator> op2Ref = op.getInputs().get(0).getValue().getInputs().get(0);
                     AbstractLogicalOperator op2 = (AbstractLogicalOperator) op2Ref.getValue();
                     if (op2.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.STABLE_SORT) {
-                        AbstractLogicalOperator op3 =
-                                (AbstractLogicalOperator) op2Ref.getValue().getInputs().get(0).getValue();
-                        if (op3.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.HASH_PARTITION_EXCHANGE
-                                && groupByOperator.isGlobal()) {
-                            AbstractStableSortPOperator sortPhysicalOperator =
-                                    (AbstractStableSortPOperator) op2.getPhysicalOperator();
-                            if (groupByOperator.getNestedPlans().size() != 1) {
-                                //Sort group-by currently works only for one nested plan with one root containing
-                                //an aggregate and a nested-tuple-source.
-                                continue;
-                            }
-                            ILogicalPlan p0 = groupByOperator.getNestedPlans().get(0);
-                            if (p0.getRoots().size() != 1) {
-                                //Sort group-by currently works only for one nested plan with one root containing
-                                //an aggregate and a nested-tuple-source.
-                                continue;
-                            }
-
-                            Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
-                            AbstractLogicalOperator r0Logical = (AbstractLogicalOperator) r0.getValue();
-                            if (r0Logical.getOperatorTag() != LogicalOperatorTag.AGGREGATE) {
-                                //we only rewrite aggregation function; do nothing for running aggregates
-                                continue;
-                            }
-                            AggregateOperator aggOp = (AggregateOperator) r0.getValue();
-                            AbstractLogicalOperator aggInputOp =
-                                    (AbstractLogicalOperator) aggOp.getInputs().get(0).getValue();
-                            if (aggInputOp.getOperatorTag() != LogicalOperatorTag.NESTEDTUPLESOURCE) {
-                                continue;
-                            }
-
-                            boolean hasIntermediateAggregate =
-                                    generateMergeAggregationExpressions(groupByOperator, context);
-                            if (!hasIntermediateAggregate) {
-                                continue;
-                            }
-
-                            //replace preclustered gby with sort gby
-                            if (!groupByOperator.isGroupAll()) {
-                                op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
-                                        sortPhysicalOperator.getSortColumns()));
-                            }
-                        } else {
-                            AbstractStableSortPOperator sortPhysicalOperator =
-                                    (AbstractStableSortPOperator) op2.getPhysicalOperator();
-                            if (groupByOperator.getNestedPlans().size() != 1) {
-                                //Sort group-by currently works only for one nested plan with one root containing
-                                //an aggregate and a nested-tuple-source.
-                                continue;
-                            }
-                            ILogicalPlan p0 = groupByOperator.getNestedPlans().get(0);
-                            if (p0.getRoots().size() != 1) {
-                                //Sort group-by currently works only for one nested plan with one root containing
-                                //an aggregate and a nested-tuple-source.
-                                continue;
-                            }
-
-                            Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
-                            AbstractLogicalOperator r0Logical = (AbstractLogicalOperator) r0.getValue();
-                            if (r0Logical.getOperatorTag() != LogicalOperatorTag.AGGREGATE) {
-                                //we only rewrite aggregation function; do nothing for running aggregates
-                                continue;
-                            }
-                            AggregateOperator aggOp = (AggregateOperator) r0.getValue();
-                            AbstractLogicalOperator aggInputOp =
-                                    (AbstractLogicalOperator) aggOp.getInputs().get(0).getValue();
-                            if (aggInputOp.getOperatorTag() != LogicalOperatorTag.NESTEDTUPLESOURCE) {
-                                continue;
-                            }
-
-                            boolean hasIntermediateAggregate =
-                                    generateMergeAggregationExpressions(groupByOperator, context);
-                            if (!hasIntermediateAggregate) {
-                                continue;
-                            }
-                            if (aggOp.getExpressions().size() == 1 && (aggOp.getExpressions().get(0).getValue()
-                                    .toString().contains("local-sql-count")
-                                    || aggOp.getExpressions().get(0).getValue().toString().contains("local-sql-sum")
-                                    || aggOp.getExpressions().get(0).getValue().toString().contains("local-sql-max")
-                                    || aggOp.getExpressions().get(0).getValue().toString().contains("local-sql-min"))) {
-                                if (!groupByOperator.isGroupAll()) {
-                                    op.setPhysicalOperator(new OptimizeGroupByPOperator(
-                                            groupByOperator.getGroupByVarList(), groupByOperator.isGroupAll()));
-                                }
-                            } else
-                            {
-                                if (!groupByOperator.isGroupAll()) {
-                                    op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
-                                            sortPhysicalOperator.getSortColumns()));
-                                }
-                            }
+                        AbstractStableSortPOperator sortPhysicalOperator =
+                                (AbstractStableSortPOperator) op2.getPhysicalOperator();
+                        if (groupByOperator.getNestedPlans().size() != 1) {
+                            //Sort group-by currently works only for one nested plan with one root containing
+                            //an aggregate and a nested-tuple-source.
+                            continue;
                         }
+                        ILogicalPlan p0 = groupByOperator.getNestedPlans().get(0);
+                        if (p0.getRoots().size() != 1) {
+                            //Sort group-by currently works only for one nested plan with one root containing
+                            //an aggregate and a nested-tuple-source.
+                            continue;
+                        }
+
+                        Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
+                        AbstractLogicalOperator r0Logical = (AbstractLogicalOperator) r0.getValue();
+                        if (r0Logical.getOperatorTag() != LogicalOperatorTag.AGGREGATE) {
+                            //we only rewrite aggregation function; do nothing for running aggregates
+                            continue;
+                        }
+                        AggregateOperator aggOp = (AggregateOperator) r0.getValue();
+                        AbstractLogicalOperator aggInputOp =
+                                (AbstractLogicalOperator) aggOp.getInputs().get(0).getValue();
+                        if (aggInputOp.getOperatorTag() != LogicalOperatorTag.NESTEDTUPLESOURCE) {
+                            continue;
+                        }
+
+                        boolean hasIntermediateAggregate =
+                                generateMergeAggregationExpressions(groupByOperator, context);
+                        if (!hasIntermediateAggregate) {
+                            continue;
+                        }
+
+                        //replace preclustered gby with sort gby
+                        if (!groupByOperator.isGroupAll()) {
+                            op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
+                                    sortPhysicalOperator.getSortColumns()));
+                        }
+                        // remove the stable sort operator
                         op.getInputs().clear();
                         op.getInputs().addAll(op2.getInputs());
                         changed = true;
                     }
+                    AbstractLogicalOperator op3 =
+                            (AbstractLogicalOperator) op2Ref.getValue().getInputs().get(0).getValue();
+                    if (context.getPhysicalOptimizationConfig().isOptimizationGroupBy()
+                            && op3.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.HASH_PARTITION_EXCHANGE
+                            && groupByOperator.isGlobal()) {
+                        AbstractLogicalOperator localOp = (AbstractLogicalOperator) op3.getInputs().get(0).getValue();
+                        if (localOp.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.SORT_GROUP_BY) {
+                            GroupByOperator localGroupbyOperator = (GroupByOperator) localOp;
+                            ILogicalPlan localP0 = localGroupbyOperator.getNestedPlans().get(0);
+                            Mutable<ILogicalOperator> localR0 = localP0.getRoots().get(0);
+                            AggregateOperator localAggregateOp = (AggregateOperator) localR0.getValue();
 
-                } else
-                    continue;
-            }
-        } else {
-            for (Mutable<ILogicalOperator> childRef : op1.getInputs()) {
-                AbstractLogicalOperator op = (AbstractLogicalOperator) childRef.getValue();
-                if (op.getOperatorTag() == LogicalOperatorTag.GROUP) {
-                    PhysicalOperatorTag opTag = op.getPhysicalOperator().getOperatorTag();
-                    GroupByOperator groupByOperator = (GroupByOperator) op;
-                    if (opTag == PhysicalOperatorTag.PRE_CLUSTERED_GROUP_BY) {
-                        Mutable<ILogicalOperator> op2Ref = op.getInputs().get(0).getValue().getInputs().get(0);
-                        AbstractLogicalOperator op2 = (AbstractLogicalOperator) op2Ref.getValue();
-                        if (op2.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.STABLE_SORT) {
-                            AbstractStableSortPOperator sortPhysicalOperator =
-                                    (AbstractStableSortPOperator) op2.getPhysicalOperator();
-                            if (groupByOperator.getNestedPlans().size() != 1) {
-                                //Sort group-by currently works only for one nested plan with one root containing
-                                //an aggregate and a nested-tuple-source.
-                                continue;
+                            if (localAggregateOp.getExpressions().size() == 1
+                                    && (localAggregateOp.getExpressions().get(0).getValue().toString()
+                                            .contains("sql-count")
+                                            || localAggregateOp.getExpressions().get(0).getValue().toString()
+                                                    .contains("sql-sum")
+                                            || localAggregateOp.getExpressions().get(0).getValue().toString()
+                                                    .contains("sql-max")
+                                            || localAggregateOp.getExpressions().get(0).getValue().toString()
+                                                    .contains("sql-min"))
+                                    && !localAggregateOp.getExpressions().get(0).getValue().toString()
+                                            .contains("numeric")) {
+                                if (!localGroupbyOperator.isGroupAll()) {
+                                    localOp.setPhysicalOperator(
+                                            new OptimizeGroupByPOperator(localGroupbyOperator.getGroupByVarList(),
+                                                    localGroupbyOperator.isGroupAll()));
+                                }
                             }
-                            ILogicalPlan p0 = groupByOperator.getNestedPlans().get(0);
-                            if (p0.getRoots().size() != 1) {
-                                //Sort group-by currently works only for one nested plan with one root containing
-                                //an aggregate and a nested-tuple-source.
-                                continue;
-                            }
-
-                            Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
-                            AbstractLogicalOperator r0Logical = (AbstractLogicalOperator) r0.getValue();
-                            if (r0Logical.getOperatorTag() != LogicalOperatorTag.AGGREGATE) {
-                                //we only rewrite aggregation function; do nothing for running aggregates
-                                continue;
-                            }
-                            AggregateOperator aggOp = (AggregateOperator) r0.getValue();
-                            AbstractLogicalOperator aggInputOp =
-                                    (AbstractLogicalOperator) aggOp.getInputs().get(0).getValue();
-                            if (aggInputOp.getOperatorTag() != LogicalOperatorTag.NESTEDTUPLESOURCE) {
-                                continue;
-                            }
-
-                            boolean hasIntermediateAggregate =
-                                    generateMergeAggregationExpressions(groupByOperator, context);
-                            if (!hasIntermediateAggregate) {
-                                continue;
-                            }
-
-                            //replace preclustered gby with sort gby
-                            if (!groupByOperator.isGroupAll()) {
-                                op.setPhysicalOperator(new SortGroupByPOperator(groupByOperator.getGroupByVarList(),
-                                        sortPhysicalOperator.getSortColumns()));
-                            }
-                            // remove the stable sort operator
-                            op.getInputs().clear();
-                            op.getInputs().addAll(op2.getInputs());
-                            changed = true;
                         }
                     }
-                    continue;
-                } else {
-                    continue;
                 }
+                continue;
+            } else {
+                continue;
             }
         }
         return changed;

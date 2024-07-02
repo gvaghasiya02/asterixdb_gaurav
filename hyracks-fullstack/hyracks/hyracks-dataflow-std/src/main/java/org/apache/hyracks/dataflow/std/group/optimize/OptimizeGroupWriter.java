@@ -149,7 +149,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                         "Key is too large for hash table use with complier.optimize.groupby set to false");
                             }
                         } else {
-                            throw new AILRuntimeException();
+                            throw new AILRuntimeException("Aggregate type not supported " + typeTag.toString());
                         }
                     }
 
@@ -223,7 +223,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private void writeHashmap() {
         try {
             if (!isFailed && (!first || groupAll)) {
-                ArrayTupleBuilder tb = new ArrayTupleBuilder(outRecordDesc.getFields().length);
+                ArrayTupleBuilder tb = new ArrayTupleBuilder(groupFields.length+1);
                 DataOutput dos = tb.getDataOutput();
                 Iterator<BytesToBytesMap.Location> iter = computer.aIterator();
                 while (iter.hasNext()) {
@@ -251,7 +251,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             dos.writeLong(val);
                             tb.addFieldEndOffset();
                         } catch (IOException e) {
-                            throw new AILRuntimeException();
+                            throw new AILRuntimeException("Hashmap cannot written");
                         }
                     } else {
                         double val = Platform.getDouble(location.getValueBase(), location.getValueOffset());
@@ -260,7 +260,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             dos.writeDouble(val);
                             tb.addFieldEndOffset();
                         } catch (IOException e) {
-                            throw new AILRuntimeException();
+                            throw new AILRuntimeException("Hashmap cannot written");
                         }
                     }
                     try {
@@ -269,7 +269,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                     tb.getByteArray(), 0, tb.getSize());
                         }
                     } catch (HyracksDataException e) {
-                        throw new AILRuntimeException();
+                        throw new AILRuntimeException("Hashmap cannot write to buffer");
                     }
                 }
             }

@@ -61,14 +61,13 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private FrameTupleAppender appender;
     private IFrameWriter writer;
     private UnsafeHashAggregator computer;
-    private RecordDescriptor outRecordDesc;
     private String aggregateType;
     private Types aggregateDataType; // datatype of field
-    private long noOfRecords = 0;
+    private final int dataFieldIndex;
 
     public OptimizeGroupWriter(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDesc,
             RecordDescriptor outRecordDesc, IFrameWriter writer, boolean groupAll, int framesLimit,
-            String aggregateType) throws HyracksDataException {
+            String aggregateType, int dataFieldIndex) throws HyracksDataException {
         this.groupFields = groupFields;
         if (framesLimit >= 0 && framesLimit <= 2) {
             throw HyracksDataException.create(ErrorCode.ILLEGAL_MEMORY_BUDGET, "GROUP BY",
@@ -85,8 +84,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
         this.writer = writer;
         tupleBuilder = new ArrayTupleBuilder(groupFields.length);
         this.groupAll = groupAll;
-        this.outRecordDesc = outRecordDesc;
-        this.noOfRecords = 0;
+        this.dataFieldIndex = dataFieldIndex;
     }
 
     @Override
@@ -99,7 +97,6 @@ public class OptimizeGroupWriter implements IFrameWriter {
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         inFrameAccessor.reset(buffer);
         int nTuples = inFrameAccessor.getTupleCount();
-        noOfRecords += nTuples;
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
                 boolean added;
@@ -110,7 +107,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                 StringEntry st = new StringEntry(tupleBuilder);
                 byte[] data = inFrameAccessor.getBuffer().array();
                 int offset = inFrameAccessor.getTupleStartOffset(i) + inFrameAccessor.getFieldSlotsLength()
-                        + inFrameAccessor.getFieldStartOffset(i, 0);
+                        + inFrameAccessor.getFieldStartOffset(i, dataFieldIndex);
 
                 Types typeTag = EnumDeserializeropt.ATYPETAGDESERIALIZER.deserialize(data[offset]);
 

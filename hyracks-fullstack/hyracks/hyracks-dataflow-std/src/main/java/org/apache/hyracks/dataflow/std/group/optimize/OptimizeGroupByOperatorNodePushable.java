@@ -33,11 +33,13 @@ class OptimizeGroupByOperatorNodePushable extends AbstractUnaryInputUnaryOutputO
     private final boolean groupAll;
     private final int frameLimit;
     private final String aggType;
+    private final int dataFieldIndex;
 
     private OptimizeGroupWriter ogw;
 
     OptimizeGroupByOperatorNodePushable(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDescriptor,
-            RecordDescriptor outRecordDescriptor, boolean groupAll, int frameLimit, String aggType) {
+            RecordDescriptor outRecordDescriptor, boolean groupAll, int frameLimit, String aggType,
+            int dataFieldIndex) {
         this.ctx = ctx;
         this.groupFields = groupFields;
         this.inRecordDescriptor = inRecordDescriptor;
@@ -45,12 +47,13 @@ class OptimizeGroupByOperatorNodePushable extends AbstractUnaryInputUnaryOutputO
         this.groupAll = groupAll;
         this.frameLimit = frameLimit;
         this.aggType = aggType;
+        this.dataFieldIndex = dataFieldIndex;
     }
 
     @Override
     public void open() throws HyracksDataException {
         ogw = new OptimizeGroupWriter(ctx, groupFields, inRecordDescriptor, outRecordDescriptor, writer, groupAll,
-                frameLimit, aggType);
+                frameLimit, aggType, dataFieldIndex);
         ogw.open();
     }
 

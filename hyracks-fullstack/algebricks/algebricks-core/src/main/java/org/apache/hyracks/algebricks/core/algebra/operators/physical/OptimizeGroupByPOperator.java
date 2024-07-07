@@ -23,10 +23,13 @@ import java.util.List;
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.core.algebra.base.IHyracksJobBuilder;
+import org.apache.hyracks.algebricks.core.algebra.base.ILogicalExpression;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalVariable;
 import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
+import org.apache.hyracks.algebricks.core.algebra.expressions.AggregateFunctionCallExpression;
+import org.apache.hyracks.algebricks.core.algebra.expressions.VariableReferenceExpression;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.IOperatorSchema;
@@ -83,9 +86,17 @@ public class OptimizeGroupByPOperator extends AbstractPreclusteredGroupByPOperat
         else if (aggOpType.contains("sql-min"))
             aggType = "MIN";
         else {
-            aggType = "COUNT";
-            //need to add AVG
+            throw new AlgebricksException("Optimize group-by currently not supporting average");
         }
+        int dataFieldIndex = 0;
+        if (!aggType.equals("COUNT")) {
+            ILogicalExpression temp = ((AggregateFunctionCallExpression) aggOp.getExpressions().get(0).getValue())
+                    .getArguments().get(0).getValue();
+            LogicalVariable var = ((VariableReferenceExpression) temp).getVariableReference();
+
+            dataFieldIndex = inputSchemas[0].findVariable(var);
+        }
+
         int i = 0;
         int keys[] = JobGenHelper.variablesToFieldIndexes(columnList, inputSchemas[0]);
         int fdColumns[] = getFdColumns(gby, inputSchemas[0]);
@@ -102,8 +113,9 @@ public class OptimizeGroupByPOperator extends AbstractPreclusteredGroupByPOperat
         RecordDescriptor recordDescriptor =
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), opSchema, context);
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
+
         OptimizeGroupByOperatorDescriptor opDesc = new OptimizeGroupByOperatorDescriptor(spec, keyAndDecFields,
-                recordDescriptor, groupAll, framesLimit, aggType);
+                recordDescriptor, groupAll, framesLimit, aggType, dataFieldIndex);
         opDesc.setSourceLocation(gby.getSourceLocation());
 
         contributeOpDesc(builder, gby, opDesc);

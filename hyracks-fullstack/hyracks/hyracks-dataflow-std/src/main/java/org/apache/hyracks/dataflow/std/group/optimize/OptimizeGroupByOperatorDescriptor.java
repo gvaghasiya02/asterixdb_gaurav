@@ -33,15 +33,17 @@ public class OptimizeGroupByOperatorDescriptor extends AbstractSingleActivityOpe
     private final boolean groupAll;
     private final int framesLimit;
     private final String aggType;
+    private final int dataFieldIndex;
 
     public OptimizeGroupByOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] groupFields,
-            RecordDescriptor recordDescriptor, boolean groupAll, int framesLimit, String aggType) {
+            RecordDescriptor recordDescriptor, boolean groupAll, int framesLimit, String aggType, int dataFieldIndex) {
         super(spec, 1, 1);
         this.groupFields = groupFields;
         outRecDescs[0] = recordDescriptor;
         this.groupAll = groupAll;
         this.framesLimit = framesLimit;
         this.aggType = aggType;
+        this.dataFieldIndex = dataFieldIndex;
     }
 
     @Override
@@ -50,6 +52,6 @@ public class OptimizeGroupByOperatorDescriptor extends AbstractSingleActivityOpe
             throws HyracksDataException {
         return new OptimizeGroupByOperatorNodePushable(ctx, groupFields,
                 recordDescProvider.getInputRecordDescriptor(getActivityId(), 0), outRecDescs[0], groupAll, framesLimit,
-                aggType);
+                aggType, dataFieldIndex);
     }
 }

@@ -93,7 +93,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
 
     @Override
     public void open() throws HyracksDataException {
-        LOGGER.warn(Thread.currentThread().getId()+" Start to open OptimizeGroup writer named " + this);
+        LOGGER.warn(Thread.currentThread().getId() + " Start to open OptimizeGroup writer named " + this);
         writer.open();
         first = true;
     }
@@ -102,7 +102,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         inFrameAccessor.reset(buffer);
         int nTuples = inFrameAccessor.getTupleCount();
-        LOGGER.warn(Thread.currentThread().getId()+" NextFrame no of tuples OptimizeGroup cluster writer " + nTuples);
+        LOGGER.warn(Thread.currentThread().getId() + " NextFrame no of tuples OptimizeGroup cluster writer " + nTuples);
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
                 boolean added;
@@ -118,7 +118,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                 Types typeTag = EnumDeserializeropt.ATYPETAGDESERIALIZER.deserialize(data[offset]);
 
                 if (first) {
-                    LOGGER.warn("Key size in hash map"+ st.getLength());
+                    LOGGER.warn("Key size in hash map" + st.getLength());
 
                     if (aggregateType.equals("COUNT")) {
                         computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType), null,
@@ -227,7 +227,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private void writeHashmap() {
         try {
             if (!isFailed && (!first || groupAll)) {
-                LOGGER.warn(Thread.currentThread().getId()+" Writing hashmap no of records" + computer.size());
+                LOGGER.warn(Thread.currentThread().getId() + " Writing hashmap no of records" + computer.size());
                 ArrayTupleBuilder tb = new ArrayTupleBuilder(groupFields.length + 1);
                 DataOutput dos = tb.getDataOutput();
                 Iterator<BytesToBytesMap.Location> iter = computer.aIterator();

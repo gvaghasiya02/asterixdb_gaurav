@@ -47,7 +47,7 @@ public abstract class AbstractSortRunGenerator implements IRunGenerator {
 
     @Override
     public void open() throws HyracksDataException {
-        LOGGER.warn(Thread.currentThread().getId()+" Start to open sort run generator " + this.toString());
+        LOGGER.warn(Thread.currentThread().getId() + " Start to open sort run generator " + this.toString());
         generatedRunFileReaders.clear();
     }
 
@@ -61,7 +61,7 @@ public abstract class AbstractSortRunGenerator implements IRunGenerator {
                 flushFramesToRun();
             }
         }
-        LOGGER.warn(Thread.currentThread().getId()+" Close to open sort run generator " + this.toString());
+        LOGGER.warn(Thread.currentThread().getId() + " Close to open sort run generator " + this.toString());
     }
 
     abstract protected RunFileWriter getRunFileWriter() throws HyracksDataException;

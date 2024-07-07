@@ -105,7 +105,8 @@ public class PreclusteredGroupWriter implements IFrameWriter {
 
     @Override
     public void open() throws HyracksDataException {
-        LOGGER.warn(Thread.currentThread().getId()+" Start to open Pre cluster writer named " + this + " intermediate merge " + outputPartial);
+        LOGGER.warn(Thread.currentThread().getId() + " Start to open Pre cluster writer named " + this
+                + " intermediate merge " + outputPartial);
         appenderWrapper.open();
         first = true;
     }
@@ -114,7 +115,8 @@ public class PreclusteredGroupWriter implements IFrameWriter {
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         inFrameAccessor.reset(buffer);
         int nTuples = inFrameAccessor.getTupleCount();
-        LOGGER.warn(Thread.currentThread().getId()+" NextFrame no of tuples " + nTuples + " Pre cluster writer " + this);
+        LOGGER.warn(
+                Thread.currentThread().getId() + " NextFrame no of tuples " + nTuples + " Pre cluster writer " + this);
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
                 if (first) {
@@ -197,8 +199,9 @@ public class PreclusteredGroupWriter implements IFrameWriter {
         try {
             if (!isFailed && (!first || groupAll)) {
                 writeOutput(groupFieldsPrevCopy);
-                LOGGER.warn(Thread.currentThread().getId()+ " Close to pre cluster writer named " + this + " with no of aggregated records written "
-                        + aggregatedRecords + " to writer " + appenderWrapper.toString());
+                LOGGER.warn(Thread.currentThread().getId() + " Close to pre cluster writer named " + this
+                        + " with no of aggregated records written " + aggregatedRecords + " to writer "
+                        + appenderWrapper.toString());
                 appenderWrapper.write();
             }
             aggregator.close();

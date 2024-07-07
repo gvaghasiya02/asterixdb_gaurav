@@ -62,7 +62,8 @@ public class FrameTupleAppenderWrapper {
     }
 
     public void close() throws HyracksDataException {
-        LOGGER.warn(Thread.currentThread().getId()+" Flushing frames " + noOfFrames + " to writer " + outputWriter.toString());
+        LOGGER.warn(Thread.currentThread().getId() + " Flushing frames " + noOfFrames + " to writer "
+                + outputWriter.toString());
         outputWriter.close();
     }
 

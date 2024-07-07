@@ -198,9 +198,9 @@ public class ArrayTupleBuilder implements IDataOutputProvider {
 
     public void addAllFieldEndOffset(byte[] fEndOffsetBytes) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(fEndOffsetBytes);
-
+        int length = fEndOffsetBytes.length / 4;
         int i = 0;
-        for (i = 0; i < this.fEndOffsets.length - 1; i++) {
+        for (i = 0; i < length; i++) {
             this.fEndOffsets[i] = byteBuffer.getInt();
         }
         this.nextField = i;

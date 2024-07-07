@@ -23,10 +23,13 @@ import java.util.List;
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.core.algebra.base.IHyracksJobBuilder;
+import org.apache.hyracks.algebricks.core.algebra.base.ILogicalExpression;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalVariable;
 import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
+import org.apache.hyracks.algebricks.core.algebra.expressions.AggregateFunctionCallExpression;
+import org.apache.hyracks.algebricks.core.algebra.expressions.VariableReferenceExpression;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.IOperatorSchema;
@@ -34,20 +37,20 @@ import org.apache.hyracks.algebricks.core.jobgen.impl.JobGenContext;
 import org.apache.hyracks.algebricks.core.jobgen.impl.JobGenHelper;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
-import org.apache.hyracks.dataflow.std.group.optimize.OptimizeGroupLOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.group.optimize.OptimizeGroupByOperatorDescriptor;
 
-public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperator {
+public class OptimizeGroupByPOperator extends AbstractPreclusteredGroupByPOperator {
 
     private final boolean groupAll;
 
-    public OptimizeGroupByLOperator(List<LogicalVariable> columnList, boolean groupAll) {
+    public OptimizeGroupByPOperator(List<LogicalVariable> columnList, boolean groupAll) {
         super(columnList);
         this.groupAll = groupAll;
     }
 
     @Override
     public PhysicalOperatorTag getOperatorTag() {
-        return PhysicalOperatorTag.OPTIMIZE_GROUP_BY_L;
+        return PhysicalOperatorTag.OPTIMIZE_GROUP_BY;
     }
 
     @Override
@@ -83,19 +86,36 @@ public class OptimizeGroupByLOperator extends AbstractPreclusteredGroupByPOperat
         else if (aggOpType.contains("sql-min"))
             aggType = "MIN";
         else {
-            aggType = "COUNT";
-            //need to add AVG
+            throw new AlgebricksException("Optimize group-by currently not supporting average");
+        }
+        int dataFieldIndex = 0;
+        if (!aggType.equals("COUNT")) {
+            ILogicalExpression temp = ((AggregateFunctionCallExpression) aggOp.getExpressions().get(0).getValue())
+                    .getArguments().get(0).getValue();
+            LogicalVariable var = ((VariableReferenceExpression) temp).getVariableReference();
+
+            dataFieldIndex = inputSchemas[0].findVariable(var);
         }
 
+        int i = 0;
         int keys[] = JobGenHelper.variablesToFieldIndexes(columnList, inputSchemas[0]);
+        int fdColumns[] = getFdColumns(gby, inputSchemas[0]);
+        int[] keyAndDecFields = new int[keys.length + fdColumns.length];
+        for (i = 0; i < keys.length; ++i) {
+            keyAndDecFields[i] = keys[i];
+        }
+        for (i = 0; i < fdColumns.length; i++) {
+            keyAndDecFields[keys.length + i] = fdColumns[i];
+        }
         // compile subplans and set the gby op. schema accordingly
         compileSubplans(inputSchemas[0], gby, opSchema, context);
         IOperatorDescriptorRegistry spec = builder.getJobSpec();
         RecordDescriptor recordDescriptor =
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), opSchema, context);
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-        OptimizeGroupLOperatorDescriptor opDesc =
-                new OptimizeGroupLOperatorDescriptor(spec, keys, recordDescriptor, groupAll, framesLimit, aggType);
+
+        OptimizeGroupByOperatorDescriptor opDesc = new OptimizeGroupByOperatorDescriptor(spec, keyAndDecFields,
+                recordDescriptor, groupAll, framesLimit, aggType, dataFieldIndex);
         opDesc.setSourceLocation(gby.getSourceLocation());
 
         contributeOpDesc(builder, gby, opDesc);

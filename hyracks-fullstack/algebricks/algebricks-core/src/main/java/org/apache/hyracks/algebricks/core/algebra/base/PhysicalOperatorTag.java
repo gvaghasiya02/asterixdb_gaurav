@@ -85,5 +85,5 @@ public enum PhysicalOperatorTag {
     INTERSECT,
     WINDOW,
     WINDOW_STREAM,
-    OPTIMIZE_GROUP_BY_L
+    OPTIMIZE_GROUP_BY
 }

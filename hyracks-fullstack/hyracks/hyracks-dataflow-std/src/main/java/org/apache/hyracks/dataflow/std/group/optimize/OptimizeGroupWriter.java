@@ -63,16 +63,15 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private FrameTupleAppender appender;
     private IFrameWriter writer;
     private UnsafeHashAggregator computer;
-    private RecordDescriptor outRecordDesc;
     private String aggregateType;
     private Types aggregateDataType; // datatype of field
-    private long noOfRecords;
+    private final int dataFieldIndex;
 
     private static final Logger LOGGER = LogManager.getLogger();
 
     public OptimizeGroupWriter(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDesc,
             RecordDescriptor outRecordDesc, IFrameWriter writer, boolean groupAll, int framesLimit,
-            String aggregateType) throws HyracksDataException {
+            String aggregateType, int dataFieldIndex) throws HyracksDataException {
         this.groupFields = groupFields;
         if (framesLimit >= 0 && framesLimit <= 2) {
             throw HyracksDataException.create(ErrorCode.ILLEGAL_MEMORY_BUDGET, "GROUP BY",
@@ -89,8 +88,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
         this.writer = writer;
         tupleBuilder = new ArrayTupleBuilder(groupFields.length);
         this.groupAll = groupAll;
-        this.outRecordDesc = outRecordDesc;
-        this.noOfRecords = 0;
+        this.dataFieldIndex = dataFieldIndex;
     }
 
     @Override
@@ -104,7 +102,6 @@ public class OptimizeGroupWriter implements IFrameWriter {
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         inFrameAccessor.reset(buffer);
         int nTuples = inFrameAccessor.getTupleCount();
-        noOfRecords += nTuples;
         LOGGER.warn(Thread.currentThread().getId()+" NextFrame no of tuples OptimizeGroup cluster writer " + nTuples);
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
@@ -116,13 +113,10 @@ public class OptimizeGroupWriter implements IFrameWriter {
                 StringEntry st = new StringEntry(tupleBuilder);
                 byte[] data = inFrameAccessor.getBuffer().array();
                 int offset = inFrameAccessor.getTupleStartOffset(i) + inFrameAccessor.getFieldSlotsLength()
-                        + inFrameAccessor.getFieldStartOffset(i, 0);
+                        + inFrameAccessor.getFieldStartOffset(i, dataFieldIndex);
 
                 Types typeTag = EnumDeserializeropt.ATYPETAGDESERIALIZER.deserialize(data[offset]);
 
-                if (typeTag == Types.MISSING || typeTag == Types.NULL) {
-                    continue;
-                }
                 if (first) {
                     LOGGER.warn("Key size in hash map"+ st.getLength());
 
@@ -159,7 +153,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                         "Key is too large for hash table use with complier.optimize.groupby set to false");
                             }
                         } else {
-                            throw new AILRuntimeException();
+                            throw new AILRuntimeException("Aggregate type not supported " + typeTag.toString());
                         }
                     }
 
@@ -234,7 +228,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
         try {
             if (!isFailed && (!first || groupAll)) {
                 LOGGER.warn(Thread.currentThread().getId()+" Writing hashmap no of records" + computer.size());
-                ArrayTupleBuilder tb = new ArrayTupleBuilder(outRecordDesc.getFields().length);
+                ArrayTupleBuilder tb = new ArrayTupleBuilder(groupFields.length + 1);
                 DataOutput dos = tb.getDataOutput();
                 Iterator<BytesToBytesMap.Location> iter = computer.aIterator();
                 while (iter.hasNext()) {
@@ -262,7 +256,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             dos.writeLong(val);
                             tb.addFieldEndOffset();
                         } catch (IOException e) {
-                            throw new AILRuntimeException();
+                            throw new AILRuntimeException("Hashmap cannot written");
                         }
                     } else {
                         double val = Platform.getDouble(location.getValueBase(), location.getValueOffset());
@@ -271,7 +265,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             dos.writeDouble(val);
                             tb.addFieldEndOffset();
                         } catch (IOException e) {
-                            throw new AILRuntimeException();
+                            throw new AILRuntimeException("Hashmap cannot written");
                         }
                     }
                     try {
@@ -280,7 +274,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                     tb.getByteArray(), 0, tb.getSize());
                         }
                     } catch (HyracksDataException e) {
-                        throw new AILRuntimeException();
+                        throw new AILRuntimeException("Hashmap cannot write to buffer");
                     }
                 }
             }

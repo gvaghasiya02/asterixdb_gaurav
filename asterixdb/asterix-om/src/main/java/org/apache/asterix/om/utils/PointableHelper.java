@@ -16,12 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/*
- * Description  : SQL92 agg-global-sql-min() & agg-local-sql-min() with group by
- * Expected Res : group "g3" produces NULL due to INCOMPARABLE
- */
+package org.apache.asterix.om.utils;
 
-use test;
-set `compiler.optimize.groupby` 'false';
+import org.apache.asterix.om.types.ATypeTag;
+import org.apache.asterix.om.types.EnumDeserializer;
+import org.apache.hyracks.data.std.api.IValueReference;
 
-select group_id,min(array_f) from openDs group by group_id order by group_id;
+public class PointableHelper {
+
+    //TODO(ali): should be refactored with the other PointableHelper
+    public static ATypeTag getTypeTag(IValueReference val) {
+        return EnumDeserializer.ATYPETAGDESERIALIZER.deserialize(val.getByteArray()[val.getStartOffset()]);
+    }
+}

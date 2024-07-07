@@ -25,4 +25,8 @@ public class AILRuntimeException extends RuntimeException {
         super((String) null, (Throwable) null);
     }
 
+    public AILRuntimeException(String message) {
+        super(message, (Throwable) null);
+    }
+
 }

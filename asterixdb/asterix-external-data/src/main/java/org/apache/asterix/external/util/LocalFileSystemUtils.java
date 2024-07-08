@@ -80,7 +80,13 @@ public class LocalFileSystemUtils {
     }
 
     public static void validateAndAdd(Path path, String expression, List<File> files) {
-        if ((expression == null || Pattern.matches(expression, path.toString())) && fileNotExistsInList(files, path)) {
+        if (expression != null && expression.startsWith("repeat")) {
+            final int rep = Integer.parseInt(expression.split(",")[1]);
+            for (int i = 0; i < rep; i++) {
+                files.add(new File(path.toString()));
+            }
+        } else if ((expression == null || Pattern.matches(expression, path.toString()))
+                && fileNotExistsInList(files, path)) {
             files.add(new File(path.toString()));
         }
     }

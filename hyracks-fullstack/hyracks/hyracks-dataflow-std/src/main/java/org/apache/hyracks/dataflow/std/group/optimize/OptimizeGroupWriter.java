@@ -125,7 +125,9 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         }
                     } else {
                         this.aggregateDataType = typeTag;
-
+                        if (typeTag == Types.NULL || typeTag == Types.MISSING) {
+                            continue;
+                        }
                         if (typeTag == Types.TINYINT || typeTag == Types.SMALLINT || typeTag == Types.BIGINT
                                 || typeTag == Types.INTEGER) {
                             computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType),
@@ -162,7 +164,9 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             added = computer.aggregate(st, value);
                         }
                     } else {
-
+                        if (typeTag == Types.NULL || typeTag == Types.MISSING) {
+                            continue;
+                        }
                         if (aggregateDataType == Types.TINYINT || aggregateDataType == Types.SMALLINT
                                 || aggregateDataType == Types.BIGINT || aggregateDataType == Types.INTEGER) {
                             LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);

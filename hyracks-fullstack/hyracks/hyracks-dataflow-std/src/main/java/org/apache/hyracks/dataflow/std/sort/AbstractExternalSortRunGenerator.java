@@ -80,7 +80,8 @@ public abstract class AbstractExternalSortRunGenerator extends AbstractSortRunGe
     @Override
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         if (!frameSorter.insertFrame(buffer)) {
-            LOGGER.warn(Thread.currentThread().getId() + " No space left for sort so Flushing sort frame");
+            LOGGER.warn(Thread.currentThread().getId()
+                    + " No space left for sort so Flushing sort frame ans should start Pre Cluster");
             flushFramesToRun();
             if (!frameSorter.insertFrame(buffer)) {
                 throw new HyracksDataException("The given frame is too big to insert into the sorting memory.");

@@ -118,7 +118,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                 Types typeTag = EnumDeserializeropt.ATYPETAGDESERIALIZER.deserialize(data[offset]);
 
                 if (first) {
-                    LOGGER.warn("Key size in hash map" + st.getLength());
+                    LOGGER.warn("Key size in hash map " + st.getLength());
 
                     if (aggregateType.equals("COUNT")) {
                         computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType), null,
@@ -132,7 +132,9 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         }
                     } else {
                         this.aggregateDataType = typeTag;
-
+                        if (typeTag == Types.NULL || typeTag == Types.MISSING) {
+                            continue;
+                        }
                         if (typeTag == Types.TINYINT || typeTag == Types.SMALLINT || typeTag == Types.BIGINT
                                 || typeTag == Types.INTEGER) {
                             computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType),
@@ -169,7 +171,9 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             added = computer.aggregate(st, value);
                         }
                     } else {
-
+                        if (typeTag == Types.NULL || typeTag == Types.MISSING) {
+                            continue;
+                        }
                         if (aggregateDataType == Types.TINYINT || aggregateDataType == Types.SMALLINT
                                 || aggregateDataType == Types.BIGINT || aggregateDataType == Types.INTEGER) {
                             LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
@@ -227,7 +231,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private void writeHashmap() {
         try {
             if (!isFailed && (!first || groupAll)) {
-                LOGGER.warn(Thread.currentThread().getId() + " Writing hashmap no of records" + computer.size());
+                LOGGER.warn(Thread.currentThread().getId() + " Writing hashmap no of records " + computer.size());
                 ArrayTupleBuilder tb = new ArrayTupleBuilder(groupFields.length + 1);
                 DataOutput dos = tb.getDataOutput();
                 Iterator<BytesToBytesMap.Location> iter = computer.aIterator();
@@ -298,6 +302,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
             writer.fail();
             throw e;
         } finally {
+            LOGGER.warn(Thread.currentThread().getId() + " Closing to OptimizeGroupWriter");
             writer.close();
         }
     }

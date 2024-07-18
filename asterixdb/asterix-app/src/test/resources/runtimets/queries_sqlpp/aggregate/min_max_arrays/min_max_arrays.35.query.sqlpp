@@ -22,7 +22,7 @@
  */
 
 use test;
-set `compiler.groupmemory` "128KB";
+set `compiler.groupmemory` "256KB";
 
 from openDs3 as ds
 group by ds.group_id group as g

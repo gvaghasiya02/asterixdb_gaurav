@@ -49,6 +49,7 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.api.io.IFileHandle;
 import org.apache.hyracks.api.io.IIOBulkOperation;
+import org.apache.hyracks.api.io.IODeviceHandle;
 import org.apache.hyracks.api.util.IoUtil;
 import org.apache.hyracks.cloud.io.ICloudIOManager;
 import org.apache.hyracks.cloud.io.request.ICloudBeforeRetryRequest;
@@ -61,6 +62,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public abstract class AbstractCloudIOManager extends IOManager implements IPartitionBootstrapper, ICloudIOManager {
     private static final Logger LOGGER = LogManager.getLogger();
@@ -169,6 +172,8 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
 
     protected abstract void downloadPartitions(boolean metadataNode, int metadataPartition) throws HyracksDataException;
 
+    protected abstract Set<UncachedFileReference> getUncachedFiles();
+
     /*
      * ******************************************************************
      * ICloudIOManager functions
@@ -210,10 +215,11 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
     }
 
     @Override
-    public final int cloudWrite(IFileHandle fHandle, ByteBuffer data) throws HyracksDataException {
+    public final int cloudWrite(IFileHandle fHandle, long offset, ByteBuffer data) throws HyracksDataException {
         ICloudWriter cloudWriter = ((CloudFileHandle) fHandle).getCloudWriter();
         int writtenBytes;
         try {
+            ensurePosition(fHandle, cloudWriter.position(), offset);
             writtenBytes = cloudWriter.write(data);
         } catch (HyracksDataException e) {
             cloudWriter.abort();
@@ -223,10 +229,11 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
     }
 
     @Override
-    public final long cloudWrite(IFileHandle fHandle, ByteBuffer[] data) throws HyracksDataException {
+    public final long cloudWrite(IFileHandle fHandle, long offset, ByteBuffer[] data) throws HyracksDataException {
         ICloudWriter cloudWriter = ((CloudFileHandle) fHandle).getCloudWriter();
         int writtenBytes;
         try {
+            ensurePosition(fHandle, cloudWriter.position(), offset);
             writtenBytes = cloudWriter.write(data[0], data[1]);
         } catch (HyracksDataException e) {
             cloudWriter.abort();
@@ -265,18 +272,33 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
     @Override
     public final long doSyncWrite(IFileHandle fHandle, long offset, ByteBuffer[] dataArray)
             throws HyracksDataException {
+        // Save original position and limit
+        ByteBuffer buffer1 = dataArray[0];
+        int position1 = buffer1.position();
+
+        ByteBuffer buffer2 = dataArray[1];
+        int position2 = buffer2.position();
+
         long writtenBytes = localIoManager.doSyncWrite(fHandle, offset, dataArray);
-        dataArray[0].flip();
-        dataArray[1].flip();
-        cloudWrite(fHandle, dataArray);
+
+        // Restore original position
+        buffer1.position(position1);
+        buffer2.position(position2);
+
+        cloudWrite(fHandle, offset, dataArray);
         return writtenBytes;
     }
 
     @Override
     public final int doSyncWrite(IFileHandle fHandle, long offset, ByteBuffer data) throws HyracksDataException {
+        // Save original position and limit
+        int position = data.position();
+
         int writtenBytes = localIoManager.doSyncWrite(fHandle, offset, data);
-        data.flip();
-        cloudWrite(fHandle, data);
+
+        // Restore original position
+        data.position(position);
+        cloudWrite(fHandle, offset, data);
         return writtenBytes;
     }
 
@@ -345,13 +367,60 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
     }
 
     /**
-     * Returns a list of all stored objects (sorted ASC by path) in the cloud and their sizes
+     * Returns a list of all stored objects (sorted ASC by path) in the cloud and their sizes. The already cached files
+     * are retrieved by listing the local disk, while the uncached files are retrieved from uncached files trackers.
      *
      * @param objectMapper to create the result {@link JsonNode}
      * @return {@link JsonNode} with stored objects' information
      */
     public final JsonNode listAsJson(ObjectMapper objectMapper) {
-        return cloudClient.listAsJson(objectMapper, bucket);
+        ArrayNode objectsInfo = objectMapper.createArrayNode();
+        try {
+            List<CloudFile> allFiles = list();
+            allFiles.sort((x, y) -> String.CASE_INSENSITIVE_ORDER.compare(x.getPath(), y.getPath()));
+            for (CloudFile file : allFiles) {
+                ObjectNode objectInfo = objectsInfo.addObject();
+                objectInfo.put("path", file.getPath());
+                objectInfo.put("size", file.getSize());
+            }
+            return objectsInfo;
+        } catch (Throwable th) {
+            LOGGER.warn("Failed to retrieve list of all cloud files", th);
+            objectsInfo.removeAll();
+            ObjectNode objectInfo = objectsInfo.addObject();
+            objectInfo.put("error", "Failed to retrieve list of all cloud files. " + th.getMessage());
+            return objectsInfo;
+        }
+    }
+
+    private List<CloudFile> list() {
+        List<CloudFile> allFiles = new ArrayList<>();
+        // get cached files (read from disk)
+        for (IODeviceHandle deviceHandle : getIODevices()) {
+            FileReference storageRoot = deviceHandle.createFileRef(STORAGE_ROOT_DIR_NAME);
+
+            Set<FileReference> deviceFiles;
+            try {
+                deviceFiles = localIoManager.list(storageRoot, IoUtil.NO_OP_FILTER);
+            } catch (Throwable th) {
+                LOGGER.warn("Failed to get local storage files for root {}", storageRoot.getRelativePath(), th);
+                continue;
+            }
+
+            for (FileReference fileReference : deviceFiles) {
+                try {
+                    allFiles.add(CloudFile.of(fileReference.getRelativePath(), fileReference.getFile().length()));
+                } catch (Throwable th) {
+                    LOGGER.warn("Encountered issue for local storage file {}", fileReference.getRelativePath(), th);
+                }
+            }
+        }
+
+        // get uncached files from uncached files tracker
+        for (UncachedFileReference uncachedFile : getUncachedFiles()) {
+            allFiles.add(CloudFile.of(uncachedFile.getRelativePath(), uncachedFile.getSize()));
+        }
+        return allFiles;
     }
 
     /**
@@ -389,5 +458,20 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
             }
             performBulkOperation(deleteBulkOperation);
         }
+    }
+
+    private void ensurePosition(IFileHandle fileHandle, long cloudOffset, long requestedWriteOffset) {
+        if (cloudOffset != requestedWriteOffset) {
+            throw new IllegalStateException("Misaligned positions in " + fileHandle.getFileReference()
+                    + ", cloudOffset: " + cloudOffset + " != requestedWriteOffset: " + requestedWriteOffset);
+        }
+    }
+
+    public long getTotalRemoteStorageSizeForNodeBytes() {
+        long size = 0;
+        for (CloudFile file : list()) {
+            size += file.getSize();
+        }
+        return size;
     }
 }

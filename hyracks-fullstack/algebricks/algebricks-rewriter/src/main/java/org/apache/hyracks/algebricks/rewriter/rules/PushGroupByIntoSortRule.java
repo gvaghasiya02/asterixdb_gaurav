@@ -139,7 +139,7 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                                     || temp.getArguments().get(0).getValue()
                                             .getExpressionTag() == LogicalExpressionTag.VARIABLE) {
 
-                                if ((localAggregateOp.getExpressions().get(0).getValue().toString()
+                                if (localAggregateOp.getExpressions().get(0).getValue().toString()
                                         .contains("sql-count")
                                         || localAggregateOp.getExpressions().get(0).getValue().toString()
                                                 .contains("sql-sum")
@@ -147,8 +147,7 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                                                 .contains("sql-max")
                                         || localAggregateOp.getExpressions().get(0).getValue().toString()
                                                 .contains("sql-min"))
-                                        && !localAggregateOp.getExpressions().get(0).getValue().toString()
-                                                .contains("numeric")) {
+                                        {
                                     if (!localGroupbyOperator.isGroupAll()) {
                                         localOp.setPhysicalOperator(
                                                 new OptimizeGroupByPOperator(localGroupbyOperator.getGroupByVarList(),

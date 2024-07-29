@@ -28,9 +28,11 @@ import org.apache.hyracks.algebricks.core.algebra.base.ILogicalExpression;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
 import org.apache.hyracks.algebricks.core.algebra.base.IOptimizationContext;
+import org.apache.hyracks.algebricks.core.algebra.base.LogicalExpressionTag;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalVariable;
 import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
+import org.apache.hyracks.algebricks.core.algebra.expressions.AggregateFunctionCallExpression;
 import org.apache.hyracks.algebricks.core.algebra.expressions.IMergeAggregationExpressionFactory;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
@@ -124,21 +126,33 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                             Mutable<ILogicalOperator> localR0 = localP0.getRoots().get(0);
                             AggregateOperator localAggregateOp = (AggregateOperator) localR0.getValue();
 
-                            if (localAggregateOp.getExpressions().size() == 1
-                                    && (localAggregateOp.getExpressions().get(0).getValue().toString()
-                                            .contains("sql-count")
-                                            || localAggregateOp.getExpressions().get(0).getValue().toString()
-                                                    .contains("sql-sum")
-                                            || localAggregateOp.getExpressions().get(0).getValue().toString()
-                                                    .contains("sql-max")
-                                            || localAggregateOp.getExpressions().get(0).getValue().toString()
-                                                    .contains("sql-min"))
-                                    && !localAggregateOp.getExpressions().get(0).getValue().toString()
-                                            .contains("numeric")) {
-                                if (!localGroupbyOperator.isGroupAll()) {
-                                    localOp.setPhysicalOperator(
-                                            new OptimizeGroupByPOperator(localGroupbyOperator.getGroupByVarList(),
-                                                    localGroupbyOperator.isGroupAll()));
+                            if (localAggregateOp.getExpressions().size() != 1)
+                                continue;
+                            if (!localAggregateOp.getExpressions().get(0).getValue().isFunctional())
+                                continue;
+                            AggregateFunctionCallExpression temp = (AggregateFunctionCallExpression) localAggregateOp
+                                    .getExpressions().get(0).getValue();
+                            if (temp.getArguments().size() != 1)
+                                continue;
+                            if (temp.getArguments().get(0).getValue()
+                                    .getExpressionTag() == LogicalExpressionTag.CONSTANT
+                                    || temp.getArguments().get(0).getValue()
+                                            .getExpressionTag() == LogicalExpressionTag.VARIABLE) {
+
+                                if (localAggregateOp.getExpressions().get(0).getValue().toString()
+                                        .contains("sql-count")
+                                        || localAggregateOp.getExpressions().get(0).getValue().toString()
+                                                .contains("sql-sum")
+                                        || localAggregateOp.getExpressions().get(0).getValue().toString()
+                                                .contains("sql-max")
+                                        || localAggregateOp.getExpressions().get(0).getValue().toString()
+                                                .contains("sql-min"))
+                                        {
+                                    if (!localGroupbyOperator.isGroupAll()) {
+                                        localOp.setPhysicalOperator(
+                                                new OptimizeGroupByPOperator(localGroupbyOperator.getGroupByVarList(),
+                                                        localGroupbyOperator.isGroupAll()));
+                                    }
                                 }
                             }
                         }

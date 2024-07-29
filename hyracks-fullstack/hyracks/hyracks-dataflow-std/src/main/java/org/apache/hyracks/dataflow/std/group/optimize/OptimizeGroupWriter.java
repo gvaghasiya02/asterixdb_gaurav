@@ -126,6 +126,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         LongEntry value = new LongEntry();
                         value.reset(1);
                         added = computer.aggregate(st, value);
+                        this.aggregateDataType = Types.BIGINT;
                         if (!added) {
                             throw new HyracksDataException(
                                     "Key is too large for hash table use with complier.optimize.groupby set to false");

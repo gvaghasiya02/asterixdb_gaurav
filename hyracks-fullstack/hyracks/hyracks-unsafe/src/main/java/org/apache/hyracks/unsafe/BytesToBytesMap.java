@@ -969,6 +969,7 @@ public final class BytesToBytesMap extends MemoryConsumer {
     public boolean getCanGrowArray() {
         return canGrowArray;
     }
+
     public long getTotalSizeofHashEntries() {
         return TotalSizeofHashEntries;
     }

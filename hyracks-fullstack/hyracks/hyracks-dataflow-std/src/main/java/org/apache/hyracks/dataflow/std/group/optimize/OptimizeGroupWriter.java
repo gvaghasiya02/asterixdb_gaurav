@@ -125,6 +125,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                                 UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                         LongEntry value = new LongEntry();
                         value.reset(1);
+                        LOGGER.warn("Value size in hash map " + value.getLength());
                         added = computer.aggregate(st, value);
                         this.aggregateDataType = Types.BIGINT;
                         if (!added) {
@@ -141,6 +142,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType),
                                     null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
+                            LOGGER.warn("Value size in hash map " + value.getLength());
                             added = computer.aggregate(st, value);
                             if (!added) {
                                 throw new HyracksDataException(
@@ -150,6 +152,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             computer = new UnsafeHashAggregator(UnsafeAggregators.getDoubleAggregator(aggregateType),
                                     null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
+                            LOGGER.warn("Value size in hash map " + value.getLength());
                             added = computer.aggregate(st, value);
                             if (!added) {
                                 throw new HyracksDataException(

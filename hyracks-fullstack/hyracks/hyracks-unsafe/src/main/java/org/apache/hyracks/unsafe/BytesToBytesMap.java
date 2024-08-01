@@ -927,7 +927,7 @@ public final class BytesToBytesMap extends MemoryConsumer {
         currentPage = null;
         pageCursor = 0;
         LOGGER.warn(
-                Thread.currentThread().getId() + " Reseting Hashmap" + TotalSizeofHashEntries + " Total records size");
+                Thread.currentThread().getId() + " Reseting Hashmap Total records size " + TotalSizeofHashEntries);
     }
 
     /**

@@ -90,5 +90,8 @@ public final class UnsafeHashAggregator extends AbstractUnsafeHashAggregator {
     public void reset() {
         map.reset();
     }
-
+    public long getSizeofHashEntries()
+    {
+        return map.getTotalSizeofHashEntries();
+    }
 }

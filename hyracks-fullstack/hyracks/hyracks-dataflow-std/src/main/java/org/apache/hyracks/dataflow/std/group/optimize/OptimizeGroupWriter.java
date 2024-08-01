@@ -66,6 +66,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private String aggregateType;
     private Types aggregateDataType; // datatype of field
     private final int dataFieldIndex;
+    private long totalrecords;
+    private long inRecordsHashMap;
 
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -89,6 +91,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
         tupleBuilder = new ArrayTupleBuilder(groupFields.length);
         this.groupAll = groupAll;
         this.dataFieldIndex = dataFieldIndex;
+        this.totalrecords = 0;
+        this.inRecordsHashMap = 0;
     }
 
     @Override
@@ -102,6 +106,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         inFrameAccessor.reset(buffer);
         int nTuples = inFrameAccessor.getTupleCount();
+        totalrecords += nTuples;
+        inRecordsHashMap += nTuples;
         LOGGER.warn(Thread.currentThread().getId() + " NextFrame no of tuples OptimizeGroup cluster writer " + nTuples);
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
@@ -235,8 +241,10 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private void writeHashmap() {
         try {
             if (!isFailed && (!first || groupAll)) {
-                LOGGER.warn(Thread.currentThread().getId() + " Writing hashmap no of records " + computer.size()
-                        + " Hashmap Total records size " + computer.getSizeofHashEntries());
+                LOGGER.warn(Thread.currentThread().getId() + " Writing hashmap " + " IN no of records "
+                        + inRecordsHashMap + " OUT no of records " + computer.size() + " Hashmap Total records size "
+                        + computer.getSizeofHashEntries());
+                inRecordsHashMap = 0;
                 ArrayTupleBuilder tb = new ArrayTupleBuilder(groupFields.length + 1);
                 DataOutput dos = tb.getDataOutput();
                 Iterator<BytesToBytesMap.Location> iter = computer.aIterator();
@@ -308,7 +316,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
             writer.fail();
             throw e;
         } finally {
-            LOGGER.warn(Thread.currentThread().getId() + " Closing to OptimizeGroupWriter");
+            LOGGER.warn(Thread.currentThread().getId() + " Processed records " + totalrecords
+                    + " Closing to OptimizeGroupWriter");
             writer.close();
         }
     }

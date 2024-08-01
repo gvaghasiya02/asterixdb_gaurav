@@ -298,6 +298,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
     public void close() throws HyracksDataException {
         try {
             writeHashmap();
+            computer.reset();
             appender.write(writer, true);
         } catch (Exception e) {
             writer.fail();

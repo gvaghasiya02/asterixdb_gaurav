@@ -157,6 +157,8 @@ public final class BytesToBytesMap extends MemoryConsumer {
 
     private MapIterator destructiveIterator = null;
 
+    private long TotalSizeofHashEntries;
+
     public BytesToBytesMap(MemoryAllocator allocator, long budget, int initialCapacity,
             IEntryComparator keyComparator) {
         super(allocator, budget);
@@ -174,6 +176,7 @@ public final class BytesToBytesMap extends MemoryConsumer {
         this.initialCapacity = initialCapacity;
         allocate(initialCapacity);
         this.sortComparator = new UnsafeSortComparator(keyComparator, this);
+        this.TotalSizeofHashEntries = 0;
     }
 
     /**
@@ -736,6 +739,7 @@ public final class BytesToBytesMap extends MemoryConsumer {
             // (total length) (key length) (key) (value) (8 byte pointer to next value)
             int uaoSize = UnsafeAlignedOffset.getUaoSize();
             final long recordLength = (2L * uaoSize) + klen + vlen + 8;
+            TotalSizeofHashEntries += recordLength;
             if (currentPage == null || currentPage.size() - pageCursor < recordLength) {
                 if (!acquireNewPage(recordLength + uaoSize)) {
                     return false;
@@ -918,6 +922,7 @@ public final class BytesToBytesMap extends MemoryConsumer {
         canGrowArray = true;
         currentPage = null;
         pageCursor = 0;
+        TotalSizeofHashEntries = 0;
     }
 
     /**
@@ -963,5 +968,9 @@ public final class BytesToBytesMap extends MemoryConsumer {
 
     public boolean getCanGrowArray() {
         return canGrowArray;
+    }
+
+    public long getTotalSizeofHashEntries() {
+        return TotalSizeofHashEntries;
     }
 }

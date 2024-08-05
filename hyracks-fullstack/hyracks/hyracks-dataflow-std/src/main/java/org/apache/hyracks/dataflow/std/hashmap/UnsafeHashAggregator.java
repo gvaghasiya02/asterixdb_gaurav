@@ -83,12 +83,15 @@ public final class UnsafeHashAggregator extends AbstractUnsafeHashAggregator {
         return map.iterator();
     }
 
-    public boolean canGrowMore() {
-        return map.getCanGrowArray();
-    }
-
     public void reset() {
         map.reset();
     }
 
+    public long getSizeofHashEntries() {
+        return map.getTotalSizeofHashEntries();
+    }
+
+    public long getTotalMemoryConsumption() {
+        return map.getTotalMemoryConsumption();
+    }
 }

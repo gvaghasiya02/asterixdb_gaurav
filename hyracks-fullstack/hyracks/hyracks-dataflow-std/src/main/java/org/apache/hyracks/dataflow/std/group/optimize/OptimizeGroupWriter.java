@@ -48,6 +48,8 @@ import org.apache.hyracks.dataflow.std.hashmap.entry.DoubleEntry;
 import org.apache.hyracks.dataflow.std.hashmap.entry.LongEntry;
 import org.apache.hyracks.dataflow.std.hashmap.entry.StringEntry;
 import org.apache.hyracks.unsafe.BytesToBytesMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.spark.unsafe.Platform;
 
 public class OptimizeGroupWriter implements IFrameWriter {
@@ -64,12 +66,16 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private String aggregateType;
     private Types aggregateDataType; // datatype of field
     private final int dataFieldIndex;
+    private long totalrecords;
+    private long inRecordsHashMap;
+
+    private static final Logger LOGGER = LogManager.getLogger();
 
     public OptimizeGroupWriter(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDesc,
             RecordDescriptor outRecordDesc, IFrameWriter writer, boolean groupAll, int framesLimit,
             String aggregateType, int dataFieldIndex) throws HyracksDataException {
         this.groupFields = groupFields;
-        if (framesLimit >= 0 && framesLimit <= 2) {
+        if (framesLimit >= 0 && framesLimit <= 3) {
             throw HyracksDataException.create(ErrorCode.ILLEGAL_MEMORY_BUDGET, "GROUP BY",
                     Long.toString(((long) (framesLimit)) * ctx.getInitialFrameSize()),
                     Long.toString(2L * ctx.getInitialFrameSize()));
@@ -85,10 +91,13 @@ public class OptimizeGroupWriter implements IFrameWriter {
         tupleBuilder = new ArrayTupleBuilder(groupFields.length);
         this.groupAll = groupAll;
         this.dataFieldIndex = dataFieldIndex;
+        this.totalrecords = 0;
+        this.inRecordsHashMap = 0;
     }
 
     @Override
     public void open() throws HyracksDataException {
+        LOGGER.warn(Thread.currentThread().getId() + " Open to OptimizeGroup Writer " + this);
         writer.open();
         first = true;
     }
@@ -97,6 +106,9 @@ public class OptimizeGroupWriter implements IFrameWriter {
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         inFrameAccessor.reset(buffer);
         int nTuples = inFrameAccessor.getTupleCount();
+        totalrecords += nTuples;
+        inRecordsHashMap += nTuples;
+        //        LOGGER.warn(Thread.currentThread().getId() + " NextFrame no of tuples OptimizeGroup cluster writer " + nTuples);
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
                 boolean added;
@@ -112,12 +124,14 @@ public class OptimizeGroupWriter implements IFrameWriter {
                 Types typeTag = EnumDeserializeropt.ATYPETAGDESERIALIZER.deserialize(data[offset]);
 
                 if (first) {
+                    LOGGER.warn("Key size in hash map " + st.getLength());
 
                     if (aggregateType.equals("COUNT")) {
                         computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType), null,
                                 UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                         LongEntry value = new LongEntry();
                         value.reset(1);
+                        LOGGER.warn("Value size in hash map " + value.getLength());
                         added = computer.aggregate(st, value);
                         this.aggregateDataType = Types.BIGINT;
                         if (!added) {
@@ -134,6 +148,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType),
                                     null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
+                            LOGGER.warn("Value size in hash map " + value.getLength());
                             added = computer.aggregate(st, value);
                             if (!added) {
                                 throw new HyracksDataException(
@@ -143,6 +158,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             computer = new UnsafeHashAggregator(UnsafeAggregators.getDoubleAggregator(aggregateType),
                                     null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
+                            LOGGER.warn("Value size in hash map " + value.getLength());
                             added = computer.aggregate(st, value);
                             if (!added) {
                                 throw new HyracksDataException(
@@ -225,6 +241,11 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private void writeHashmap() {
         try {
             if (!isFailed && (!first || groupAll)) {
+                LOGGER.warn(Thread.currentThread().getId() + " Writing hashmap " + "\nIN no of records "
+                        + inRecordsHashMap + "\nOUT no of records " + computer.size() + "\nHashmap Total records size "
+                        + computer.getSizeofHashEntries() + "\nTotal Memory Used by Map "
+                        + computer.getTotalMemoryConsumption());
+                inRecordsHashMap = 0;
                 ArrayTupleBuilder tb = new ArrayTupleBuilder(groupFields.length + 1);
                 DataOutput dos = tb.getDataOutput();
                 Iterator<BytesToBytesMap.Location> iter = computer.aIterator();
@@ -295,6 +316,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
             writer.fail();
             throw e;
         } finally {
+            LOGGER.warn(Thread.currentThread().getId() + " Processed records " + totalrecords
+                    + " Closing to OptimizeGroupWriter");
             writer.close();
         }
     }

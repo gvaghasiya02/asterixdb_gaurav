@@ -244,7 +244,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                 LOGGER.warn(Thread.currentThread().getId() + " Writing hashmap " + "\nIN no of records "
                         + inRecordsHashMap + "\nOUT no of records " + computer.size() + "\nHashmap Total records size "
                         + computer.getSizeofHashEntries() + "\nTotal Memory Used by Map "
-                        + computer.getTotalMemoryConsumption());
+                        + computer.getTotalMemoryConsumption() + " out of " + this.memoryLimit);
                 inRecordsHashMap = 0;
                 ArrayTupleBuilder tb = new ArrayTupleBuilder(groupFields.length + 1);
                 DataOutput dos = tb.getDataOutput();

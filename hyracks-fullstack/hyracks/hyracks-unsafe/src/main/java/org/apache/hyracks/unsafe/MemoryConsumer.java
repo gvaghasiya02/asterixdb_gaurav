@@ -28,7 +28,7 @@ import org.apache.spark.unsafe.memory.MemoryBlock;
  * <a href="https://github.com/apache/spark/blob/6b5a1f9df28262fa90d28dc15af67e8a37a9efcf/core/src/main/java/org/apache/spark/unsafe/map/BytesToBytesMap.java"></a>
  */
 abstract class MemoryConsumer {
-    static final long PAGE_SIZE = 1 << 20;
+    static final long PAGE_SIZE = 1 << 15;
     /** The number of bits used to address the page table. */
     private static final int PAGE_NUMBER_BITS = 13;
     /** The number of bits used to encode offsets in data pages. */

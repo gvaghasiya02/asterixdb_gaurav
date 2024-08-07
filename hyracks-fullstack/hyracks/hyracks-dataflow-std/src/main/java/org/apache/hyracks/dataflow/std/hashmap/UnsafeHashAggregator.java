@@ -73,6 +73,10 @@ public final class UnsafeHashAggregator extends AbstractUnsafeHashAggregator {
         return map.numKeys();
     }
 
+    public int numValues() {
+        return map.numValues();
+    }
+
     @VisibleForTesting
     public Iterator<Location> sortedIterator() {
         map.sort();
@@ -93,5 +97,9 @@ public final class UnsafeHashAggregator extends AbstractUnsafeHashAggregator {
 
     public long getTotalMemoryConsumption() {
         return map.getTotalMemoryConsumption();
+    }
+
+    public int getNumDataPages() {
+        return map.getNumDataPages();
     }
 }

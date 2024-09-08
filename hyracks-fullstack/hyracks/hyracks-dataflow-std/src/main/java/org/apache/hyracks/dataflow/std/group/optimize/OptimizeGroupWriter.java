@@ -68,6 +68,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private final int dataFieldIndex;
     private long totalrecords;
     private long inRecordsHashMap;
+    private long noofframes;
 
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -93,6 +94,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
         this.dataFieldIndex = dataFieldIndex;
         this.totalrecords = 0;
         this.inRecordsHashMap = 0;
+        this.noofframes = 0;
     }
 
     @Override
@@ -108,6 +110,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
         int nTuples = inFrameAccessor.getTupleCount();
         totalrecords += nTuples;
         inRecordsHashMap += nTuples;
+        noofframes++;
         //        LOGGER.warn(Thread.currentThread().getId() + " NextFrame no of tuples OptimizeGroup cluster writer " + nTuples);
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
@@ -317,8 +320,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
             writer.fail();
             throw e;
         } finally {
-            LOGGER.warn(Thread.currentThread().getId() + " Processed records " + totalrecords
-                    + " Closing to OptimizeGroupWriter");
+            LOGGER.warn(Thread.currentThread().getId() + " Processed records " + totalrecords + " Processed frames"
+                    + noofframes + " Closing to OptimizeGroupWriter");
             writer.close();
         }
     }

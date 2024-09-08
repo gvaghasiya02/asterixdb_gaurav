@@ -69,6 +69,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private long totalrecords;
     private long inRecordsHashMap;
     private long noofframes;
+    private long aggregatedRecords;
 
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -95,6 +96,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
         this.totalrecords = 0;
         this.inRecordsHashMap = 0;
         this.noofframes = 0;
+        this.aggregatedRecords=0;
     }
 
     @Override
@@ -250,6 +252,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         + "\nno of Data Pages " + computer.getNumDataPages() + "\nTotal Memory Used by Map "
                         + computer.getTotalMemoryConsumption() + " out of " + this.memoryLimit);
                 inRecordsHashMap = 0;
+                aggregatedRecords+=computer.size();
                 ArrayTupleBuilder tb = new ArrayTupleBuilder(groupFields.length + 1);
                 DataOutput dos = tb.getDataOutput();
                 Iterator<BytesToBytesMap.Location> iter = computer.aIterator();
@@ -321,7 +324,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
             throw e;
         } finally {
             LOGGER.warn(Thread.currentThread().getId() + " Processed records " + totalrecords + " Processed frames"
-                    + noofframes + " Closing to OptimizeGroupWriter");
+                    + noofframes + " aggregated Records "
+                    + aggregatedRecords +" Closing to OptimizeGroupWriter");
             writer.close();
         }
     }

@@ -115,8 +115,8 @@ public class PreclusteredGroupWriter implements IFrameWriter {
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         inFrameAccessor.reset(buffer);
         int nTuples = inFrameAccessor.getTupleCount();
-        LOGGER.warn(
-                Thread.currentThread().getId() + " NextFrame no of tuples " + nTuples + " Pre cluster writer " + this);
+        //        LOGGER.warn(
+        //                Thread.currentThread().getId() + " NextFrame no of tuples " + nTuples + " Pre cluster writer " + this);
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
                 if (first) {

@@ -192,7 +192,7 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
                     long endTime = endTimestamp.getEpochSecond() * 1_000_000_000 + endTimestamp.getNano();
 
                     if (LOGGER.isDebugEnabled()) {
-                        LOGGER.debug("Garbage Collection on Hash table is done. Deallocated frames:"
+                        LOGGER.warn("Garbage Collection on Hash table is done. Deallocated frames:"
                                 + numberOfFramesReclaimed + " in time " + (endTime-stTime));
                     }
                     return numberOfFramesReclaimed != -1;

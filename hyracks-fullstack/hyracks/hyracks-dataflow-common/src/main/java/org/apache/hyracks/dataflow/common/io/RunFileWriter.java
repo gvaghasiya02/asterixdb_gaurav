@@ -73,7 +73,7 @@ public class RunFileWriter implements IFrameWriter {
 
     @Override
     public void close() throws HyracksDataException {
-        LOGGER.warn(Thread.currentThread().getId() + "Written {} bytes to {}", size, file);
+        LOGGER.warn(Thread.currentThread().getId() + " Written {} bytes to {}", size, file);
         if (!failed && handle != null) {
             ioManager.close(handle);
         }

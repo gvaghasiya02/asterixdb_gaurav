@@ -52,9 +52,10 @@ public class FrameSorterMergeSort extends AbstractFrameSorter {
         if (tPointersTemp == null || tPointersTemp.length < tPointers.length) {
             tPointersTemp = new int[tPointers.length];
         }
-        this.totalcomparision=0;
+        this.totalcomparision = 0;
         sort(0, tupleCount);
-        LOGGER.warn(Thread.currentThread().getId() + " Sorting Tuple References " + tupleCount + " Total Comparisions " + totalcomparision);
+        LOGGER.warn(Thread.currentThread().getId() + " Sorting Tuple References " + tupleCount + " Total Comparisions "
+                + totalcomparision);
     }
 
     @Override

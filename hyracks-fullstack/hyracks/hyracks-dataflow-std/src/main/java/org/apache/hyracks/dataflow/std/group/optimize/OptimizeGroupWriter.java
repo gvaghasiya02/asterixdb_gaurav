@@ -96,7 +96,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
         this.totalrecords = 0;
         this.inRecordsHashMap = 0;
         this.noofframes = 0;
-        this.aggregatedRecords=0;
+        this.aggregatedRecords = 0;
     }
 
     @Override
@@ -129,14 +129,14 @@ public class OptimizeGroupWriter implements IFrameWriter {
                 Types typeTag = EnumDeserializeropt.ATYPETAGDESERIALIZER.deserialize(data[offset]);
 
                 if (first) {
-                    LOGGER.warn("Key size in hash map " + st.getLength());
+                    LOGGER.warn(Thread.currentThread().getId() + " keySizeInHashMap " + st.getLength());
 
                     if (aggregateType.equals("COUNT")) {
                         computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType), null,
                                 UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                         LongEntry value = new LongEntry();
                         value.reset(1);
-                        LOGGER.warn("Value size in hash map " + value.getLength());
+                        LOGGER.warn(Thread.currentThread().getId() + " valueSizeInHashMap " + value.getLength());
                         added = computer.aggregate(st, value);
                         this.aggregateDataType = Types.BIGINT;
                         if (!added) {
@@ -153,7 +153,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType),
                                     null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
-                            LOGGER.warn("Value size in hash map " + value.getLength());
+                            LOGGER.warn(Thread.currentThread().getId() + " valueSizeInHashMap " + value.getLength());
                             added = computer.aggregate(st, value);
                             if (!added) {
                                 throw new HyracksDataException(
@@ -163,7 +163,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             computer = new UnsafeHashAggregator(UnsafeAggregators.getDoubleAggregator(aggregateType),
                                     null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                             DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
-                            LOGGER.warn("Value size in hash map " + value.getLength());
+                            LOGGER.warn(Thread.currentThread().getId() + " valueSizeInHashMap " + value.getLength());
                             added = computer.aggregate(st, value);
                             if (!added) {
                                 throw new HyracksDataException(
@@ -246,13 +246,13 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private void writeHashmap() {
         try {
             if (!isFailed && (!first || groupAll)) {
-                LOGGER.warn(Thread.currentThread().getId() + " Writing hashmap " + "\nIN no of records "
-                        + inRecordsHashMap + "\nOUT no of records " + computer.size() + "\nno of values records "
-                        + computer.numValues() + "\nHashmap Total records size " + computer.getSizeofHashEntries()
-                        + "\nno of Data Pages " + computer.getNumDataPages() + "\nTotal Memory Used by Map "
-                        + computer.getTotalMemoryConsumption() + " out of " + this.memoryLimit);
+                LOGGER.warn(Thread.currentThread().getId() + " Writing hashmap inRecords " + inRecordsHashMap
+                        + " outRecords " + computer.size() + " noOfValues " + computer.numValues() + " sizeOfData "
+                        + computer.getSizeofHashEntries() + " noOfDataPages " + computer.getNumDataPages()
+                        + " totalMemoryUsedByMap " + computer.getTotalMemoryConsumption() + " from "
+                        + this.memoryLimit);
                 inRecordsHashMap = 0;
-                aggregatedRecords+=computer.size();
+                aggregatedRecords += computer.size();
                 ArrayTupleBuilder tb = new ArrayTupleBuilder(groupFields.length + 1);
                 DataOutput dos = tb.getDataOutput();
                 Iterator<BytesToBytesMap.Location> iter = computer.aIterator();
@@ -323,9 +323,8 @@ public class OptimizeGroupWriter implements IFrameWriter {
             writer.fail();
             throw e;
         } finally {
-            LOGGER.warn(Thread.currentThread().getId() + " Processed records " + totalrecords + " Processed frames"
-                    + noofframes + " aggregated Records "
-                    + aggregatedRecords +" Closing to OptimizeGroupWriter");
+            LOGGER.warn(Thread.currentThread().getId() + " processedRecords " + totalrecords + " processedFrames "
+                    + noofframes + " aggregatedRecords " + aggregatedRecords + " Closing to OptimizeGroupWriter");
             writer.close();
         }
     }

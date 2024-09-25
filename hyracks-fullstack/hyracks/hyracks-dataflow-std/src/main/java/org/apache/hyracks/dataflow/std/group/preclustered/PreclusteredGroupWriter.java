@@ -60,7 +60,8 @@ public class PreclusteredGroupWriter implements IFrameWriter {
     private boolean isFailed = false;
     private final long memoryLimit;
 
-    private static long aggregatedRecords;
+    private long noOfRecords;
+    private long aggregatedRecords;
 
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -100,7 +101,8 @@ public class PreclusteredGroupWriter implements IFrameWriter {
         tupleBuilder = new ArrayTupleBuilder(outRecordDesc.getFields().length);
         this.outputPartial = outputPartial;
         this.groupAll = groupAll;
-        aggregatedRecords = 0;
+        this.aggregatedRecords = 0;
+        this.noOfRecords = 0;
     }
 
     @Override
@@ -115,6 +117,7 @@ public class PreclusteredGroupWriter implements IFrameWriter {
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         inFrameAccessor.reset(buffer);
         int nTuples = inFrameAccessor.getTupleCount();
+        this.noOfRecords += nTuples;
         //        LOGGER.warn(
         //                Thread.currentThread().getId() + " NextFrame no of tuples " + nTuples + " Pre cluster writer " + this);
         if (nTuples != 0) {
@@ -200,8 +203,8 @@ public class PreclusteredGroupWriter implements IFrameWriter {
             if (!isFailed && (!first || groupAll)) {
                 writeOutput(groupFieldsPrevCopy);
                 LOGGER.warn(Thread.currentThread().getId() + " Close to pre cluster writer named " + this
-                        + " with no of aggregated records written " + aggregatedRecords + " to writer "
-                        + appenderWrapper.toString());
+                        + " inRecords " + this.noOfRecords + " with no of aggregatedRecords " + aggregatedRecords
+                        + " to writer " + appenderWrapper.toString());
                 appenderWrapper.write();
             }
             aggregator.close();

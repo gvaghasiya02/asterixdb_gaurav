@@ -19,7 +19,6 @@
 
 package org.apache.hyracks.dataflow.std.group;
 
-import java.time.Instant;
 import java.util.BitSet;
 
 import org.apache.hyracks.api.comm.IFrameTupleAccessor;
@@ -133,8 +132,8 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
         final int numPartitions = getNumOfPartitions(inputDataBytesSize / ctx.getInitialFrameSize(), memoryBudget);
         final int entriesPerPartition = (int) Math.ceil(1.0 * tableSize / numPartitions);
         if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("created hashtable, table size:" + tableSize + " file size:" + inputDataBytesSize
-                    + "  #partitions:" + numPartitions);
+            LOGGER.debug(Thread.currentThread().getId() + " created hashtable, table size:" + tableSize + " file size:"
+                    + inputDataBytesSize + "  #partitions:" + numPartitions);
         }
 
         final ArrayTupleBuilder outputTupleBuilder = new ArrayTupleBuilder(outRecordDescriptor.getFields().length);
@@ -184,16 +183,15 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
 
             private boolean collectGarbageInHashTableForTuplePointer(boolean force) throws HyracksDataException {
                 if (force || hashTableForTuplePointer.isGarbageCollectionNeeded()) {
-                    Instant stTimestamp = Instant.now();
-                    long stTime = stTimestamp.getEpochSecond() * 1_000_000_000 + stTimestamp.getNano();
+                    long stTime = System.currentTimeMillis();
                     int numberOfFramesReclaimed =
                             hashTableForTuplePointer.collectGarbage(bufferAccessor, tpcIntermediate);
-                    Instant endTimestamp = Instant.now();
-                    long endTime = endTimestamp.getEpochSecond() * 1_000_000_000 + endTimestamp.getNano();
+                    long endTime = System.currentTimeMillis();
 
                     if (LOGGER.isDebugEnabled()) {
-                        LOGGER.warn("Garbage Collection on Hash table is done. Deallocated frames:"
-                                + numberOfFramesReclaimed + " in time " + (endTime-stTime));
+                        LOGGER.warn(Thread.currentThread().getId()
+                                + " Garbage Collection on Hash table is done. Deallocated frames:"
+                                + numberOfFramesReclaimed + " in time " + (endTime - stTime));
                     }
                     return numberOfFramesReclaimed != -1;
                 }

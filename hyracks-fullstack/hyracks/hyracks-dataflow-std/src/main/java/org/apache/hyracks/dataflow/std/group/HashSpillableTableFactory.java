@@ -246,7 +246,7 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
                 boolean inserted = hashTableForTuplePointer.insert(entryInHashTable, pointer);
                 if (!inserted) {
                     // Force garbage collection on the hash table and attempt to insert again
-                    if (collectGarbageInHashTableForTuplePointer(true)) {
+                    if (collectGarbageInHashTableForTuplePointer(false)) {
                         inserted = hashTableForTuplePointer.insert(entryInHashTable, pointer);
                     }
                     if (!inserted) {

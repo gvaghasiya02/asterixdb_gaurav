@@ -114,6 +114,8 @@ import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.api.job.JobSpecification;
 import org.apache.hyracks.api.job.resource.IClusterCapacity;
 import org.apache.hyracks.control.common.config.OptionTypes;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -136,6 +138,7 @@ public class APIFramework {
     private final Set<String> configurableParameterNames;
     private final ExecutionPlans executionPlans;
     private PlanInfo lastPlan;
+    private static final Logger LOGGER = LogManager.getLogger();
 
     public APIFramework(ILangCompilationProvider compilationProvider) {
         this.rewriterFactory = compilationProvider.getRewriterFactory();
@@ -262,6 +265,7 @@ public class APIFramework {
 
         int parallelism = getParallelism((String) querySpecificConfig.get(CompilerProperties.COMPILER_PARALLELISM_KEY),
                 compilerProperties.getParallelism());
+        LOGGER.warn(Thread.currentThread().getId() + " parallelism " + parallelism);
         AlgebricksAbsolutePartitionConstraint computationLocations =
                 chooseLocations(clusterInfoCollector, parallelism, metadataProvider.getClusterLocations());
         builder.setClusterLocations(computationLocations);

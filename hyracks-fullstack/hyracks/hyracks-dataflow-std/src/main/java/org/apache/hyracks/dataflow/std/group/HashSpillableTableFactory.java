@@ -182,19 +182,19 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
             }
 
             private boolean collectGarbageInHashTableForTuplePointer(boolean force) throws HyracksDataException {
-//                if (force || hashTableForTuplePointer.isGarbageCollectionNeeded()) {
-//                    long stTime = System.currentTimeMillis();
-//                    int numberOfFramesReclaimed =
-//                            hashTableForTuplePointer.collectGarbage(bufferAccessor, tpcIntermediate);
-//                    long endTime = System.currentTimeMillis();
-//
-//                    if (LOGGER.isDebugEnabled()) {
-//                        LOGGER.warn(Thread.currentThread().getId()
-//                                + " Garbage Collection on Hash table is done. Deallocated frames:"
-//                                + numberOfFramesReclaimed + " in time " + (endTime - stTime));
-//                    }
-//                    return numberOfFramesReclaimed != -1;
-//                }
+                if (force || hashTableForTuplePointer.isGarbageCollectionNeeded()) {
+                    long stTime = System.currentTimeMillis();
+                    int numberOfFramesReclaimed =
+                            hashTableForTuplePointer.collectGarbage(bufferAccessor, tpcIntermediate);
+                    long endTime = System.currentTimeMillis();
+
+                    if (LOGGER.isDebugEnabled()) {
+                        LOGGER.warn(Thread.currentThread().getId()
+                                + " Garbage Collection on Hash table is done. Deallocated frames:"
+                                + numberOfFramesReclaimed + " in time " + (endTime - stTime));
+                    }
+                    return numberOfFramesReclaimed != -1;
+                }
                 return false;
             }
 

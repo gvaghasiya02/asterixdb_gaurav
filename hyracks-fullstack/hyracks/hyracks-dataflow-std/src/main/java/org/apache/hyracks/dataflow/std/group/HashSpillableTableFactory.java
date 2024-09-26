@@ -75,8 +75,6 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
         // For HashTable, we need to have at least two frames (one for header and one for content).
         // For DataTable, we need to have at least one frame.
         // For the output, we need to have at least one frame.
-
-        LOGGER.warn(Thread.currentThread().getId() + " Memory limit for table " + framesLimit);
         if (framesLimit < MIN_FRAME_LIMT) {
             throw new HyracksDataException("The given frame limit is too small to partition the data.");
         }

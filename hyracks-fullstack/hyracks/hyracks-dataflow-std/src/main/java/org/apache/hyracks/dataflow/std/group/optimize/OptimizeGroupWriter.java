@@ -97,6 +97,9 @@ public class OptimizeGroupWriter implements IFrameWriter {
         this.inRecordsHashMap = 0;
         this.noofframes = 0;
         this.aggregatedRecords = 0;
+
+        LOGGER.warn(Thread.currentThread().getId() + " Memory limit for table " + framesLimit);
+
     }
 
     @Override

@@ -89,6 +89,7 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
         this.outRecordDescriptor = outRecordDescriptor;
         this.tableSize = tableSize;
         this.fileSize = fileSize;
+        LOGGER.warn(Thread.currentThread().getId() + " Memory limit for table " + framesLimit);
     }
 
     @Override

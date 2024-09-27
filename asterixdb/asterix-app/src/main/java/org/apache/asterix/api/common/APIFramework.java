@@ -265,7 +265,6 @@ public class APIFramework {
 
         int parallelism = getParallelism((String) querySpecificConfig.get(CompilerProperties.COMPILER_PARALLELISM_KEY),
                 compilerProperties.getParallelism());
-        LOGGER.warn("parallelism hint given " + parallelism);
         AlgebricksAbsolutePartitionConstraint computationLocations =
                 chooseLocations(clusterInfoCollector, parallelism, metadataProvider.getClusterLocations());
         builder.setClusterLocations(computationLocations);
@@ -467,14 +466,14 @@ public class APIFramework {
             // Gets total number of cores in the cluster.
             int totalNumCores = getTotalNumCores(ncMap);
 
-            LOGGER.warn("ncMapSize " +  ncMap.size() + " Total no of cores" + totalNumCores);
-
             // If storage parallelism is not larger than the total number of cores, we use the storage parallelism.
             // Otherwise, we will use all available cores.
             if (parallelismHint == CompilerProperties.COMPILER_PARALLELISM_AS_STORAGE
                     && storageLocations.getLocations().length <= totalNumCores) {
+                LOGGER.warn("ncMapSize " +  ncMap.size() + " parallelism " + parallelismHint + " Total no of cores" + totalNumCores + " locationSize " + storageLocations.getLocations().length);
                 return storageLocations;
             }
+            LOGGER.warn("ncMapSize " +  ncMap.size() + " Total no of cores" + totalNumCores + " locationSize " + getComputationLocations(ncMap, parallelismHint).getLocations().length);
             return getComputationLocations(ncMap, parallelismHint);
         } catch (HyracksException e) {
             throw new AlgebricksException(e);

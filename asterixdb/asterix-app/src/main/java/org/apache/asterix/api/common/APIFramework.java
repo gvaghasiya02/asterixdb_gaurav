@@ -474,7 +474,7 @@ public class APIFramework {
                         + totalNumCores + " locationSize " + storageLocations.getLocations().length);
                 return storageLocations;
             }
-            LOGGER.warn("ncMapSize " + ncMap.size() + " Total no of cores " + totalNumCores + " locationSize "
+            LOGGER.warn("ncMapSize " + ncMap.size() + " parallelism " + parallelismHint + " Total no of cores " + totalNumCores + " locationSize "
                     + getComputationLocations(ncMap, parallelismHint).getLocations().length);
             return getComputationLocations(ncMap, parallelismHint);
         } catch (HyracksException e) {

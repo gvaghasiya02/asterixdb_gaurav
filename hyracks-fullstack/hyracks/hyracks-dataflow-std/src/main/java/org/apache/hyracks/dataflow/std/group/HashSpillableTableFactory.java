@@ -131,10 +131,8 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
 
         final int numPartitions = getNumOfPartitions(inputDataBytesSize / ctx.getInitialFrameSize(), memoryBudget);
         final int entriesPerPartition = (int) Math.ceil(1.0 * tableSize / numPartitions);
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug(Thread.currentThread().getId() + " created hashtable, table size:" + tableSize + " file size:"
-                    + inputDataBytesSize + "  #partitions:" + numPartitions);
-        }
+        LOGGER.warn(Thread.currentThread().getId() + " created hashtable, table size:" + tableSize + " file size:"
+                + inputDataBytesSize + "  #partitions:" + numPartitions);
 
         final ArrayTupleBuilder outputTupleBuilder = new ArrayTupleBuilder(outRecordDescriptor.getFields().length);
 
@@ -188,11 +186,9 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
                             hashTableForTuplePointer.collectGarbage(bufferAccessor, tpcIntermediate);
                     long endTime = System.currentTimeMillis();
 
-                    if (LOGGER.isDebugEnabled()) {
-                        LOGGER.warn(Thread.currentThread().getId()
-                                + " Garbage Collection on Hash table is done. Deallocated frames:"
-                                + numberOfFramesReclaimed + " in time " + (endTime - stTime));
-                    }
+                    LOGGER.warn(Thread.currentThread().getId()
+                            + " Garbage Collection on Hash table is done. Deallocated frames:" + numberOfFramesReclaimed
+                            + " in time " + (endTime - stTime));
                     return numberOfFramesReclaimed != -1;
                 }
                 return false;

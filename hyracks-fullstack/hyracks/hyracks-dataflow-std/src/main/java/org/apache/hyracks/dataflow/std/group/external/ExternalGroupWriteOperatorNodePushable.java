@@ -154,14 +154,12 @@ public class ExternalGroupWriteOperatorNodePushable extends AbstractUnaryOutputS
                     }
                 }
 
-                if (LOGGER.isDebugEnabled()) {
-                    int numOfSpilledPart = 0;
-                    for (int x = 0; x < numOfTuples.length; x++) {
-                        if (numOfTuples[x] > 0) {
-                            numOfSpilledPart++;
-                        }
+                int numOfSpilledPart = 0;
+                for (int x = 0; x < numOfTuples.length; x++) {
+                    if (numOfTuples[x] > 0) {
+                        numOfSpilledPart++;
                     }
-                    LOGGER.debug("level " + level + ":" + "build with " + numOfTuples.length + " partitions"
+                    LOGGER.warn("level " + level + ":" + "build with " + numOfTuples.length + " partitions"
                             + ", spilled " + numOfSpilledPart + " partitions");
                 }
                 doPass(partitionTable, runFileWriters, sizeInTuplesNextLevel, writer, level + 1);

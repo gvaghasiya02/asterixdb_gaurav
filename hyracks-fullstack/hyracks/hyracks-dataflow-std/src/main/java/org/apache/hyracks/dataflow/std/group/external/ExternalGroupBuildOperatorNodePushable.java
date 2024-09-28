@@ -127,15 +127,13 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
         } else {
             externalGroupBy.flushSpilledPartitions();
             ctx.setStateObject(state);
-            if (LOGGER.isDebugEnabled()) {
-                int numOfPartition = state.getSpillableTable().getNumPartitions();
-                int numOfSpilledPart = 0;
-                for (int i = 0; i < numOfPartition; i++) {
-                    if (state.getSpilledNumTuples()[i] > 0) {
-                        numOfSpilledPart++;
-                    }
+            int numOfPartition = state.getSpillableTable().getNumPartitions();
+            int numOfSpilledPart = 0;
+            for (int i = 0; i < numOfPartition; i++) {
+                if (state.getSpilledNumTuples()[i] > 0) {
+                    numOfSpilledPart++;
                 }
-                LOGGER.debug("level 0:" + "build with " + numOfPartition + " partitions" + ", spilled "
+                LOGGER.warn("level 0:" + "build with " + numOfPartition + " partitions" + ", spilled "
                         + numOfSpilledPart + " partitions");
             }
         }

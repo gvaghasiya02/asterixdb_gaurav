@@ -19,6 +19,7 @@
 
 package org.apache.hyracks.dataflow.std.group;
 
+import java.time.Instant;
 import java.util.BitSet;
 
 import org.apache.hyracks.api.comm.IFrameTupleAccessor;
@@ -181,10 +182,12 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
 
             private boolean collectGarbageInHashTableForTuplePointer(boolean force) throws HyracksDataException {
                 if (force || hashTableForTuplePointer.isGarbageCollectionNeeded()) {
-                    long stTime = System.currentTimeMillis();
+                    Instant currentTimestamp = Instant.now();
+                    long stTime = currentTimestamp.getEpochSecond() * 1_000_000_000 + currentTimestamp.getNano();
                     int numberOfFramesReclaimed =
                             hashTableForTuplePointer.collectGarbage(bufferAccessor, tpcIntermediate);
-                    long endTime = System.currentTimeMillis();
+                    currentTimestamp = Instant.now();
+                    long endTime = currentTimestamp.getEpochSecond() * 1_000_000_000 + currentTimestamp.getNano();
 
                     LOGGER.warn(Thread.currentThread().getId()
                             + " Garbage Collection on Hash table is done. Deallocated frames:" + numberOfFramesReclaimed

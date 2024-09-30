@@ -89,7 +89,6 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
         this.outRecordDescriptor = outRecordDescriptor;
         this.tableSize = tableSize;
         this.fileSize = fileSize;
-        LOGGER.warn(Thread.currentThread().getId() + " Memory limit for table " + framesLimit);
     }
 
     @Override
@@ -98,6 +97,8 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
         ISpillableTable table = spillableTableFactory.buildSpillableTable(ctx, tableSize, fileSize, gbyFields, fdFields,
                 comparators, firstNormalizerComputer, aggregatorFactory, inRecordDescriptor, outRecordDescriptor,
                 framesLimit, INIT_SEED);
+
+        LOGGER.warn(Thread.currentThread().getId() + " Build table " + table+ " hashtableSize(Cardinality) " + tableSize+ " fileSize " + fileSize+ " MemoryBudgetInFrames "+ framesLimit);
         RunFileWriter[] runFileWriters = new RunFileWriter[table.getNumPartitions()];
         this.externalGroupBy = new ExternalHashGroupBy(this, table, runFileWriters, inRecordDescriptor);
 

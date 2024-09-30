@@ -141,6 +141,8 @@ public class ExternalGroupWriteOperatorNodePushable extends AbstractUnaryOutputS
                 ISpillableTable partitionTable = spillableTableFactory.buildSpillableTable(ctx, hashTableCardinality,
                         runs[i].getFileSize(), gbyFields, fdFields, groupByComparators, nmkComputer,
                         mergeAggregatorFactory, partialAggRecordDesc, outRecordDesc, frameLimit, level);
+
+                LOGGER.warn(Thread.currentThread().getId() + " spill Build table " + table+ " hashtableSize(Cardinality) " + hashTableCardinality+ " fileSize " + runs[i].getFileSize()+ " MemoryBudgetInFrames "+ frameLimit);
                 RunFileWriter[] runFileWriters = new RunFileWriter[partitionTable.getNumPartitions()];
                 int[] sizeInTuplesNextLevel;
                 try {

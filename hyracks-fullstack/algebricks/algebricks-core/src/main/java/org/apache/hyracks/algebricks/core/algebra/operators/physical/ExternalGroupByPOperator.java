@@ -222,13 +222,15 @@ public class ExternalGroupByPOperator extends AbstractGroupByPOperator {
         int hashTableSize = ExternalGroupOperatorDescriptor.calculateGroupByTableCardinality(memoryBudgetInBytes,
                 allColumns, frameSize);
 
-        //        int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-        int inputDataSizeInFrames = 6006;
+        int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
+        long inputTotalDataSizeInFrames = 48045;
+        long noOfPartitions = 4;
+        //        long noOfPartitions = ((org.apache.asterix.common.cluster.ClusterStateManager)context.getAppContext().getClusterStateManager()).getStoragePartitionsCount();
+        long inputDataSizeInFrames = (long) Math.ceil((double) inputTotalDataSizeInFrames / noOfPartitions);
         long inputSize = inputDataSizeInFrames * (long) frameSize;
         ExternalGroupOperatorDescriptor gbyOpDesc = new ExternalGroupOperatorDescriptor(spec, hashTableSize, inputSize,
-                gbyColumns, fdColumns, inputDataSizeInFrames, comparatorFactories, normalizedKeyFactory,
-                aggregatorFactory, mergeFactory, recordDescriptor, recordDescriptor,
-                new HashSpillableTableFactory(hashFunctionFactories));
+                gbyColumns, fdColumns, framesLimit, comparatorFactories, normalizedKeyFactory, aggregatorFactory,
+                mergeFactory, recordDescriptor, recordDescriptor, new HashSpillableTableFactory(hashFunctionFactories));
         gbyOpDesc.setSourceLocation(gby.getSourceLocation());
         contributeOpDesc(builder, gby, gbyOpDesc);
         ILogicalOperator src = op.getInputs().get(0).getValue();

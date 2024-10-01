@@ -222,11 +222,13 @@ public class ExternalGroupByPOperator extends AbstractGroupByPOperator {
         int hashTableSize = ExternalGroupOperatorDescriptor.calculateGroupByTableCardinality(memoryBudgetInBytes,
                 allColumns, frameSize);
 
-        int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-        long inputSize = framesLimit * (long) frameSize;
+        //        int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
+        int inputDataSizeInFrames = 12012;
+        long inputSize = inputDataSizeInFrames * (long) frameSize;
         ExternalGroupOperatorDescriptor gbyOpDesc = new ExternalGroupOperatorDescriptor(spec, hashTableSize, inputSize,
-                gbyColumns, fdColumns, framesLimit, comparatorFactories, normalizedKeyFactory, aggregatorFactory,
-                mergeFactory, recordDescriptor, recordDescriptor, new HashSpillableTableFactory(hashFunctionFactories));
+                gbyColumns, fdColumns, inputDataSizeInFrames, comparatorFactories, normalizedKeyFactory,
+                aggregatorFactory, mergeFactory, recordDescriptor, recordDescriptor,
+                new HashSpillableTableFactory(hashFunctionFactories));
         gbyOpDesc.setSourceLocation(gby.getSourceLocation());
         contributeOpDesc(builder, gby, gbyOpDesc);
         ILogicalOperator src = op.getInputs().get(0).getValue();

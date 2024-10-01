@@ -98,7 +98,8 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
                 comparators, firstNormalizerComputer, aggregatorFactory, inRecordDescriptor, outRecordDescriptor,
                 framesLimit, INIT_SEED);
 
-        LOGGER.warn(Thread.currentThread().getId() + " Build table " + table+ " hashtableSize(Cardinality) " + tableSize+ " fileSize " + fileSize+ " MemoryBudgetInFrames "+ framesLimit);
+        LOGGER.warn(Thread.currentThread().getId() + " Build table " + table + " hashtableSize(Cardinality) "
+                + tableSize + " fileSize " + fileSize + " MemoryBudgetInFrames " + framesLimit);
         RunFileWriter[] runFileWriters = new RunFileWriter[table.getNumPartitions()];
         this.externalGroupBy = new ExternalHashGroupBy(this, table, runFileWriters, inRecordDescriptor);
 

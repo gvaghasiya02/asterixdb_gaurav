@@ -223,7 +223,7 @@ public class ExternalGroupByPOperator extends AbstractGroupByPOperator {
                 allColumns, frameSize);
 
         //        int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-        int inputDataSizeInFrames = 12012;
+        int inputDataSizeInFrames = 6006;
         long inputSize = inputDataSizeInFrames * (long) frameSize;
         ExternalGroupOperatorDescriptor gbyOpDesc = new ExternalGroupOperatorDescriptor(spec, hashTableSize, inputSize,
                 gbyColumns, fdColumns, inputDataSizeInFrames, comparatorFactories, normalizedKeyFactory,

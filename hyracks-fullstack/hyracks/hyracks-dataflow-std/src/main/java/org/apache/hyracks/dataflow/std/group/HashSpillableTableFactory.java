@@ -326,6 +326,11 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
                 int partition = getPartition(entryInHashTable);
                 return spillPolicy.selectVictimPartition(partition);
             }
+
+            public String getHashTableInfo() {
+                return (String) (hashTableForTuplePointer.printInfo() + "\n AllocatedFrames " + framePool.getAllocated()
+                        + " out of " + framePool.getMemoryBudgetBytes());
+            }
         };
     }
 

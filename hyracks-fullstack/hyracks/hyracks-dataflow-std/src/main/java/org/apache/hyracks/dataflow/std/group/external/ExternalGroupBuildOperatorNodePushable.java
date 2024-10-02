@@ -98,8 +98,7 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
                 comparators, firstNormalizerComputer, aggregatorFactory, inRecordDescriptor, outRecordDescriptor,
                 framesLimit, INIT_SEED);
 
-        LOGGER.warn(Thread.currentThread().getId() + " Build table " + table + " hashtableSize(Cardinality) "
-                + tableSize + " fileSize " + fileSize + " MemoryBudgetInFrames " + framesLimit);
+        LOGGER.warn(Thread.currentThread().getId() + " BuildHashtable " + table.getHashTableInfo());
         RunFileWriter[] runFileWriters = new RunFileWriter[table.getNumPartitions()];
         this.externalGroupBy = new ExternalHashGroupBy(this, table, runFileWriters, inRecordDescriptor);
 
@@ -129,14 +128,17 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
         } else {
             externalGroupBy.flushSpilledPartitions();
             ctx.setStateObject(state);
+            LOGGER.warn(Thread.currentThread().getId() + " CloseBuildHashtable "
+                    + externalGroupBy.getTable().getHashTableInfo());
             int numOfPartition = state.getSpillableTable().getNumPartitions();
             int numOfSpilledPart = 0;
             for (int i = 0; i < numOfPartition; i++) {
                 if (state.getSpilledNumTuples()[i] > 0) {
                     numOfSpilledPart++;
                 }
-                LOGGER.warn("level 0:" + "build with " + numOfPartition + " partitions" + ", spilled "
-                        + numOfSpilledPart + " partitions");
+                LOGGER.warn(Thread.currentThread().getId() + " level 0:" + "build with " + numOfPartition
+                        + " partitions" + ", spilled " + numOfSpilledPart + " partitions with noSpilledTuples "
+                        + state.getSpilledNumTuples()[i]);
             }
         }
         state = null;

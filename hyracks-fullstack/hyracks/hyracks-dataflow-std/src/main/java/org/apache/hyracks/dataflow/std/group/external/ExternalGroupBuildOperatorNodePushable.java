@@ -132,14 +132,18 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
                     + externalGroupBy.getTable().getHashTableInfo());
             int numOfPartition = state.getSpillableTable().getNumPartitions();
             int numOfSpilledPart = 0;
+            int noOfSpilledTuples = 0;
             for (int i = 0; i < numOfPartition; i++) {
                 if (state.getSpilledNumTuples()[i] > 0) {
                     numOfSpilledPart++;
+                    noOfSpilledTuples+=state.getSpilledNumTuples()[i];
                 }
                 LOGGER.warn(Thread.currentThread().getId() + " level 0:" + "build with " + numOfPartition
                         + " partitions" + ", spilled " + numOfSpilledPart + " partitions with noSpilledTuples "
                         + state.getSpilledNumTuples()[i]);
             }
+            LOGGER.warn(Thread.currentThread().getId() + " level " + 0 + ":" + " BuildHashtable " + numOfPartition + " partitions"
+                    + ", spilled " + numOfSpilledPart + " partitions with TotalNoSpilledTuples " + noOfSpilledTuples);
         }
         state = null;
         externalGroupBy = null;

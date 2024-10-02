@@ -328,8 +328,8 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
             }
 
             public String getHashTableInfo() {
-                return (String) (hashTableForTuplePointer.printInfo() + "\n AllocatedFrames " + framePool.getAllocated()
-                        + " out of " + framePool.getMemoryBudgetBytes());
+                return (String) (hashTableForTuplePointer.printInfo() + "\n AllocatedMemory " + framePool.getAllocated()
+                        + " outOf " + framePool.getMemoryBudgetBytes());
             }
         };
     }

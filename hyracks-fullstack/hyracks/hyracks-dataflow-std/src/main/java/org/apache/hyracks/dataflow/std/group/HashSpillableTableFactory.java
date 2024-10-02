@@ -331,29 +331,30 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
 
     /**
      * Calculates the number of partitions for Data table. The formula is from Shapiro's paper -
-     * http://cs.stanford.edu/people/chrismre/cs345/rl/shapiro.pdf. Check the page 249 for more details.
-     * If the required number of frames is greater than the number of available frames, we make sure that
-     * at least two partitions will be created. Also, if the number of partitions is greater than the memory budget,
-     * we may not allocate at least one frame for each partition in memory. So, we also deal with those cases
-     * at the final part of the method.
-     * The maximum number of partitions is limited to Integer.MAX_VALUE.
+     * http://cs.stanford.edu/people/chrismre/cs345/rl/shapiro.pdf. Check the page 249 for more details. If the required
+     * number of frames is greater than the number of available frames, we make sure that at least two partitions will
+     * be created. Also, if the number of partitions is greater than the memory budget, we may not allocate at least one
+     * frame for each partition in memory. So, we also deal with those cases at the final part of the method. The
+     * maximum number of partitions is limited to Integer.MAX_VALUE.
      */
     private int getNumOfPartitions(long nubmerOfInputFrames, long frameLimit) {
+
+        int minPart = Math.min(20, (int) frameLimit);
         if (frameLimit >= nubmerOfInputFrames * FUDGE_FACTOR) {
             // all in memory, we will create two big partitions. We set 2 (not 1) to avoid the corner case
             // where the only partition may be spilled to the disk. This may happen since this formula doesn't consider
             // the hash table size. If this is the case, we will have an indefinite loop - keep spilling the same
             // partition again and again.
-            return 2;
+            return minPart;
         }
         long numberOfPartitions =
                 (long) (Math.ceil((nubmerOfInputFrames * FUDGE_FACTOR - frameLimit) / (frameLimit - 1)));
-        numberOfPartitions = Math.max(2, numberOfPartitions);
+        numberOfPartitions = Math.max(minPart, numberOfPartitions);
         if (numberOfPartitions > frameLimit) {
             numberOfPartitions = (long) Math.ceil(Math.sqrt(nubmerOfInputFrames * FUDGE_FACTOR));
-            return (int) Math.min(Math.max(2, Math.min(numberOfPartitions, frameLimit)), Integer.MAX_VALUE);
+
+            return (int) Math.min(Math.max(minPart, Math.min(numberOfPartitions, frameLimit)), Integer.MAX_VALUE);
         }
         return (int) Math.min(numberOfPartitions, Integer.MAX_VALUE);
     }
-
 }

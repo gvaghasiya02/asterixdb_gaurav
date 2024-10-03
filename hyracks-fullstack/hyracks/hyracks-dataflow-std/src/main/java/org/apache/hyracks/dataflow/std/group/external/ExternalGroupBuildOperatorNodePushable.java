@@ -64,6 +64,8 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
     private ExternalGroupState state;
     private boolean isFailed = false;
 
+    private long noOfInputFrames;
+
     public ExternalGroupBuildOperatorNodePushable(IHyracksTaskContext ctx, Object stateId, int tableSize, long fileSize,
             int[] gbyFields, int[] fdFields, int framesLimit, IBinaryComparatorFactory[] comparatorFactories,
             INormalizedKeyComputerFactory firstNormalizerFactory, IAggregatorDescriptorFactory aggregatorFactory,
@@ -89,6 +91,7 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
         this.outRecordDescriptor = outRecordDescriptor;
         this.tableSize = tableSize;
         this.fileSize = fileSize;
+        this.noOfInputFrames=0;
     }
 
     @Override
@@ -109,6 +112,7 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
 
     @Override
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
+        this.noOfInputFrames++;
         externalGroupBy.insert(buffer);
     }
 
@@ -143,7 +147,7 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
                         + state.getSpilledNumTuples()[i]);
             }
             LOGGER.warn(Thread.currentThread().getId() + " level " + 0 + ":" + " BuildHashtable " + numOfPartition + " partitions"
-                    + ", spilled " + numOfSpilledPart + " partitions with TotalNoSpilledTuples " + noOfSpilledTuples);
+                    + ", spilled " + numOfSpilledPart + " partitions with TotalNoSpilledTuples " + noOfSpilledTuples + " inputFrames " + noOfInputFrames);
         }
         state = null;
         externalGroupBy = null;

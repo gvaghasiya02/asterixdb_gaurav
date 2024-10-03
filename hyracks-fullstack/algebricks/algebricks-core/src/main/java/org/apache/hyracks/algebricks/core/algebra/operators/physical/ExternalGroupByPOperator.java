@@ -223,10 +223,11 @@ public class ExternalGroupByPOperator extends AbstractGroupByPOperator {
                 allColumns, frameSize);
 
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-        PhysicalOperatorTag tag=((AbstractLogicalOperator)gby.getInputs().get(0).getValue()).getPhysicalOperator().getOperatorTag();
+        PhysicalOperatorTag tag =
+                ((AbstractLogicalOperator) gby.getInputs().get(0).getValue()).getPhysicalOperator().getOperatorTag();
         long inputDataSizeInFrames = 12012;
-        if(tag.equals(PhysicalOperatorTag.HASH_PARTITION_EXCHANGE)) {
-            inputDataSizeInFrames =3010;
+        if (tag.equals(PhysicalOperatorTag.HASH_PARTITION_EXCHANGE)) {
+            inputDataSizeInFrames = 3010;
         }
         //        long noOfPartitions = ((org.apache.asterix.common.cluster.ClusterStateManager)context.getAppContext().getClusterStateManager()).getStoragePartitionsCount();
 

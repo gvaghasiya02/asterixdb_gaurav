@@ -91,7 +91,7 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
         this.outRecordDescriptor = outRecordDescriptor;
         this.tableSize = tableSize;
         this.fileSize = fileSize;
-        this.noOfInputFrames=0;
+        this.noOfInputFrames = 0;
     }
 
     @Override
@@ -140,14 +140,15 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
             for (int i = 0; i < numOfPartition; i++) {
                 if (state.getSpilledNumTuples()[i] > 0) {
                     numOfSpilledPart++;
-                    noOfSpilledTuples+=state.getSpilledNumTuples()[i];
+                    noOfSpilledTuples += state.getSpilledNumTuples()[i];
                 }
                 LOGGER.warn(Thread.currentThread().getId() + " level 0:" + "build with " + numOfPartition
                         + " partitions" + ", spilled " + numOfSpilledPart + " partitions with noSpilledTuples "
                         + state.getSpilledNumTuples()[i]);
             }
-            LOGGER.warn(Thread.currentThread().getId() + " level " + 0 + ":" + " BuildHashtable " + numOfPartition + " partitions"
-                    + ", spilled " + numOfSpilledPart + " partitions with TotalNoSpilledTuples " + noOfSpilledTuples + " inputFrames " + noOfInputFrames);
+            LOGGER.warn(Thread.currentThread().getId() + " level " + 0 + ":" + " BuildHashtable " + numOfPartition
+                    + " partitions" + ", spilled " + numOfSpilledPart + " partitions with TotalNoSpilledTuples "
+                    + noOfSpilledTuples + " inputFrames " + noOfInputFrames);
         }
         state = null;
         externalGroupBy = null;

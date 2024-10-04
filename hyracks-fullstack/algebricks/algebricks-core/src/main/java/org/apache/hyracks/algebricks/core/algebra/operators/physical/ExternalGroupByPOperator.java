@@ -66,8 +66,11 @@ import org.apache.hyracks.dataflow.std.group.external.ExternalGroupOperatorDescr
 
 public class ExternalGroupByPOperator extends AbstractGroupByPOperator {
 
-    public ExternalGroupByPOperator(List<LogicalVariable> columnList) {
+    private long dataInputFrames;
+
+    public ExternalGroupByPOperator(List<LogicalVariable> columnList, long dataInputFrames) {
         super(columnList);
+        this.dataInputFrames = dataInputFrames;
     }
 
     @Override
@@ -225,10 +228,10 @@ public class ExternalGroupByPOperator extends AbstractGroupByPOperator {
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
         PhysicalOperatorTag tag =
                 ((AbstractLogicalOperator) gby.getInputs().get(0).getValue()).getPhysicalOperator().getOperatorTag();
-        long inputDataSizeInFrames = 12012;
-        if (tag.equals(PhysicalOperatorTag.HASH_PARTITION_EXCHANGE)) {
-            inputDataSizeInFrames = 3010;
-        }
+        long inputDataSizeInFrames = Math.max(dataInputFrames, framesLimit);
+        //        if (tag.equals(PhysicalOperatorTag.HASH_PARTITION_EXCHANGE)) {
+        //            inputDataSizeInFrames = dataInputFrames;
+        //        }
         //        long noOfPartitions = ((org.apache.asterix.common.cluster.ClusterStateManager)context.getAppContext().getClusterStateManager()).getStoragePartitionsCount();
 
         long inputSize = inputDataSizeInFrames * (long) frameSize;

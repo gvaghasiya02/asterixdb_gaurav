@@ -24,6 +24,7 @@ import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputUnaryOutputOperatorNodePushable;
+import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 
 class OptimizeGroupByOperatorNodePushable extends AbstractUnaryInputUnaryOutputOperatorNodePushable {
     private final IHyracksTaskContext ctx;
@@ -32,28 +33,28 @@ class OptimizeGroupByOperatorNodePushable extends AbstractUnaryInputUnaryOutputO
     private final RecordDescriptor outRecordDescriptor;
     private final boolean groupAll;
     private final int frameLimit;
-    private final String aggType;
-    private final int dataFieldIndex;
-
+//    private final String aggType;
+//    private final int dataFieldIndex;
+    private final IAggregatorDescriptorFactory aggFactory;
     private OptimizeGroupWriter ogw;
 
     OptimizeGroupByOperatorNodePushable(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDescriptor,
-            RecordDescriptor outRecordDescriptor, boolean groupAll, int frameLimit, String aggType,
-            int dataFieldIndex) {
+            RecordDescriptor outRecordDescriptor, boolean groupAll, int frameLimit, IAggregatorDescriptorFactory aggFactory) {
         this.ctx = ctx;
         this.groupFields = groupFields;
         this.inRecordDescriptor = inRecordDescriptor;
         this.outRecordDescriptor = outRecordDescriptor;
         this.groupAll = groupAll;
         this.frameLimit = frameLimit;
-        this.aggType = aggType;
-        this.dataFieldIndex = dataFieldIndex;
+//        this.aggType = aggType;
+//        this.dataFieldIndex = dataFieldIndex;
+        this.aggFactory = aggFactory;
     }
 
     @Override
     public void open() throws HyracksDataException {
         ogw = new OptimizeGroupWriter(ctx, groupFields, inRecordDescriptor, outRecordDescriptor, writer, groupAll,
-                frameLimit, aggType, dataFieldIndex);
+                frameLimit, aggFactory);
         ogw.open();
     }
 

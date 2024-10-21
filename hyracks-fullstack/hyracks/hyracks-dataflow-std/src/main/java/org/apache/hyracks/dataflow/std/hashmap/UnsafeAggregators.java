@@ -20,6 +20,7 @@ package org.apache.hyracks.dataflow.std.hashmap;
 
 import org.apache.hyracks.dataflow.std.hashmap.entry.DoubleEntry;
 import org.apache.hyracks.dataflow.std.hashmap.entry.LongEntry;
+import org.apache.hyracks.dataflow.std.hashmap.entry.StringEntry;
 import org.apache.hyracks.unsafe.entry.IEntry;
 
 public class UnsafeAggregators {
@@ -57,6 +58,12 @@ public class UnsafeAggregators {
                 throw new UnsupportedOperationException("Unsupported aggregation " + type);
         }
     }
+
+    public static AbstractStringAggregator getStringAggregator()
+    {
+        return STRING;
+    }
+
 
     /* ********************************************
      * Double Aggregators
@@ -205,4 +212,43 @@ public class UnsafeAggregators {
             aggregateEntry.reset(aggregateEntry.getValue() + 1);
         }
     };
+
+    /* ********************************************
+     * String Aggregators
+     * ********************************************
+     */
+    private abstract static class AbstractStringAggregator implements IUnsafeAggregator {
+        @Override
+        public final IEntry createValueEntry() {
+            return new StringEntry();
+        }
+
+        @Override
+        public void initAggregateValue(IEntry aggregateEntry, IEntry newValue) {
+            initAggregateString((StringEntry) aggregateEntry, (StringEntry) newValue);
+        }
+
+        @Override
+        public final void aggregate(IEntry aggregateEntry, IEntry newValue) {
+            aggregateString((StringEntry) aggregateEntry, (StringEntry) newValue);
+        }
+
+        protected abstract void initAggregateString(StringEntry aggregateEntry, StringEntry newValue);
+
+        protected abstract void aggregateString(StringEntry aggregateEntry, StringEntry newValue);
+    }
+
+    private static final AbstractStringAggregator STRING = new AbstractStringAggregator() {
+        @Override
+        protected void initAggregateString(StringEntry aggregateEntry, StringEntry newValue) {
+            aggregateEntry.reset(newValue.getValue());
+        }
+
+        @Override
+        protected void aggregateString(StringEntry aggregateEntry, StringEntry newValue) {
+            aggregateEntry.reset(newValue.getValue());
+        }
+    };
+
+
 }

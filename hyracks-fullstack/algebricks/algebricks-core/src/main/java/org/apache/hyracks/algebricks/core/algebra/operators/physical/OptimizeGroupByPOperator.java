@@ -29,14 +29,19 @@ import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalVariable;
 import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.expressions.AggregateFunctionCallExpression;
+import org.apache.hyracks.algebricks.core.algebra.expressions.IExpressionRuntimeProvider;
+import org.apache.hyracks.algebricks.core.algebra.expressions.IVariableTypeEnvironment;
 import org.apache.hyracks.algebricks.core.algebra.expressions.VariableReferenceExpression;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.IOperatorSchema;
 import org.apache.hyracks.algebricks.core.jobgen.impl.JobGenContext;
 import org.apache.hyracks.algebricks.core.jobgen.impl.JobGenHelper;
+import org.apache.hyracks.algebricks.runtime.base.IAggregateEvaluatorFactory;
+import org.apache.hyracks.algebricks.runtime.operators.aggreg.SimpleAlgebricksAccumulatingAggregatorFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.dataflow.std.group.AbstractAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.optimize.OptimizeGroupByOperatorDescriptor;
 
 public class OptimizeGroupByPOperator extends AbstractPreclusteredGroupByPOperator {
@@ -72,30 +77,30 @@ public class OptimizeGroupByPOperator extends AbstractPreclusteredGroupByPOperat
         }
         Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
         AggregateOperator aggOp = (AggregateOperator) r0.getValue();
-        if (aggOp.getExpressions().size() > 1) {
-            throw new AlgebricksException("Optimize group-by currently works only for one aggregate on projection");
-        }
-        String aggOpType = aggOp.getExpressions().get(0).getValue().toString();
-        String aggType;
-        if (aggOpType.contains("sql-count"))
-            aggType = "COUNT";
-        else if (aggOpType.contains("sql-sum"))
-            aggType = "SUM";
-        else if (aggOpType.contains("sql-max"))
-            aggType = "MAX";
-        else if (aggOpType.contains("sql-min"))
-            aggType = "MIN";
-        else {
-            throw new AlgebricksException("Optimize group-by currently not supporting average");
-        }
-        int dataFieldIndex = 0;
-        if (!aggType.equals("COUNT")) {
-            ILogicalExpression temp = ((AggregateFunctionCallExpression) aggOp.getExpressions().get(0).getValue())
-                    .getArguments().get(0).getValue();
-            LogicalVariable var = ((VariableReferenceExpression) temp).getVariableReference();
-
-            dataFieldIndex = inputSchemas[0].findVariable(var);
-        }
+//        if (aggOp.getExpressions().size() > 1) {
+//            throw new AlgebricksException("Optimize group-by currently works only for one aggregate on projection");
+//        }
+//        String aggOpType = aggOp.getExpressions().get(0).getValue().toString();
+//        String aggType;
+//        if (aggOpType.contains("sql-count"))
+//            aggType = "COUNT";
+//        else if (aggOpType.contains("sql-sum"))
+//            aggType = "SUM";
+//        else if (aggOpType.contains("sql-max"))
+//            aggType = "MAX";
+//        else if (aggOpType.contains("sql-min"))
+//            aggType = "MIN";
+//        else {
+//            throw new AlgebricksException("Optimize group-by currently not supporting average");
+//        }
+//        int dataFieldIndex = 0;
+//        if (!aggType.equals("COUNT")) {
+//            ILogicalExpression temp = ((AggregateFunctionCallExpression) aggOp.getExpressions().get(0).getValue())
+//                    .getArguments().get(0).getValue();
+//            LogicalVariable var = ((VariableReferenceExpression) temp).getVariableReference();
+//
+//            dataFieldIndex = inputSchemas[0].findVariable(var);
+//        }
 
         int i = 0;
         int keys[] = JobGenHelper.variablesToFieldIndexes(columnList, inputSchemas[0]);
@@ -107,15 +112,28 @@ public class OptimizeGroupByPOperator extends AbstractPreclusteredGroupByPOperat
         for (i = 0; i < fdColumns.length; i++) {
             keyAndDecFields[keys.length + i] = fdColumns[i];
         }
+        IAggregateEvaluatorFactory[] aff = new IAggregateEvaluatorFactory[n];
+        i = 0;
+        IExpressionRuntimeProvider expressionRuntimeProvider = context.getExpressionRuntimeProvider();
+        IVariableTypeEnvironment aggOpInputEnv = context.getTypeEnvironment(aggOp.getInputs().get(0).getValue());
+        IVariableTypeEnvironment outputEnv = context.getTypeEnvironment(op);
+        for (Mutable<ILogicalExpression> exprRef : aggOp.getExpressions()) {
+            AggregateFunctionCallExpression aggFun = (AggregateFunctionCallExpression) exprRef.getValue();
+            aff[i++] = expressionRuntimeProvider.createAggregateFunctionFactory(aggFun, aggOpInputEnv, inputSchemas,
+                    context);
+        }
+
         // compile subplans and set the gby op. schema accordingly
         compileSubplans(inputSchemas[0], gby, opSchema, context);
         IOperatorDescriptorRegistry spec = builder.getJobSpec();
         RecordDescriptor recordDescriptor =
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), opSchema, context);
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-
+        AbstractAggregatorDescriptorFactory aggregatorFactory =
+                new SimpleAlgebricksAccumulatingAggregatorFactory(aff, keyAndDecFields);
+        aggregatorFactory.setSourceLocation(gby.getSourceLocation());
         OptimizeGroupByOperatorDescriptor opDesc = new OptimizeGroupByOperatorDescriptor(spec, keyAndDecFields,
-                recordDescriptor, groupAll, framesLimit, aggType, dataFieldIndex);
+                recordDescriptor, groupAll, framesLimit, aggregatorFactory);
         opDesc.setSourceLocation(gby.getSourceLocation());
 
         contributeOpDesc(builder, gby, opDesc);

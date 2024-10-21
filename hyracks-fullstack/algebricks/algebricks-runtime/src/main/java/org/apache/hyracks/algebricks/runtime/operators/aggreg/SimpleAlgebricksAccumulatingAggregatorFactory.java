@@ -34,6 +34,8 @@ import org.apache.hyracks.dataflow.std.group.AbstractAccumulatingAggregatorDescr
 import org.apache.hyracks.dataflow.std.group.AggregateState;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptor;
 
+import java.lang.reflect.Array;
+
 public class SimpleAlgebricksAccumulatingAggregatorFactory extends AbstractAccumulatingAggregatorDescriptorFactory {
 
     private static final long serialVersionUID = 1L;
@@ -91,6 +93,22 @@ public class SimpleAlgebricksAccumulatingAggregatorFactory extends AbstractAccum
                 return true;
             }
 
+            public boolean setAggregateState(ArrayTupleBuilder tupleBuilder,AggregateState state)  throws HyracksDataException {
+
+                IAggregateEvaluator[] agg = (IAggregateEvaluator[]) state.state;
+
+                // initialize aggregate functions
+                for (int i = 0; i < agg.length; i++) {
+                    agg[i].init();
+                }
+
+//                ftr.reset(accessor, tIndex);
+                for (int i = 0; i < agg.length; i++) {
+                    agg[i].step(ftr);
+                }
+                return true;
+            }
+
             @Override
             public AggregateState createAggregateStates() throws HyracksDataException {
                 IAggregateEvaluator[] agg = new IAggregateEvaluator[aggFactories.length];
@@ -103,6 +121,11 @@ public class SimpleAlgebricksAccumulatingAggregatorFactory extends AbstractAccum
             @Override
             public void reset() {
 
+            }
+            @Override
+            public int getAggLength()
+            {
+                return aggFactories.length;
             }
 
             @Override

@@ -56,6 +56,22 @@ public final class UnsafeHashAggregator extends AbstractUnsafeHashAggregator {
         return location.append(key, aggregate);
     }
 
+    public IEntry getValue(IEntry key) {
+        Location location = map.lookup(key);
+        if (location.isDefined()) {
+            aggregate.getValue(location);
+            return aggregate;
+        }
+        return null;
+    }
+    public boolean isKeyExists(IEntry key) {
+        Location location = map.lookup(key);
+        if (location.isDefined()) {
+            return true;
+        }
+        return false;
+    }
+
     @Override
     public void append(AILResultWriter resultWriter) {
         Iterator<Location> iterator = map.iterator();

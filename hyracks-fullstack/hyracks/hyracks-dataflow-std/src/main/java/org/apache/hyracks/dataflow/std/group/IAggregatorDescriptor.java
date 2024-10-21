@@ -103,4 +103,6 @@ public interface IAggregatorDescriptor {
 
     void close();
 
+    int getAggLength();
+
 }

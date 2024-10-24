@@ -91,6 +91,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="api">
+      <compilation-unit name="cache-residency">
+        <output-dir compare="Text">cache-residency</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="api">
       <compilation-unit name="request-param">
         <output-dir compare="Text">request-param</output-dir>
       </compilation-unit>
@@ -621,6 +626,36 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="aggregate">
+      <compilation-unit name="countn_01">
+        <output-dir compare="Text">countn_01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate">
+      <compilation-unit name="countn_02">
+        <output-dir compare="Text">countn_02</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate">
+      <compilation-unit name="countn_empty_01">
+        <output-dir compare="Text">countn_empty_01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate">
+      <compilation-unit name="countn_empty_02">
+        <output-dir compare="Text">countn_empty_02</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate">
+      <compilation-unit name="countn_null">
+        <output-dir compare="Text">countn_null</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate">
+      <compilation-unit name="countn_distinct">
+        <output-dir compare="Text">countn_distinct</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate">
       <compilation-unit name="kurtosis_double">
         <output-dir compare="Text">kurtosis_double</output-dir>
       </compilation-unit>
@@ -753,6 +788,21 @@
     <test-case FilePath="aggregate">
       <compilation-unit name="scalar_count_null">
         <output-dir compare="Text">scalar_count_null</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate">
+      <compilation-unit name="scalar_countn">
+        <output-dir compare="Text">scalar_countn</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate">
+      <compilation-unit name="scalar_countn_empty">
+        <output-dir compare="Text">scalar_countn_empty</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate">
+      <compilation-unit name="scalar_countn_null">
+        <output-dir compare="Text">scalar_countn_null</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="aggregate">
@@ -1615,6 +1665,11 @@
   </test-group>
   <test-group name="aggregate-sql">
     <test-case FilePath="aggregate-sql">
+      <compilation-unit name="median">
+        <output-dir compare="Text">median</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
       <compilation-unit name="min_max_arrays">
         <output-dir compare="Text">min_max_arrays</output-dir>
       </compilation-unit>
@@ -1894,6 +1949,36 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="aggregate-sql">
+      <compilation-unit name="countn_01">
+        <output-dir compare="Text">countn_01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
+      <compilation-unit name="countn_02">
+        <output-dir compare="Text">countn_02</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
+      <compilation-unit name="countn_empty_01">
+        <output-dir compare="Text">countn_empty_01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
+      <compilation-unit name="countn_empty_02">
+        <output-dir compare="Text">countn_empty_02</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
+      <compilation-unit name="countn_null">
+        <output-dir compare="Text">countn_null</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
+      <compilation-unit name="countn_distinct">
+        <output-dir compare="Text">countn_distinct</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
       <compilation-unit name="kurtosis_double">
         <output-dir compare="Text">kurtosis_double</output-dir>
       </compilation-unit>
@@ -2026,6 +2111,21 @@
     <test-case FilePath="aggregate-sql">
       <compilation-unit name="scalar_count_null">
         <output-dir compare="Text">scalar_count_null</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
+      <compilation-unit name="scalar_countn">
+        <output-dir compare="Text">scalar_countn</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
+      <compilation-unit name="scalar_countn_empty">
+        <output-dir compare="Text">scalar_countn_empty</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
+      <compilation-unit name="scalar_countn_null">
+        <output-dir compare="Text">scalar_countn_null</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="aggregate-sql">
@@ -3028,6 +3128,11 @@
     <test-case FilePath="array_fun">
       <compilation-unit name="array_union">
         <output-dir compare="Text">array_union</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="array_fun">
+      <compilation-unit name="array_slice/array_slice_bracket_notation">
+        <output-dir compare="Text">array_slice/array_slice_bracket_notation</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="array_fun">
@@ -6731,6 +6836,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="join">
+      <compilation-unit name="ASTERIXDB-3502">
+        <output-dir compare="Text">ASTERIXDB-3502</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="join">
       <compilation-unit name="hash_join_array">
         <output-dir compare="Text">hash_join_array</output-dir>
       </compilation-unit>
@@ -7367,11 +7477,6 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="misc">
-      <compilation-unit name="query-ASTERIXDB-3316">
-        <output-dir compare="Text">query-ASTERIXDB-3316</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="misc">
       <compilation-unit name="query-ASTERIXDB-3334">
         <output-dir compare="Text">query-ASTERIXDB-3334</output-dir>
       </compilation-unit>
@@ -7394,6 +7499,31 @@
     <test-case FilePath="misc">
       <compilation-unit name="query-ASTERIXDB-3419">
         <output-dir compare="Text">query-ASTERIXDB-3419</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="misc">
+      <compilation-unit name="query-ASTERIXDB-3481">
+        <output-dir compare="Text">query-ASTERIXDB-3481</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="misc">
+      <compilation-unit name="query-ASTERIXDB-3490">
+        <output-dir compare="Text">query-ASTERIXDB-3490</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="misc">
+      <compilation-unit name="query-ASTERIXDB-3316">
+        <output-dir compare="Text">query-ASTERIXDB-3316</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="misc">
+      <compilation-unit name="remove_listify">
+        <output-dir compare="Text">remove_listify</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="misc">
+      <compilation-unit name="query-ASTERIXDB-3410">
+        <output-dir compare="Text">query-ASTERIXDB-3410</output-dir>
       </compilation-unit>
     </test-case>
   </test-group>
@@ -11489,6 +11619,11 @@
   </test-group>
   <test-group name="subquery">
     <test-case FilePath="subquery">
+      <compilation-unit name="select_element">
+        <output-dir compare="Text">select_element</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="subquery">
       <compilation-unit name="aggregate_join">
         <output-dir compare="Text">aggregate_join</output-dir>
       </compilation-unit>
@@ -13182,6 +13317,11 @@
   </test-group>
   <test-group name="user-defined-functions">
     <test-case FilePath="user-defined-functions">
+      <compilation-unit name="inline-in-expr">
+        <output-dir compare="Text">inline-in-expr</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
       <compilation-unit name="bad-function-ddl-1">
         <output-dir compare="Text">bad-function-ddl-1</output-dir>
         <expected-error replacers="cloud:Default.experiments|def:experiments">Cannot find dataset TweetMessages in dataverse {0} nor an alias with name TweetMessages</expected-error>
@@ -14309,7 +14449,7 @@
     <test-case FilePath="meta">
       <compilation-unit name="meta_after_gby">
         <output-dir compare="Text">meta_after_gby</output-dir>
-        <expected-error>Compilation error: Inappropriate use of function 'meta'. For example, after GROUP BY (in line 29, at column 21)</expected-error>
+        <expected-error>Compilation error: No source collection found for META(): collection not supported or cannot reference collection (in line 29, at column 21)</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="meta">
@@ -16279,6 +16419,56 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="column">
+      <compilation-unit name="assembly/ASTERIXDB-3491">
+        <output-dir compare="Text">assembly/ASTERIXDB-3491</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="column">
+      <compilation-unit name="assembly/ASTERIXDB-3504">
+        <output-dir compare="Text">assembly/ASTERIXDB-3504</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="column">
+      <compilation-unit name="assembly/ASTERIXDB-3491-2">
+        <output-dir compare="Text">assembly/ASTERIXDB-3491-2</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="column">
+      <compilation-unit name="assembly/ASTERIXDB-3491-3">
+        <output-dir compare="Text">assembly/ASTERIXDB-3491-3</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="column">
+      <compilation-unit name="assembly/ASTERIXDB-3491-4">
+        <output-dir compare="Text">assembly/ASTERIXDB-3491-4</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="column">
+      <compilation-unit name="assembly/ASTERIXDB-3491-5">
+        <output-dir compare="Text">assembly/ASTERIXDB-3491-5</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="column">
+      <compilation-unit name="assembly/ASTERIXDB-3491-6">
+        <output-dir compare="Text">assembly/ASTERIXDB-3491-6</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="column">
+      <compilation-unit name="assembly/ASTERIXDB-3491-7">
+        <output-dir compare="Text">assembly/ASTERIXDB-3491-7</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="column">
+      <compilation-unit name="filter/ASTERIXDB-3499">
+        <output-dir compare="Text">filter/ASTERIXDB-3499</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="column">
+      <compilation-unit name="filter/ASTERIXDB-3502">
+        <output-dir compare="Text">filter/ASTERIXDB-3502</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="column">
       <compilation-unit name="delete/001">
         <output-dir compare="Text">delete/001</output-dir>
       </compilation-unit>
@@ -16359,6 +16549,16 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="column">
+      <compilation-unit name="missing-null-values/007">
+        <output-dir compare="Text">missing-null-values/007</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="column">
+      <compilation-unit name="missing-null-values/008">
+        <output-dir compare="Text">missing-null-values/008</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="column">
       <compilation-unit name="empty-array/001">
         <output-dir compare="Text">empty-array/001</output-dir>
       </compilation-unit>
@@ -16423,6 +16623,11 @@
         <output-dir compare="Text">upsert/002</output-dir>
       </compilation-unit>
     </test-case>
+    <test-case FilePath="column">
+      <compilation-unit name="upsert/003">
+        <output-dir compare="Text">upsert/003</output-dir>
+      </compilation-unit>
+    </test-case>
     <test-case FilePath="column" check-warnings="true">
       <compilation-unit name="filter/001">
         <output-dir compare="Text">filter/001</output-dir>
@@ -16460,6 +16665,11 @@
     <test-case FilePath="column">
       <compilation-unit name="filter/007">
         <output-dir compare="Text">filter/007</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="column">
+      <compilation-unit name="filter/008">
+        <output-dir compare="Text">filter/008</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="column" check-warnings="true">
@@ -16571,6 +16781,11 @@
         <expected-error>ASX0067: Type(s) '[datetime]' are not supported in columnar storage format. Supported types are [bigint, float, double, string, boolean, uuid]</expected-error>
         <expected-error>ASX0067: Type(s) '[datetime]' are not supported in columnar storage format. Supported types are [bigint, float, double, string, boolean, uuid]</expected-error>
         <source-location>false</source-location>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="column">
+      <compilation-unit name="large-schema">
+        <output-dir compare="Text">large-schema</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="column">

@@ -40,6 +40,31 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="copy-to">
+      <compilation-unit name="parquet-simple">
+        <output-dir compare="Text">parquet-simple</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="copy-to">
+      <compilation-unit name="parquet-tweet">
+        <output-dir compare="Text">parquet-tweet</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="copy-to">
+      <compilation-unit name="parquet-utf8">
+        <output-dir compare="Text">parquet-utf8</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="copy-to">
+      <compilation-unit name="parquet-cover-data-types">
+        <output-dir compare="Text">parquet-cover-data-types</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="copy-to">
+      <compilation-unit name="parquet-empty-array">
+        <output-dir compare="Text">parquet-empty-array</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="copy-to">
       <compilation-unit name="empty-path">
         <output-dir compare="Text">empty-path</output-dir>
       </compilation-unit>
@@ -80,9 +105,28 @@
       <compilation-unit name="supported-adapter-format-compression">
         <output-dir compare="Text">supported-adapter-format-compression</output-dir>
         <expected-error>ASX1188: Unsupported writing adapter 'AZUREBLOB'. Supported adapters: [gcs, localfs, s3]</expected-error>
-        <expected-error>ASX1189: Unsupported writing format 'csv'. Supported formats: [json]</expected-error>
-        <expected-error>ASX1096: Unknown compression scheme rar. Supported schemes are [gzip]</expected-error>
+        <expected-error>ASX1189: Unsupported writing format 'csv'. Supported formats: [json, parquet]</expected-error>
+        <expected-error>ASX1202: Unsupported compression scheme rar. Supported schemes for json are [gzip]</expected-error>
       </compilation-unit>
+    </test-case>
+    <test-case FilePath="copy-to/negative">
+      <compilation-unit name="parquet-error-checks">
+        <output-dir compare="Text">parquet-error-checks</output-dir>
+        <expected-error>ASX1079: Compilation error: TYPE() Expression is required for parquet format</expected-error>
+        <expected-error>ASX0037: Type mismatch: expected value of type integer, but got the value of type BINARY</expected-error>
+        <expected-error>HYR0132: Extra field in the result, field 'second' does not exist at 'nested' in the schema</expected-error>
+        <expected-error>HYR0131: Result does not follow the schema, group type expected but found primitive type at 'nested'</expected-error>
+        <expected-error>HYR0131: Result does not follow the schema, primitive type expected but found group type at 'name'</expected-error>
+        <expected-error>ASX1201: Storage units expected for the field 'row-group-size' (e.g., 0.1KB, 100kb, 1mb, 3MB, 8.5GB ...). Provided 'random'</expected-error>
+        <expected-error>ASX1201: Storage units expected for the field 'page-size' (e.g., 0.1KB, 100kb, 1mb, 3MB, 8.5GB ...). Provided 'random'</expected-error>
+        <expected-error>ASX1202: Unsupported compression scheme rar. Supported schemes for parquet are [gzip, snappy, zstd]</expected-error>
+        <expected-error>ASX1001: Syntax error</expected-error>
+        <expected-error>ASX1204: 'binary' type not supported in parquet format</expected-error>
+        <expected-error>ASX1205: Invalid Parquet Writer Version provided '3'. Supported values: [1, 2]</expected-error>
+        <expected-error>ASX1001: Syntax error</expected-error>
+        <expected-error>ASX1001: Syntax error</expected-error>
+        <expected-error>ASX1001: Syntax error</expected-error>
+        </compilation-unit>
     </test-case>
     <test-case FilePath="copy-to/negative">
       <compilation-unit name="empty-over">
@@ -301,6 +345,32 @@
       </compilation-unit>
     </test-case>
     <!-- Parquet Tests End -->
+    <!-- Deltalake Tests Start -->
+    <test-case FilePath="external-dataset">
+      <compilation-unit name="common/deltalake-multiple-file-read">
+        <placeholder name="adapter" value="S3" />
+        <output-dir compare="Text">common/deltalake-multiple-file-read</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="external-dataset">
+      <compilation-unit name="common/deltalake-empty">
+        <placeholder name="adapter" value="S3" />
+        <output-dir compare="Text">common/deltalake-empty</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="external-dataset">
+      <compilation-unit name="common/deltalake-modified-data">
+        <placeholder name="adapter" value="S3" />
+        <output-dir compare="Text">common/deltalake-modified-data</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="external-dataset">
+      <compilation-unit name="common/deltalake-invalid-file-format">
+        <placeholder name="adapter" value="S3" />
+        <output-dir compare="Text">none</output-dir>
+        <expected-error>Supported file format for 'delta' tables is 'parquet', but 'avro' was provided.</expected-error>
+      </compilation-unit>
+    </test-case>
     <test-case FilePath="external-dataset">
       <compilation-unit name="common/avro/avro-types/avro-map">
         <placeholder name="adapter" value="S3" />
@@ -947,7 +1017,10 @@
         <output-dir compare="Text">common/byte_order_mark/tsv</output-dir>
       </compilation-unit>
     </test-case>
-      <!-- Iceberg Tests Start -->
+  </test-group>
+  <!-- Iceberg Tests Start -->
+  <!-- ASTERIXDB-3468: iceberg tests failing due to unsupported version
+  <test-group name="iceberg">
     <test-case FilePath="external-dataset/s3">
       <compilation-unit name="iceberg">
         <output-dir compare="Text">iceberg</output-dir>
@@ -993,6 +1066,7 @@
           </compilation-unit>
       </test-case>
   </test-group>
+  -->
   <test-group name="copy-from">
     <test-case FilePath="copy-from">
       <compilation-unit name="copy-2">

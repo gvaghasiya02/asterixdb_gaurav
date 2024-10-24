@@ -25,14 +25,17 @@ import java.util.zip.Deflater;
 import org.apache.asterix.cloud.writer.GCSExternalFileWriterFactory;
 import org.apache.asterix.cloud.writer.S3ExternalFileWriterFactory;
 import org.apache.asterix.common.dataflow.ICcApplicationContext;
+import org.apache.asterix.common.exceptions.CompilationException;
 import org.apache.asterix.external.util.ExternalDataConstants;
 import org.apache.asterix.external.util.ExternalDataUtils;
 import org.apache.asterix.external.writer.LocalFSExternalFileWriterFactory;
 import org.apache.asterix.external.writer.compressor.GzipExternalFileCompressStreamFactory;
 import org.apache.asterix.external.writer.compressor.IExternalFileCompressStreamFactory;
 import org.apache.asterix.external.writer.compressor.NoOpExternalFileCompressStreamFactory;
+import org.apache.asterix.external.writer.printer.ParquetExternalFilePrinterFactory;
 import org.apache.asterix.external.writer.printer.TextualExternalFilePrinterFactory;
 import org.apache.asterix.formats.nontagged.CleanJSONPrinterFactoryProvider;
+import org.apache.asterix.om.types.IAType;
 import org.apache.asterix.runtime.writer.ExternalFileWriterConfiguration;
 import org.apache.asterix.runtime.writer.IExternalFileWriterFactory;
 import org.apache.asterix.runtime.writer.IExternalFileWriterFactoryProvider;
@@ -41,6 +44,9 @@ import org.apache.hyracks.algebricks.core.algebra.metadata.IWriteDataSink;
 import org.apache.hyracks.algebricks.data.IPrinterFactory;
 import org.apache.hyracks.api.exceptions.SourceLocation;
 import org.apache.hyracks.control.cc.ClusterControllerService;
+import org.apache.hyracks.util.StorageUtil;
+import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 
 public class ExternalWriterProvider {
     private static final Map<String, IExternalFileWriterFactoryProvider> CREATOR_MAP;
@@ -107,20 +113,66 @@ public class ExternalWriterProvider {
     }
 
     public static IExternalPrinterFactory createPrinter(ICcApplicationContext appCtx, IWriteDataSink sink,
-            Object sourceType) {
+            Object sourceType) throws CompilationException {
         Map<String, String> configuration = sink.getConfiguration();
         String format = configuration.get(ExternalDataConstants.KEY_FORMAT);
 
-        // Only JSON is supported for now
-        if (!ExternalDataConstants.FORMAT_JSON_LOWER_CASE.equalsIgnoreCase(format)) {
+        // Only JSON and parquet is supported for now
+        if (!ExternalDataConstants.FORMAT_JSON_LOWER_CASE.equalsIgnoreCase(format)
+                && !ExternalDataConstants.FORMAT_PARQUET.equalsIgnoreCase(format)) {
             throw new UnsupportedOperationException("Unsupported format " + format);
         }
 
         String compression = getCompression(configuration);
-        IExternalFileCompressStreamFactory compressStreamFactory =
-                createCompressionStreamFactory(appCtx, compression, configuration);
-        IPrinterFactory printerFactory = CleanJSONPrinterFactoryProvider.INSTANCE.getPrinterFactory(sourceType);
-        return new TextualExternalFilePrinterFactory(printerFactory, compressStreamFactory);
+
+        switch (format) {
+            case ExternalDataConstants.FORMAT_JSON_LOWER_CASE:
+                IExternalFileCompressStreamFactory compressStreamFactory =
+                        createCompressionStreamFactory(appCtx, compression, configuration);
+                IPrinterFactory printerFactory = CleanJSONPrinterFactoryProvider.INSTANCE.getPrinterFactory(sourceType);
+                return new TextualExternalFilePrinterFactory(printerFactory, compressStreamFactory);
+            case ExternalDataConstants.FORMAT_PARQUET:
+                String parquetSchemaString = configuration.get(ExternalDataConstants.PARQUET_SCHEMA_KEY);
+
+                CompressionCodecName compressionCodecName;
+                if (compression == null || compression.equals("") || compression.equals("none")) {
+                    compressionCodecName = CompressionCodecName.UNCOMPRESSED;
+                } else {
+                    compressionCodecName = CompressionCodecName.valueOf(compression.toUpperCase());
+                }
+
+                String rowGroupSizeString = getRowGroupSize(configuration);
+                String pageSizeString = getPageSize(configuration);
+
+                long rowGroupSize = StorageUtil.getByteValue(rowGroupSizeString);
+                int pageSize = (int) StorageUtil.getByteValue(pageSizeString);
+
+                ParquetProperties.WriterVersion writerVersion = getParquetWriterVersion(configuration);
+
+                return new ParquetExternalFilePrinterFactory(compressionCodecName, parquetSchemaString,
+                        (IAType) sourceType, rowGroupSize, pageSize, writerVersion);
+            default:
+                throw new UnsupportedOperationException("Unsupported format " + format);
+        }
+    }
+
+    private static ParquetProperties.WriterVersion getParquetWriterVersion(Map<String, String> configuration) {
+        String writerVersionString = configuration.getOrDefault(ExternalDataConstants.PARQUET_WRITER_VERSION_KEY,
+                ExternalDataConstants.PARQUET_WRITER_VERSION_VALUE_1);
+        if (writerVersionString.equals(ExternalDataConstants.PARQUET_WRITER_VERSION_VALUE_2)) {
+            return ParquetProperties.WriterVersion.PARQUET_2_0;
+        }
+        return ParquetProperties.WriterVersion.PARQUET_1_0;
+    }
+
+    private static String getRowGroupSize(Map<String, String> configuration) {
+        return configuration.getOrDefault(ExternalDataConstants.KEY_PARQUET_ROW_GROUP_SIZE,
+                ExternalDataConstants.PARQUET_DEFAULT_ROW_GROUP_SIZE);
+    }
+
+    private static String getPageSize(Map<String, String> configuration) {
+        return configuration.getOrDefault(ExternalDataConstants.KEY_PARQUET_PAGE_SIZE,
+                ExternalDataConstants.PARQUET_DEFAULT_PAGE_SIZE);
     }
 
     private static String getFormat(Map<String, String> configuration) {

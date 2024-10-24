@@ -96,15 +96,16 @@
     <log4j.version>2.22.1</log4j.version>
     <awsjavasdk.version>2.24.9</awsjavasdk.version>
     <awsjavasdk.crt.version>0.29.10</awsjavasdk.crt.version>
-    <parquet.version>1.12.3</parquet.version>
+    <parquet.version>1.14.1</parquet.version>
     <hadoop-awsjavasdk.version>1.12.637</hadoop-awsjavasdk.version>
     <azureblobjavasdk.version>12.25.1</azureblobjavasdk.version>
     <azurecommonjavasdk.version>12.24.1</azurecommonjavasdk.version>
-    <azureidentity.version>1.11.1</azureidentity.version>
+    <azureidentity.version>1.13.1</azureidentity.version>
     <azuredatalakejavasdk.version>12.18.1</azuredatalakejavasdk.version>
-    <gcsjavasdk.version>2.26.0</gcsjavasdk.version>
+    <gcsjavasdk.version>2.40.1</gcsjavasdk.version>
     <hadoop-azuresdk.version>8.6.6</hadoop-azuresdk.version>
     <hadoop-gcs.version>hadoop3-2.2.6</hadoop-gcs.version>
+    <protobuf-java.version>3.23.2</protobuf-java.version>
 
     <implementation.title>Apache AsterixDB - ${project.name}</implementation.title>
     <implementation.url>https://asterixdb.apache.org/</implementation.url>
@@ -751,14 +752,6 @@
     </profile>
     <profile>
       <id>azurite-tests</id>
-      <activation>
-        <os>
-          <family>unix</family>
-        </os>
-        <property>
-          <name>!skipTests</name>
-        </property>
-      </activation>
       <properties>
         <azurite.npm.install.stage>process-classes</azurite.npm.install.stage>
         <azurite.install.stage>generate-test-resources</azurite.install.stage>
@@ -1260,7 +1253,7 @@
       <dependency>
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-compress</artifactId>
-        <version>1.25.0</version>
+        <version>1.26.2</version>
       </dependency>
       <dependency>
         <groupId>commons-logging</groupId>
@@ -1558,9 +1551,9 @@
         <version>3.8.4</version>
       </dependency>
       <dependency>
-        <groupId>com.esri.geometry</groupId>
-        <artifactId>esri-geometry-api</artifactId>
-        <version>2.0.0</version>
+        <groupId>org.locationtech.jts</groupId>
+        <artifactId>jts-core</artifactId>
+        <version>1.19.0</version>
       </dependency>
       <dependency>
         <groupId>org.reflections</groupId>
@@ -2068,6 +2061,65 @@
         <groupId>org.apache.avro</groupId>
         <artifactId>avro</artifactId>
         <version>1.11.3</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-core</artifactId>
+        <version>1.5.2</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-data</artifactId>
+        <version>1.5.2</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-parquet</artifactId>
+        <version>1.5.2</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.parquet</groupId>
+        <artifactId>parquet-avro</artifactId>
+        <version>${parquet.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.parquet</groupId>
+        <artifactId>parquet-jackson</artifactId>
+        <version>${parquet.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-java</artifactId>
+        <version>${protobuf-java.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-java-util</artifactId>
+        <version>${protobuf-java.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

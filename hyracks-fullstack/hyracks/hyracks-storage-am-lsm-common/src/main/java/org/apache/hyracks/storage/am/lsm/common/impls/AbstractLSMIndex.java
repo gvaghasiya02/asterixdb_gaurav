@@ -200,7 +200,11 @@ public abstract class AbstractLSMIndex implements ILSMIndex {
             throw HyracksDataException.create(ErrorCode.CANNOT_ACTIVATE_ACTIVE_INDEX);
         }
         loadDiskComponents();
+        completeActivation();
         isActive = true;
+    }
+
+    protected void completeActivation() throws HyracksDataException {
     }
 
     private void loadDiskComponents() throws HyracksDataException {

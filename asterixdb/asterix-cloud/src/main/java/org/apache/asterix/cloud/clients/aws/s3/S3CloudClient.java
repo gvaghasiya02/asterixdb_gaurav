@@ -43,9 +43,9 @@ import org.apache.asterix.cloud.clients.ICloudClient;
 import org.apache.asterix.cloud.clients.ICloudGuardian;
 import org.apache.asterix.cloud.clients.ICloudWriter;
 import org.apache.asterix.cloud.clients.IParallelDownloader;
-import org.apache.asterix.cloud.clients.profiler.CountRequestProfiler;
-import org.apache.asterix.cloud.clients.profiler.IRequestProfiler;
-import org.apache.asterix.cloud.clients.profiler.NoOpRequestProfiler;
+import org.apache.asterix.cloud.clients.profiler.CountRequestProfilerLimiter;
+import org.apache.asterix.cloud.clients.profiler.IRequestProfilerLimiter;
+import org.apache.asterix.cloud.clients.profiler.RequestLimiterNoOpProfiler;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.api.util.IoUtil;
@@ -78,7 +78,7 @@ public final class S3CloudClient implements ICloudClient {
     private final S3ClientConfig config;
     private final S3Client s3Client;
     private final ICloudGuardian guardian;
-    private final IRequestProfiler profiler;
+    private final IRequestProfilerLimiter profiler;
     private final int writeBufferSize;
 
     public S3CloudClient(S3ClientConfig config, ICloudGuardian guardian) {
@@ -91,10 +91,11 @@ public final class S3CloudClient implements ICloudClient {
         this.guardian = guardian;
         this.writeBufferSize = config.getWriteBufferSize();
         long profilerInterval = config.getProfilerLogInterval();
+        S3RequestRateLimiter limiter = new S3RequestRateLimiter(config);
         if (profilerInterval > 0) {
-            profiler = new CountRequestProfiler(profilerInterval);
+            profiler = new CountRequestProfilerLimiter(profilerInterval, limiter);
         } else {
-            profiler = NoOpRequestProfiler.INSTANCE;
+            profiler = new RequestLimiterNoOpProfiler(limiter);
         }
         guardian.setCloudClient(this);
     }
@@ -105,7 +106,7 @@ public final class S3CloudClient implements ICloudClient {
     }
 
     @Override
-    public IRequestProfiler getProfiler() {
+    public IRequestProfilerLimiter getProfilerLimiter() {
         return profiler;
     }
 
@@ -128,17 +129,22 @@ public final class S3CloudClient implements ICloudClient {
     public int read(String bucket, String path, long offset, ByteBuffer buffer) throws HyracksDataException {
         guardian.checkReadAccess(bucket, path);
         profiler.objectGet();
+        long bytesToRead = buffer.remaining();
         long readTo = offset + buffer.remaining() - 1;
         GetObjectRequest rangeGetObjectRequest = GetObjectRequest.builder().range("bytes=" + offset + "-" + readTo)
                 .bucket(bucket).key(config.getPrefix() + path).build();
 
         int totalRead = 0;
-        int read = 0;
+        int read;
 
         // TODO(htowaileb): add retry logic here
         try (ResponseInputStream<GetObjectResponse> response = s3Client.getObject(rangeGetObjectRequest)) {
             while (buffer.remaining() > 0) {
                 read = response.read(buffer.array(), buffer.position(), buffer.remaining());
+                if (read == -1) {
+                    throw new IllegalStateException("Unexpected EOF encountered. File: " + path + ", expected bytes: "
+                            + bytesToRead + ", bytes read: " + totalRead);
+                }
                 buffer.position(buffer.position() + read);
                 totalRead += read;
             }

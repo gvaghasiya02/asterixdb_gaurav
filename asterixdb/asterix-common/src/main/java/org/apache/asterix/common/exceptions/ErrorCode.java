@@ -18,6 +18,7 @@
  */
 package org.apache.asterix.common.exceptions;
 
+import org.apache.asterix.common.utils.IdentifierUtil;
 import org.apache.hyracks.api.exceptions.IError;
 import org.apache.hyracks.api.util.ErrorMessageUtil;
 
@@ -97,7 +98,6 @@ public enum ErrorCode implements IError {
     UNSUPPORTED_COLUMN_TYPE(67),
     INVALID_KEY_TYPE(68),
     FAILED_TO_READ_KEY(69),
-
     UNSUPPORTED_JRE(100),
 
     EXTERNAL_UDF_RESULT_TYPE_ERROR(200),
@@ -303,7 +303,12 @@ public enum ErrorCode implements IError {
     DUPLICATE_FIELD_IN_PRIMARY_KEY(1198),
     INCOMPATIBLE_FIELDS_IN_PRIMARY_KEY(1199),
     PREFIX_SHOULD_NOT_START_WITH_SLASH(1200),
-
+    ILLEGAL_SIZE_PROVIDED(1201),
+    UNSUPPORTED_WRITER_COMPRESSION_SCHEME(1202),
+    INVALID_PARQUET_SCHEMA(1203),
+    TYPE_UNSUPPORTED_PARQUET_WRITE(1204),
+    INVALID_PARQUET_WRITER_VERSION(1205),
+    INVALID_DELTA_TABLE_FORMAT(1206),
     // Feed errors
     DATAFLOW_ILLEGAL_STATE(3001),
     UTIL_DATAFLOW_UTILS_TUPLE_TOO_LARGE(3002),
@@ -460,8 +465,8 @@ public enum ErrorCode implements IError {
     }
 
     private static class ErrorMessageMapHolder {
-        private static final String[] enumMessages =
-                ErrorMessageUtil.defineMessageEnumOrdinalMap(values(), RESOURCE_PATH);
+        private static final String[] enumMessages = IdentifierUtil
+                .replaceIdentifiers(ErrorMessageUtil.defineMessageEnumOrdinalMap(values(), RESOURCE_PATH));
 
         private static String get(ErrorCode errorCode) {
             return enumMessages[errorCode.ordinal()];

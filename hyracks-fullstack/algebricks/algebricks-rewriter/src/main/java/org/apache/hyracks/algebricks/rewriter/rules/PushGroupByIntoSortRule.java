@@ -134,25 +134,25 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                                     .getExpressions().get(0).getValue();
                             if (temp.getArguments().size() != 1)
                                 continue;
-                            if (temp.getArguments().get(0).getValue()
-                                    .getExpressionTag() == LogicalExpressionTag.CONSTANT
-                                    || temp.getArguments().get(0).getValue()
-                                            .getExpressionTag() == LogicalExpressionTag.VARIABLE) {
+//                            if (temp.getArguments().get(0).getValue()
+//                                    .getExpressionTag() == LogicalExpressionTag.CONSTANT
+//                                    || temp.getArguments().get(0).getValue()
+//                                            .getExpressionTag() == LogicalExpressionTag.VARIABLE) {
 
-                                if (localAggregateOp.getExpressions().get(0).getValue().toString().contains("sql-count")
-                                        || localAggregateOp.getExpressions().get(0).getValue().toString()
-                                                .contains("sql-sum")
-                                        || localAggregateOp.getExpressions().get(0).getValue().toString()
-                                                .contains("sql-max")
-                                        || localAggregateOp.getExpressions().get(0).getValue().toString()
-                                                .contains("sql-min")) {
-                                    if (!localGroupbyOperator.isGroupAll()) {
-                                        localOp.setPhysicalOperator(
-                                                new OptimizeGroupByPOperator(localGroupbyOperator.getGroupByVarList(),
-                                                        localGroupbyOperator.isGroupAll()));
-                                    }
+                            if (localAggregateOp.getExpressions().get(0).getValue().toString().contains("sql-count")
+                                    || localAggregateOp.getExpressions().get(0).getValue().toString()
+                                            .contains("sql-sum")
+                                    || localAggregateOp.getExpressions().get(0).getValue().toString()
+                                            .contains("sql-max")
+                                    || localAggregateOp.getExpressions().get(0).getValue().toString()
+                                            .contains("sql-min")) {
+                                if (!localGroupbyOperator.isGroupAll()) {
+                                    localOp.setPhysicalOperator(
+                                            new OptimizeGroupByPOperator(localGroupbyOperator.getGroupByVarList(),
+                                                    localGroupbyOperator.isGroupAll()));
                                 }
                             }
+//                            }
                         }
                     }
                 }

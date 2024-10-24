@@ -29,15 +29,20 @@ import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.ErrorCode;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.data.std.api.IValueReference;
 import org.apache.hyracks.data.std.primitive.DoublePointable;
 import org.apache.hyracks.data.std.primitive.FloatPointable;
 import org.apache.hyracks.data.std.primitive.IntegerPointable;
 import org.apache.hyracks.data.std.primitive.LongPointable;
+import org.apache.hyracks.data.std.util.ArrayBackedValueStorage;
 import org.apache.hyracks.data.std.util.GrowableArray;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAppender;
 import org.apache.hyracks.dataflow.common.comm.util.FrameUtils;
+import org.apache.hyracks.dataflow.std.group.AggregateState;
+import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptor;
+import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.hashmap.AILRuntimeException;
 import org.apache.hyracks.dataflow.std.hashmap.EnumDeserializeropt;
 import org.apache.hyracks.dataflow.std.hashmap.Types;
@@ -60,22 +65,25 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private boolean first;
     private boolean isFailed = false;
     private final long memoryLimit;
+    private final AggregateState aggregateState;
     private FrameTupleAppender appender;
     private IFrameWriter writer;
     private UnsafeHashAggregator computer;
     private String aggregateType;
     private Types aggregateDataType; // datatype of field
-    private final int dataFieldIndex;
+//    private final int dataFieldIndex;
     private long totalrecords;
     private long inRecordsHashMap;
     private long noofframes;
     private long aggregatedRecords;
+    private final IAggregatorDescriptor aggregator;
+
 
     private static final Logger LOGGER = LogManager.getLogger();
 
     public OptimizeGroupWriter(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDesc,
             RecordDescriptor outRecordDesc, IFrameWriter writer, boolean groupAll, int framesLimit,
-            String aggregateType, int dataFieldIndex) throws HyracksDataException {
+            String aggregateType, IAggregatorDescriptorFactory aggregatorFactory) throws HyracksDataException {
         this.groupFields = groupFields;
         if (framesLimit >= 0 && framesLimit <= 3) {
             throw HyracksDataException.create(ErrorCode.ILLEGAL_MEMORY_BUDGET, "GROUP BY",
@@ -92,7 +100,11 @@ public class OptimizeGroupWriter implements IFrameWriter {
         this.writer = writer;
         tupleBuilder = new ArrayTupleBuilder(groupFields.length);
         this.groupAll = groupAll;
-        this.dataFieldIndex = dataFieldIndex;
+        this.aggregator = aggregatorFactory.createAggregator(ctx, inRecordDesc, outRecordDesc, groupFields, groupFields,
+                writer, this.memoryLimit);
+        this.aggregateState = aggregator.createAggregateStates();
+
+        //        this.dataFieldIndex = dataFieldIndex;
         this.totalrecords = 0;
         this.inRecordsHashMap = 0;
         this.noofframes = 0;
@@ -125,63 +137,56 @@ public class OptimizeGroupWriter implements IFrameWriter {
                     tupleBuilder.addField(inFrameAccessor, i, groupFieldIdx);
                 }
                 StringEntry st = new StringEntry(tupleBuilder);
-                byte[] data = inFrameAccessor.getBuffer().array();
-                int offset = inFrameAccessor.getTupleStartOffset(i) + inFrameAccessor.getFieldSlotsLength()
-                        + inFrameAccessor.getFieldStartOffset(i, dataFieldIndex);
+                ArrayTupleBuilder tb = new ArrayTupleBuilder(1);
+                aggregator.init(tupleBuilder, inFrameAccessor, i, aggregateState);
+
+                aggregator.outputFinalResult(tb, null, 0, aggregateState);
+                IValueReference newValue = new ArrayBackedValueStorage(tb.getFieldData());
+
+                byte[] data=newValue.getByteArray();
+                int offset=0;
 
                 Types typeTag = EnumDeserializeropt.ATYPETAGDESERIALIZER.deserialize(data[offset]);
 
                 if (first) {
                     LOGGER.warn(Thread.currentThread().getId() + " keySizeInHashMap " + st.getLength());
-
-                    if (aggregateType.equals("COUNT")) {
-                        computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType), null,
-                                UnsafeComparators.STRING_COMPARATOR, memoryLimit);
-                        LongEntry value = new LongEntry();
-                        value.reset(1);
+                    this.aggregateDataType = typeTag;
+                    if (typeTag == Types.NULL || typeTag == Types.MISSING) {
+                        continue;
+                    }
+                    if (typeTag == Types.TINYINT || typeTag == Types.SMALLINT || typeTag == Types.BIGINT
+                            || typeTag == Types.INTEGER) {
+                        computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType),
+                                null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
+                        LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
                         LOGGER.warn(Thread.currentThread().getId() + " valueSizeInHashMap " + value.getLength());
                         added = computer.aggregate(st, value);
-                        this.aggregateDataType = Types.BIGINT;
+                        if (!added) {
+                            throw new HyracksDataException(
+                                    "Key is too large for hash table use with complier.optimize.groupby set to false");
+                        }
+                    } else if (typeTag == Types.FLOAT || typeTag == Types.DOUBLE) {
+                        computer = new UnsafeHashAggregator(UnsafeAggregators.getDoubleAggregator(aggregateType),
+                                null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
+                        DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
+                        LOGGER.warn(Thread.currentThread().getId() + " valueSizeInHashMap " + value.getLength());
+                        added = computer.aggregate(st, value);
                         if (!added) {
                             throw new HyracksDataException(
                                     "Key is too large for hash table use with complier.optimize.groupby set to false");
                         }
                     } else {
-                        this.aggregateDataType = typeTag;
-                        if (typeTag == Types.NULL || typeTag == Types.MISSING) {
-                            continue;
-                        }
-                        if (typeTag == Types.TINYINT || typeTag == Types.SMALLINT || typeTag == Types.BIGINT
-                                || typeTag == Types.INTEGER) {
-                            computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType),
-                                    null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
-                            LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
-                            LOGGER.warn(Thread.currentThread().getId() + " valueSizeInHashMap " + value.getLength());
-                            added = computer.aggregate(st, value);
-                            if (!added) {
-                                throw new HyracksDataException(
-                                        "Key is too large for hash table use with complier.optimize.groupby set to false");
-                            }
-                        } else if (typeTag == Types.FLOAT || typeTag == Types.DOUBLE) {
-                            computer = new UnsafeHashAggregator(UnsafeAggregators.getDoubleAggregator(aggregateType),
-                                    null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
-                            DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
-                            LOGGER.warn(Thread.currentThread().getId() + " valueSizeInHashMap " + value.getLength());
-                            added = computer.aggregate(st, value);
-                            if (!added) {
-                                throw new HyracksDataException(
-                                        "Key is too large for hash table use with complier.optimize.groupby set to false");
-                            }
-                        } else {
-                            throw new AILRuntimeException("Aggregate type not supported " + typeTag.toString());
-                        }
+                        throw new AILRuntimeException("Aggregate type not supported " + typeTag.toString());
                     }
-
                     first = false;
-                } else {
-                    if (aggregateType.equals("COUNT")) {
-                        LongEntry value = new LongEntry();
-                        value.reset(1);
+                } else
+                {
+                    if (typeTag == Types.NULL || typeTag == Types.MISSING) {
+                        continue;
+                    }
+                    if (aggregateDataType == Types.TINYINT || aggregateDataType == Types.SMALLINT
+                            || aggregateDataType == Types.BIGINT || aggregateDataType == Types.INTEGER) {
+                        LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
                         added = computer.aggregate(st, value);
                         if (!added) {
                             writeHashmap();
@@ -189,26 +194,12 @@ public class OptimizeGroupWriter implements IFrameWriter {
                             added = computer.aggregate(st, value);
                         }
                     } else {
-                        if (typeTag == Types.NULL || typeTag == Types.MISSING) {
-                            continue;
-                        }
-                        if (aggregateDataType == Types.TINYINT || aggregateDataType == Types.SMALLINT
-                                || aggregateDataType == Types.BIGINT || aggregateDataType == Types.INTEGER) {
-                            LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
+                        DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
+                        added = computer.aggregate(st, value);
+                        if (!added) {
+                            writeHashmap();
+                            computer.reset();
                             added = computer.aggregate(st, value);
-                            if (!added) {
-                                writeHashmap();
-                                computer.reset();
-                                added = computer.aggregate(st, value);
-                            }
-                        } else {
-                            DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
-                            added = computer.aggregate(st, value);
-                            if (!added) {
-                                writeHashmap();
-                                computer.reset();
-                                added = computer.aggregate(st, value);
-                            }
                         }
                     }
                 }

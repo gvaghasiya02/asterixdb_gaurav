@@ -66,11 +66,8 @@ import org.apache.hyracks.dataflow.std.group.external.ExternalGroupOperatorDescr
 
 public class ExternalGroupByPOperator extends AbstractGroupByPOperator {
 
-    private long dataInputFrames;
-
-    public ExternalGroupByPOperator(List<LogicalVariable> columnList, long dataInputFrames) {
+    public ExternalGroupByPOperator(List<LogicalVariable> columnList) {
         super(columnList);
-        this.dataInputFrames = dataInputFrames;
     }
 
     @Override
@@ -226,15 +223,7 @@ public class ExternalGroupByPOperator extends AbstractGroupByPOperator {
                 allColumns, frameSize);
 
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-        PhysicalOperatorTag tag =
-                ((AbstractLogicalOperator) gby.getInputs().get(0).getValue()).getPhysicalOperator().getOperatorTag();
-        long inputDataSizeInFrames = Math.max(dataInputFrames, framesLimit);
-        //        if (tag.equals(PhysicalOperatorTag.HASH_PARTITION_EXCHANGE)) {
-        //            inputDataSizeInFrames = dataInputFrames;
-        //        }
-        //        long noOfPartitions = ((org.apache.asterix.common.cluster.ClusterStateManager)context.getAppContext().getClusterStateManager()).getStoragePartitionsCount();
-
-        long inputSize = inputDataSizeInFrames * (long) frameSize;
+        long inputSize = framesLimit * (long) frameSize;
         ExternalGroupOperatorDescriptor gbyOpDesc = new ExternalGroupOperatorDescriptor(spec, hashTableSize, inputSize,
                 gbyColumns, fdColumns, framesLimit, comparatorFactories, normalizedKeyFactory, aggregatorFactory,
                 mergeFactory, recordDescriptor, recordDescriptor, new HashSpillableTableFactory(hashFunctionFactories));

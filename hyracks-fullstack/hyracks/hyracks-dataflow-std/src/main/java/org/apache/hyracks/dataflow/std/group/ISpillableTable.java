@@ -69,6 +69,4 @@ public interface ISpillableTable {
      * @param tIndex
      */
     int findVictimPartition(IFrameTupleAccessor accessor, int tIndex) throws HyracksDataException;
-
-    String getHashTableInfo();
 }

@@ -31,7 +31,6 @@ import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.expressions.AggregateFunctionCallExpression;
 import org.apache.hyracks.algebricks.core.algebra.expressions.IExpressionRuntimeProvider;
 import org.apache.hyracks.algebricks.core.algebra.expressions.IVariableTypeEnvironment;
-import org.apache.hyracks.algebricks.core.algebra.expressions.VariableReferenceExpression;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.IOperatorSchema;
@@ -93,15 +92,6 @@ public class OptimizeGroupByPOperator extends AbstractPreclusteredGroupByPOperat
         else {
             throw new AlgebricksException("Optimize group-by currently not supporting average");
         }
-//        int dataFieldIndex = 0;
-//        if (!aggType.equals("COUNT")) {
-//            ILogicalExpression temp = ((AggregateFunctionCallExpression) aggOp.getExpressions().get(0).getValue())
-//                    .getArguments().get(0).getValue();
-//            LogicalVariable var = ((VariableReferenceExpression) temp).getVariableReference();
-//
-//            dataFieldIndex = inputSchemas[0].findVariable(var);
-//        }
-
         int i = 0;
         int keys[] = JobGenHelper.variablesToFieldIndexes(columnList, inputSchemas[0]);
         int fdColumns[] = getFdColumns(gby, inputSchemas[0]);

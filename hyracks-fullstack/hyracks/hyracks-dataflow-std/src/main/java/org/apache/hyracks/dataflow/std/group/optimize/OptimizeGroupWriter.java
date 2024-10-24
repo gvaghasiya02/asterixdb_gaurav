@@ -53,8 +53,6 @@ import org.apache.hyracks.dataflow.std.hashmap.entry.DoubleEntry;
 import org.apache.hyracks.dataflow.std.hashmap.entry.LongEntry;
 import org.apache.hyracks.dataflow.std.hashmap.entry.StringEntry;
 import org.apache.hyracks.unsafe.BytesToBytesMap;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.spark.unsafe.Platform;
 
 public class OptimizeGroupWriter implements IFrameWriter {
@@ -71,15 +69,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private UnsafeHashAggregator computer;
     private String aggregateType;
     private Types aggregateDataType; // datatype of field
-//    private final int dataFieldIndex;
-    private long totalrecords;
-    private long inRecordsHashMap;
-    private long noofframes;
-    private long aggregatedRecords;
     private final IAggregatorDescriptor aggregator;
-
-
-    private static final Logger LOGGER = LogManager.getLogger();
 
     public OptimizeGroupWriter(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDesc,
             RecordDescriptor outRecordDesc, IFrameWriter writer, boolean groupAll, int framesLimit,
@@ -103,20 +93,10 @@ public class OptimizeGroupWriter implements IFrameWriter {
         this.aggregator = aggregatorFactory.createAggregator(ctx, inRecordDesc, outRecordDesc, groupFields, groupFields,
                 writer, this.memoryLimit);
         this.aggregateState = aggregator.createAggregateStates();
-
-        //        this.dataFieldIndex = dataFieldIndex;
-        this.totalrecords = 0;
-        this.inRecordsHashMap = 0;
-        this.noofframes = 0;
-        this.aggregatedRecords = 0;
-
-        LOGGER.warn(Thread.currentThread().getId() + " Memory limit for table " + framesLimit);
-
     }
 
     @Override
     public void open() throws HyracksDataException {
-        LOGGER.warn(Thread.currentThread().getId() + " Open to OptimizeGroup Writer " + this);
         writer.open();
         first = true;
     }
@@ -125,10 +105,6 @@ public class OptimizeGroupWriter implements IFrameWriter {
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         inFrameAccessor.reset(buffer);
         int nTuples = inFrameAccessor.getTupleCount();
-        totalrecords += nTuples;
-        inRecordsHashMap += nTuples;
-        noofframes++;
-        //        LOGGER.warn(Thread.currentThread().getId() + " NextFrame no of tuples OptimizeGroup cluster writer " + nTuples);
         if (nTuples != 0) {
             for (int i = 0; i < nTuples; ++i) {
                 boolean added;
@@ -143,33 +119,30 @@ public class OptimizeGroupWriter implements IFrameWriter {
                 aggregator.outputFinalResult(tb, null, 0, aggregateState);
                 IValueReference newValue = new ArrayBackedValueStorage(tb.getFieldData());
 
-                byte[] data=newValue.getByteArray();
-                int offset=0;
+                byte[] data = newValue.getByteArray();
+                int offset = 0;
 
                 Types typeTag = EnumDeserializeropt.ATYPETAGDESERIALIZER.deserialize(data[offset]);
 
                 if (first) {
-                    LOGGER.warn(Thread.currentThread().getId() + " keySizeInHashMap " + st.getLength());
                     this.aggregateDataType = typeTag;
                     if (typeTag == Types.NULL || typeTag == Types.MISSING) {
                         continue;
                     }
                     if (typeTag == Types.TINYINT || typeTag == Types.SMALLINT || typeTag == Types.BIGINT
                             || typeTag == Types.INTEGER) {
-                        computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType),
-                                null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
+                        computer = new UnsafeHashAggregator(UnsafeAggregators.getLongAggregator(aggregateType), null,
+                                UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                         LongEntry value = getLongEntryForTypeTag(typeTag, data, offset);
-                        LOGGER.warn(Thread.currentThread().getId() + " valueSizeInHashMap " + value.getLength());
                         added = computer.aggregate(st, value);
                         if (!added) {
                             throw new HyracksDataException(
                                     "Key is too large for hash table use with complier.optimize.groupby set to false");
                         }
                     } else if (typeTag == Types.FLOAT || typeTag == Types.DOUBLE) {
-                        computer = new UnsafeHashAggregator(UnsafeAggregators.getDoubleAggregator(aggregateType),
-                                null, UnsafeComparators.STRING_COMPARATOR, memoryLimit);
+                        computer = new UnsafeHashAggregator(UnsafeAggregators.getDoubleAggregator(aggregateType), null,
+                                UnsafeComparators.STRING_COMPARATOR, memoryLimit);
                         DoubleEntry value = getDoubleEntryForTypeTag(typeTag, data, offset);
-                        LOGGER.warn(Thread.currentThread().getId() + " valueSizeInHashMap " + value.getLength());
                         added = computer.aggregate(st, value);
                         if (!added) {
                             throw new HyracksDataException(
@@ -179,8 +152,7 @@ public class OptimizeGroupWriter implements IFrameWriter {
                         throw new AILRuntimeException("Aggregate type not supported " + typeTag.toString());
                     }
                     first = false;
-                } else
-                {
+                } else {
                     if (typeTag == Types.NULL || typeTag == Types.MISSING) {
                         continue;
                     }
@@ -240,13 +212,6 @@ public class OptimizeGroupWriter implements IFrameWriter {
     private void writeHashmap() {
         try {
             if (!isFailed && (!first || groupAll)) {
-                LOGGER.warn(Thread.currentThread().getId() + " Writing hashmap inRecords " + inRecordsHashMap
-                        + " outRecords " + computer.size() + " noOfValues " + computer.numValues() + " sizeOfData "
-                        + computer.getSizeofHashEntries() + " noOfDataPages " + computer.getNumDataPages()
-                        + " totalMemoryUsedByMap " + computer.getTotalMemoryConsumption() + " from "
-                        + this.memoryLimit);
-                inRecordsHashMap = 0;
-                aggregatedRecords += computer.size();
                 ArrayTupleBuilder tb = new ArrayTupleBuilder(groupFields.length + 1);
                 DataOutput dos = tb.getDataOutput();
                 Iterator<BytesToBytesMap.Location> iter = computer.aIterator();
@@ -317,8 +282,6 @@ public class OptimizeGroupWriter implements IFrameWriter {
             writer.fail();
             throw e;
         } finally {
-            LOGGER.warn(Thread.currentThread().getId() + " processedRecords " + totalrecords + " processedFrames "
-                    + noofframes + " aggregatedRecords " + aggregatedRecords + " Closing to OptimizeGroupWriter");
             writer.close();
         }
     }

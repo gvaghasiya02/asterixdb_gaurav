@@ -219,7 +219,6 @@ public abstract class AbstractIntroduceGroupByCombinerRule extends AbstractIntro
 
         // Sets the global flag to be false.
         newGbyOp.setGlobal(false);
-        newGbyOp.setDataInputFrames(gbyOp.getDataInputFrames());
         // Sets the group all flag.
         newGbyOp.setGroupAll(gbyOp.isGroupAll());
         return newGbyOp;

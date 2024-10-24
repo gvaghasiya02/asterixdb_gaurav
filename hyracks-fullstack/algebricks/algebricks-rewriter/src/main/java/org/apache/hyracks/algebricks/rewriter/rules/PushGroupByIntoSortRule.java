@@ -28,7 +28,6 @@ import org.apache.hyracks.algebricks.core.algebra.base.ILogicalExpression;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
 import org.apache.hyracks.algebricks.core.algebra.base.IOptimizationContext;
-import org.apache.hyracks.algebricks.core.algebra.base.LogicalExpressionTag;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalVariable;
 import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
@@ -134,10 +133,6 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                                     .getExpressions().get(0).getValue();
                             if (temp.getArguments().size() != 1)
                                 continue;
-//                            if (temp.getArguments().get(0).getValue()
-//                                    .getExpressionTag() == LogicalExpressionTag.CONSTANT
-//                                    || temp.getArguments().get(0).getValue()
-//                                            .getExpressionTag() == LogicalExpressionTag.VARIABLE) {
 
                             if (localAggregateOp.getExpressions().get(0).getValue().toString().contains("sql-count")
                                     || localAggregateOp.getExpressions().get(0).getValue().toString()
@@ -152,7 +147,6 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                                                     localGroupbyOperator.isGroupAll()));
                                 }
                             }
-//                            }
                         }
                     }
                 }

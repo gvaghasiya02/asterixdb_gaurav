@@ -141,8 +141,6 @@ public class ExternalGroupWriteOperatorNodePushable extends AbstractUnaryOutputS
                 ISpillableTable partitionTable = spillableTableFactory.buildSpillableTable(ctx, hashTableCardinality,
                         runs[i].getFileSize(), gbyFields, fdFields, groupByComparators, nmkComputer,
                         mergeAggregatorFactory, partialAggRecordDesc, outRecordDesc, frameLimit, level);
-
-                LOGGER.warn(Thread.currentThread().getId() + " spillBuildHashTable " + table.getHashTableInfo());
                 RunFileWriter[] runFileWriters = new RunFileWriter[partitionTable.getNumPartitions()];
                 int[] sizeInTuplesNextLevel;
                 try {
@@ -156,19 +154,16 @@ public class ExternalGroupWriteOperatorNodePushable extends AbstractUnaryOutputS
                     }
                 }
 
-                int numOfSpilledPart = 0;
-                int noOfSpilledTuples = 0;
-                for (int x = 0; x < numOfTuples.length; x++) {
-                    if (numOfTuples[x] > 0) {
-                        numOfSpilledPart++;
-                        noOfSpilledTuples += numOfTuples[x];
+                if (LOGGER.isDebugEnabled()) {
+                    int numOfSpilledPart = 0;
+                    for (int x = 0; x < numOfTuples.length; x++) {
+                        if (numOfTuples[x] > 0) {
+                            numOfSpilledPart++;
+                        }
                     }
-                    LOGGER.warn("level " + level + ":" + "build with " + numOfTuples.length + " partitions"
-                            + ", spilled " + numOfSpilledPart + " partitions with noSpilledTuples " + numOfTuples[x]);
+                    LOGGER.debug("level " + level + ":" + "build with " + numOfTuples.length + " partitions"
+                            + ", spilled " + numOfSpilledPart + " partitions");
                 }
-                LOGGER.warn(Thread.currentThread().getId() + " level " + level + ":" + " spillBuildHashTable "
-                        + numOfTuples.length + " partitions" + ", spilled " + numOfSpilledPart
-                        + " partitions with TotalNoSpilledTuples " + noOfSpilledTuples);
                 doPass(partitionTable, runFileWriters, sizeInTuplesNextLevel, writer, level + 1);
             }
         }
@@ -187,8 +182,6 @@ public class ExternalGroupWriteOperatorNodePushable extends AbstractUnaryOutputS
         } finally {
             reader.close();
         }
-        LOGGER.warn(
-                Thread.currentThread().getId() + " CloseSpillBuildHashtable " + groupBy.getTable().getHashTableInfo());
         return groupBy.getSpilledNumTuples();
     }
 

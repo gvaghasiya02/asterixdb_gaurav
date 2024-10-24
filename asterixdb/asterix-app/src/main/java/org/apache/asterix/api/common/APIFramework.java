@@ -114,8 +114,6 @@ import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.api.job.JobSpecification;
 import org.apache.hyracks.api.job.resource.IClusterCapacity;
 import org.apache.hyracks.control.common.config.OptionTypes;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -138,7 +136,6 @@ public class APIFramework {
     private final Set<String> configurableParameterNames;
     private final ExecutionPlans executionPlans;
     private PlanInfo lastPlan;
-    private static final Logger LOGGER = LogManager.getLogger();
 
     public APIFramework(ILangCompilationProvider compilationProvider) {
         this.rewriterFactory = compilationProvider.getRewriterFactory();
@@ -475,13 +472,8 @@ public class APIFramework {
             // Otherwise, we will use all available cores.
             if (parallelismHint == CompilerProperties.COMPILER_PARALLELISM_AS_STORAGE
                     && storageLocations.getLocations().length <= totalNumCores) {
-                LOGGER.warn("ncMapSize " + ncMap.size() + " parallelism " + parallelismHint + " Total no of cores "
-                        + totalNumCores + " locationSize " + storageLocations.getLocations().length);
                 return storageLocations;
             }
-            LOGGER.warn("ncMapSize " + ncMap.size() + " parallelism " + parallelismHint + " Total no of cores "
-                    + totalNumCores + " locationSize "
-                    + getComputationLocations(ncMap, parallelismHint).getLocations().length);
             return getComputationLocations(ncMap, parallelismHint);
         } catch (HyracksException e) {
             throw new AlgebricksException(e);

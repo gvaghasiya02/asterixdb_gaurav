@@ -37,7 +37,8 @@ public class OptimizeGroupByOperatorDescriptor extends AbstractSingleActivityOpe
     private final IAggregatorDescriptorFactory aggregatorFactory;
 
     public OptimizeGroupByOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] groupFields,
-            RecordDescriptor recordDescriptor, boolean groupAll, int framesLimit, String aggType, IAggregatorDescriptorFactory aggregatorFactory) {
+            RecordDescriptor recordDescriptor, boolean groupAll, int framesLimit, String aggType,
+            IAggregatorDescriptorFactory aggregatorFactory) {
         super(spec, 1, 1);
         this.groupFields = groupFields;
         outRecDescs[0] = recordDescriptor;

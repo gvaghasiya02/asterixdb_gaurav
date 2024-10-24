@@ -39,7 +39,8 @@ class OptimizeGroupByOperatorNodePushable extends AbstractUnaryInputUnaryOutputO
     private OptimizeGroupWriter ogw;
 
     OptimizeGroupByOperatorNodePushable(IHyracksTaskContext ctx, int[] groupFields, RecordDescriptor inRecordDescriptor,
-            RecordDescriptor outRecordDescriptor, boolean groupAll, int frameLimit, String aggType, IAggregatorDescriptorFactory aggregatorFactory) {
+            RecordDescriptor outRecordDescriptor, boolean groupAll, int frameLimit, String aggType,
+            IAggregatorDescriptorFactory aggregatorFactory) {
         this.ctx = ctx;
         this.groupFields = groupFields;
         this.inRecordDescriptor = inRecordDescriptor;

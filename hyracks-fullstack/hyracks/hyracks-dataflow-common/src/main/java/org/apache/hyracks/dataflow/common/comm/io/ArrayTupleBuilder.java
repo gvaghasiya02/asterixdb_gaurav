@@ -20,6 +20,7 @@ package org.apache.hyracks.dataflow.common.comm.io;
 
 import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import org.apache.hyracks.api.comm.FrameConstants;
 import org.apache.hyracks.api.comm.IFrameTupleAccessor;
@@ -189,5 +190,19 @@ public class ArrayTupleBuilder implements IDataOutputProvider {
      */
     public void addField(IValueReference data) throws HyracksDataException {
         addField(data.getByteArray(), data.getStartOffset(), data.getLength());
+    }
+
+    public int getLastAddedOffset() {
+        return fEndOffsets[nextField - 1];
+    }
+
+    public void addAllFieldEndOffset(byte[] fEndOffsetBytes) {
+        ByteBuffer byteBuffer = ByteBuffer.wrap(fEndOffsetBytes);
+        int length = fEndOffsetBytes.length / 4;
+        int i = 0;
+        for (i = 0; i < length; i++) {
+            this.fEndOffsets[i] = byteBuffer.getInt();
+        }
+        this.nextField = i;
     }
 }

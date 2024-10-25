@@ -22,6 +22,8 @@ package org.apache.asterix.hyracks.bootstrap;
 import static org.apache.asterix.algebra.base.ILangExtension.Language.SQLPP;
 import static org.apache.asterix.api.http.server.ServletConstants.ASTERIX_APP_CONTEXT_INFO_ATTR;
 import static org.apache.asterix.api.http.server.ServletConstants.HYRACKS_CONNECTION_ATTR;
+import static org.apache.asterix.common.api.IClusterManagementWork.ClusterState.ACTIVE;
+import static org.apache.asterix.common.api.IClusterManagementWork.ClusterState.REBALANCE_REQUIRED;
 import static org.apache.asterix.common.api.IClusterManagementWork.ClusterState.SHUTTING_DOWN;
 import static org.apache.hyracks.control.common.controllers.ControllerConfig.Option.CLOUD_DEPLOYMENT;
 
@@ -35,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 import org.apache.asterix.api.http.IQueryWebServerRegistrant;
@@ -61,18 +64,19 @@ import org.apache.asterix.app.config.ConfigValidator;
 import org.apache.asterix.app.io.PersistedResourceRegistry;
 import org.apache.asterix.app.replication.NcLifecycleCoordinator;
 import org.apache.asterix.app.result.JobResultCallback;
-import org.apache.asterix.cloud.CloudManagerProvider;
+import org.apache.asterix.cloud.CloudConfigurator;
+import org.apache.asterix.cloud.clients.ICloudGuardian;
 import org.apache.asterix.common.api.AsterixThreadFactory;
 import org.apache.asterix.common.api.IConfigValidatorFactory;
 import org.apache.asterix.common.api.INamespacePathResolver;
 import org.apache.asterix.common.api.INamespaceResolver;
 import org.apache.asterix.common.api.INodeJobTracker;
 import org.apache.asterix.common.api.IReceptionistFactory;
+import org.apache.asterix.common.cluster.IClusterStateManager;
 import org.apache.asterix.common.cluster.IGlobalRecoveryManager;
 import org.apache.asterix.common.cluster.IGlobalTxManager;
 import org.apache.asterix.common.config.AsterixExtension;
 import org.apache.asterix.common.config.CloudProperties;
-import org.apache.asterix.common.config.CompilerProperties;
 import org.apache.asterix.common.config.ExtensionProperties;
 import org.apache.asterix.common.config.ExternalProperties;
 import org.apache.asterix.common.config.GlobalConfig;
@@ -87,6 +91,7 @@ import org.apache.asterix.common.metadata.IMetadataLockUtil;
 import org.apache.asterix.common.metadata.NamespacePathResolver;
 import org.apache.asterix.common.metadata.NamespaceResolver;
 import org.apache.asterix.common.replication.INcLifecycleCoordinator;
+import org.apache.asterix.common.utils.IdentifierUtil;
 import org.apache.asterix.common.utils.Servlets;
 import org.apache.asterix.external.adapter.factory.AdapterFactoryService;
 import org.apache.asterix.file.StorageComponentProvider;
@@ -111,6 +116,7 @@ import org.apache.hyracks.api.config.IConfigManager;
 import org.apache.hyracks.api.control.IGatekeeper;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.IODeviceHandle;
+import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.api.job.resource.IJobCapacityController;
 import org.apache.hyracks.api.lifecycle.LifeCycleComponentManager;
 import org.apache.hyracks.api.result.IJobResultCallback;
@@ -160,7 +166,7 @@ public class CCApplication extends BaseCCApplication {
         ccServiceCtx.setMessageBroker(new CCMessageBroker(controllerService));
         ccServiceCtx.setPersistedResourceRegistry(new PersistedResourceRegistry());
         configureLoggingLevel(ccServiceCtx.getAppConfig().getLoggingLevel(ExternalProperties.Option.LOG_LEVEL));
-        LOGGER.info("Starting Asterix cluster controller");
+        LOGGER.info("Starting {} cluster controller", IdentifierUtil.productName());
         String strIP = ccServiceCtx.getCCContext().getClusterControllerInfo().getClientNetAddress();
         int port = ccServiceCtx.getCCContext().getClusterControllerInfo().getClientNetPort();
         hcc = new HyracksConnection(strIP, port,
@@ -170,13 +176,11 @@ public class CCApplication extends BaseCCApplication {
                 new ReplicationProperties(PropertiesAccessor.getInstance(ccServiceCtx.getAppConfig()));
         INcLifecycleCoordinator lifecycleCoordinator = createNcLifeCycleCoordinator(repProp.isReplicationEnabled());
         componentProvider = new StorageComponentProvider();
-        boolean isDbResolutionEnabled =
-                ccServiceCtx.getAppConfig().getBoolean(CompilerProperties.Option.COMPILER_ENABLE_DB_RESOLUTION);
         boolean cloudDeployment = ccServiceCtx.getAppConfig().getBoolean(CLOUD_DEPLOYMENT);
-        boolean useDatabaseResolution = cloudDeployment && isDbResolutionEnabled;
-        INamespaceResolver namespaceResolver = new NamespaceResolver(useDatabaseResolution);
+        boolean useDatabaseResolution = cloudDeployment;
+        INamespaceResolver namespaceResolver = createNamespaceResolver(useDatabaseResolution);
         INamespacePathResolver namespacePathResolver = new NamespacePathResolver(useDatabaseResolution);
-        ccExtensionManager = new CCExtensionManager(new ArrayList<>(getExtensions()), namespaceResolver);
+        ccExtensionManager = new CCExtensionManager(new ArrayList<>(getExtensions()), namespaceResolver, ccServiceCtx);
         IGlobalRecoveryManager globalRecoveryManager = createGlobalRecoveryManager();
         final CCConfig ccConfig = controllerService.getCCConfig();
 
@@ -186,8 +190,8 @@ public class CCApplication extends BaseCCApplication {
         CloudProperties cloudProperties = null;
         if (cloudDeployment) {
             cloudProperties = new CloudProperties(PropertiesAccessor.getInstance(ccServiceCtx.getAppConfig()));
-            ioManager =
-                    (IOManager) CloudManagerProvider.createIOManager(cloudProperties, ioManager, namespacePathResolver);
+            ioManager = CloudConfigurator.createIOManager(ioManager, cloudProperties, namespacePathResolver,
+                    getCloudGuardian(cloudProperties));
         }
         IGlobalTxManager globalTxManager = createGlobalTxManager(ioManager);
         appCtx = createApplicationContext(null, globalRecoveryManager, lifecycleCoordinator, Receptionist::new,
@@ -202,6 +206,7 @@ public class CCApplication extends BaseCCApplication {
         ccServiceCtx.setDistributedState(proxy);
         MetadataManager.initialize(proxy, metadataProperties, appCtx);
         ccServiceCtx.addJobLifecycleListener(appCtx.getActiveNotificationHandler());
+        ccServiceCtx.addJobLifecycleListener(appCtx.getRequestTracker());
 
         // create event loop groups
         webManager = new WebManager();
@@ -213,7 +218,15 @@ public class CCApplication extends BaseCCApplication {
         ccServiceCtx.addClusterLifecycleListener(nodeJobTracker);
         ccServiceCtx.addJobLifecycleListener(globalTxManager);
 
-        jobCapacityController = new JobCapacityController(controllerService.getResourceManager());
+        jobCapacityController = new JobCapacityController(controllerService.getResourceManager(), this);
+    }
+
+    protected INamespaceResolver createNamespaceResolver(boolean useDatabaseResolution) {
+        return new NamespaceResolver(useDatabaseResolution);
+    }
+
+    protected ICloudGuardian getCloudGuardian(CloudProperties cloudProperties) {
+        return ICloudGuardian.NoOpCloudGuardian.INSTANCE;
     }
 
     private Map<String, String> parseCredentialMap(String credPath) {
@@ -286,6 +299,7 @@ public class CCApplication extends BaseCCApplication {
     @Override
     public void stop() throws Exception {
         LOGGER.info("Stopping Asterix cluster controller");
+        super.stop();
         appCtx.getClusterStateManager().setState(SHUTTING_DOWN);
         ((ActiveNotificationHandler) appCtx.getActiveNotificationHandler()).stop();
         AsterixStateProxy.unregisterRemoteObject();
@@ -432,5 +446,15 @@ public class CCApplication extends BaseCCApplication {
     @Override
     public IJobResultCallback getJobResultCallback() {
         return new JobResultCallback(appCtx);
+    }
+
+    @Override
+    public boolean acceptingJobs(Set<JobFlag> flags) {
+        // flags == null should not be needed since currently it's not null (but not enforced)
+        if (flags == null || !flags.contains(JobFlag.ENSURE_RUNNABLE)) {
+            return true;
+        }
+        IClusterStateManager csm = appCtx.getClusterStateManager();
+        return csm.getState() == ACTIVE || csm.getState() == REBALANCE_REQUIRED;
     }
 }

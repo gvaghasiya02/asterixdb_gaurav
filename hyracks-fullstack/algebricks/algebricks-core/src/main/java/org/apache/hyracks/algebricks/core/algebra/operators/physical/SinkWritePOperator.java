@@ -23,6 +23,7 @@ import static org.apache.hyracks.algebricks.core.algebra.operators.physical.Abst
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksPartitionConstraint;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.utils.ListSet;
@@ -145,6 +146,25 @@ public class SinkWritePOperator extends AbstractPhysicalOperator {
         IBinaryComparatorFactory[] partitionComparatorFactories =
                 JobGenHelper.variablesToAscBinaryComparatorFactories(partitionVariables, typeEnv, context);
 
+        // Key expressions
+        boolean allConstants = true;
+        IScalarEvaluatorFactory[] keyEvalFactories = new IScalarEvaluatorFactory[write.getKeyExpressions().size()];
+        List<Mutable<ILogicalExpression>> keyExpressions = write.getKeyExpressions();
+        if (!keyExpressions.isEmpty()) {
+            for (int i = 0; i < keyExpressions.size(); i++) {
+                ILogicalExpression keyExpr = keyExpressions.get(i).getValue();
+                if (keyExpr.getExpressionTag() != LogicalExpressionTag.CONSTANT) {
+                    allConstants = false;
+                }
+                keyEvalFactories[i] = runtimeProvider.createEvaluatorFactory(keyExpr, typeEnv, inputSchemas, context);
+            }
+        }
+
+        // key cannot be fully constant
+        if (!keyExpressions.isEmpty() && allConstants) {
+            throw AlgebricksException.create(ErrorCode.EXPRESSION_CANNOT_BE_CONSTANT, op.getSourceLocation(), "KEY");
+        }
+
         RecordDescriptor recDesc =
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), propagatedSchema, context);
         RecordDescriptor inputDesc = JobGenHelper.mkRecordDescriptor(
@@ -152,9 +172,17 @@ public class SinkWritePOperator extends AbstractPhysicalOperator {
 
         IMetadataProvider<?, ?> mp = context.getMetadataProvider();
 
-        Pair<IPushRuntimeFactory, AlgebricksPartitionConstraint> runtimeAndConstraints = mp.getWriteFileRuntime(
-                sourceColumn, partitionColumns, partitionComparatorFactories, dynamicPathEvalFactory, staticPathExpr,
-                pathExpr.getSourceLocation(), writeDataSink, inputDesc, typeEnv.getVarType(sourceVariable));
+        Pair<IPushRuntimeFactory, AlgebricksPartitionConstraint> runtimeAndConstraints;
+        if (write.isFileStoreSink()) {
+            runtimeAndConstraints = mp.getWriteFileRuntime(sourceColumn, partitionColumns, partitionComparatorFactories,
+                    dynamicPathEvalFactory, staticPathExpr, pathExpr.getSourceLocation(), writeDataSink, inputDesc,
+                    typeEnv.getVarType(sourceVariable));
+
+        } else {
+            runtimeAndConstraints = mp.getWriteDatabaseWithKeyRuntime(sourceColumn, keyEvalFactories, writeDataSink,
+                    inputDesc, typeEnv.getVarType(sourceVariable));
+        }
+
         IPushRuntimeFactory runtime = runtimeAndConstraints.first;
         runtime.setSourceLocation(write.getSourceLocation());
 

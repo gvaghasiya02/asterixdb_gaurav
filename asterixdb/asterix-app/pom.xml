@@ -22,7 +22,7 @@
   <parent>
     <artifactId>apache-asterixdb</artifactId>
     <groupId>org.apache.asterix</groupId>
-    <version>0.9.9-SNAPSHOT</version>
+    <version>0.9.10-SNAPSHOT</version>
   </parent>
   <artifactId>asterix-app</artifactId>
   <licenses>
@@ -103,6 +103,47 @@
                 </resource>
               </resources>
             </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>com.googlecode.maven-download-plugin</groupId>
+        <artifactId>download-maven-plugin</artifactId>
+        <version>1.4.2</version>
+        <executions>
+          <execution>
+            <id>install-fake-gcs</id>
+            <phase>${gcs.download.stage}</phase>
+            <goals>
+              <goal>wget</goal>
+            </goals>
+            <configuration>
+              <url>https://github.com/fsouza/fake-gcs-server/releases/download/v1.48.0/fake-gcs-server_1.48.0_Linux_amd64.tar.gz</url>
+              <outputFileName>fake-gcs-server_1.48.0_Linux_amd64.tar.gz</outputFileName>
+              <outputDirectory>${project.build.directory}</outputDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>extract-gcs</id>
+            <phase>${gcs.install.stage}</phase>
+            <configuration>
+              <target>
+                <echo message="Extracting fake-gcs-server" />
+                <mkdir dir="${project.build.directory}/fake-gcs-server" />
+                <gunzip src="${project.build.directory}/fake-gcs-server_1.48.0_Linux_amd64.tar.gz" dest="${project.build.directory}/fake-gcs-server_1.48.0_Linux_amd64.tar" />
+                <untar src="${project.build.directory}/fake-gcs-server_1.48.0_Linux_amd64.tar" dest="${project.build.directory}/fake-gcs-server" />
+                <chmod file="${project.build.directory}/fake-gcs-server/fake-gcs-server" perm="ugo+rx" />
+              </target>
+            </configuration>
+            <goals>
+              <goal>run</goal>
+            </goals>
           </execution>
         </executions>
       </plugin>
@@ -272,6 +313,30 @@
               </arguments>
               <async>true</async>
               <outputFile>${project.build.directory}/azurite/logs/azurite.log</outputFile>
+            </configuration>
+          </execution>
+          <execution>
+            <id>fake-gcs-server</id>
+            <phase>${gcs.stage}</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>${project.build.directory}/fake-gcs-server/fake-gcs-server</executable>
+              <workingDirectory>${project.build.directory}/fake-gcs-server</workingDirectory>
+              <arguments>
+                <argument>-port</argument>
+                <argument>4443</argument>
+                <argument>-scheme</argument>
+                <argument>http</argument>
+                <argument>-host</argument>
+                <argument>127.0.0.1</argument>
+                <argument>-log-level</argument>
+                <argument>error</argument>
+                <argument>-filesystem-root</argument>
+                <argument>${project.build.directory}/fake-gcs-server/storage</argument>
+              </arguments>
+              <async>true</async>
             </configuration>
           </execution>
         </executions>
@@ -448,7 +513,7 @@
     <profile>
       <id>asterix-gerrit-asterix-app</id>
       <properties>
-        <test.excludes>**/CloudStorageTest.java,**/SqlppExecutionWithCancellationTest.java,**/DmlTest.java,**/RepeatedTest.java,**/SqlppExecutionTest.java,**/SqlppExecutionColumnTest.java,**/*StaticPartitioning*Test.java,**/*Ssl*Test.java,**/Podman*.java,**/*AnalyzedExecutionTest.java,**/SqlppProfiledExecutionTest.java,**/CloudPythonTest.java</test.excludes>
+        <test.excludes>**/CloudStorageTest.java,**/CloudStorageGCSTest.java,**/SqlppExecutionWithCancellationTest.java,**/DmlTest.java,**/RepeatedTest.java,**/SqlppExecutionTest.java,**/SqlppExecutionColumnTest.java,**/*StaticPartitioning*Test.java,**/*Ssl*Test.java,**/Podman*.java,**/*AnalyzedExecutionTest.java,**/SqlppProfiledExecutionTest.java,**/CloudPythonTest.java,**/CloudStorageAzTest.java</test.excludes>
         <itest.excludes>**/*.java</itest.excludes>
       </properties>
       <build>
@@ -467,6 +532,13 @@
                     -Xdebug
                     -Xrunjdwp:transport=dt_socket,server=y,address=8000,suspend=${debug.suspend.flag}
                     -Xloggc:"${project.build.directory}/surefire-reports/SqlppExecutionTest-%p-gc.log" -XX:+PrintGC -XX:+PrintGCDateStamps -XX:GCLogFileSize=10M
+                    --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED
+                    --add-opens=java.management/sun.management=ALL-UNNAMED
+                    --add-opens=java.base/java.lang=ALL-UNNAMED
+                    --add-opens=java.base/java.nio=ALL-UNNAMED
+                    --add-opens=java.base/java.util=ALL-UNNAMED
+                    --add-opens=java.base/java.io=ALL-UNNAMED
+                    --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
                   </argLine>
                 </configuration>
                 <goals>
@@ -517,6 +589,43 @@
         <itest.includes>**/RebalanceWithCancellationIT.java</itest.includes>
         <failIfNoTests>false</failIfNoTests>
       </properties>
+    </profile>
+    <profile>
+        <id>azurite-tests</id>
+        <build>
+            <plugins>
+                <plugin>
+                    <groupId>com.github.eirslett</groupId>
+                    <artifactId>frontend-maven-plugin</artifactId>
+                    <version>1.13.4</version>
+                    <configuration>
+                        <nodeVersion>v14.15.4</nodeVersion>
+                        <npmVersion>6.14.11</npmVersion>
+                        <workingDirectory>target/npm</workingDirectory>
+                        <installDirectory>target/npm</installDirectory>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>install node and yarn</id>
+                            <goals>
+                                <goal>install-node-and-npm</goal>
+                            </goals>
+                            <phase>${azurite.npm.install.stage}</phase>
+                        </execution>
+                        <execution>
+                            <id>azurite blob</id>
+                            <phase>${azurite.install.stage}</phase>
+                            <goals>
+                                <goal>npm</goal>
+                            </goals>
+                            <configuration>
+                                <arguments>install azurite</arguments>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </build>
     </profile>
   </profiles>
   <dependencies>
@@ -952,57 +1061,15 @@
     <dependency>
       <groupId>org.apache.iceberg</groupId>
       <artifactId>iceberg-core</artifactId>
-      <version>1.1.0</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.iceberg</groupId>
       <artifactId>iceberg-data</artifactId>
-      <version>1.1.0</version>
-      <exclusions>
-        <exclusion>
-          <groupId>org.slf4j</groupId>
-          <artifactId>slf4j-api</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>org.apache.parquet</groupId>
-          <artifactId>parquet-avro</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>org.apache.iceberg</groupId>
-          <artifactId>iceberg-core</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.apache.iceberg</groupId>
       <artifactId>iceberg-parquet</artifactId>
-      <version>1.1.0</version>
-      <exclusions>
-        <exclusion>
-          <groupId>org.slf4j</groupId>
-          <artifactId>slf4j-api</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>org.apache.parquet</groupId>
-          <artifactId>parquet-avro</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>org.apache.iceberg</groupId>
-          <artifactId>iceberg-core</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.parquet</groupId>
-      <artifactId>parquet-avro</artifactId>
-      <version>1.12.3</version>
-      <exclusions>
-        <exclusion>
-          <groupId>org.slf4j</groupId>
-          <artifactId>slf4j-api</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>tech.allegro.schema.json2avro</groupId>

@@ -39,7 +39,7 @@ public class ExternalDataConstants {
     // used to specify the stream factory for an adapter that has a stream data source
     public static final String KEY_STREAM = "stream";
     //TODO(DB): check adapter configuration
-    public static final String KEY_DATABASE_DATAVERSE = "dataset-database";
+    public static final String KEY_DATASET_DATABASE = "dataset-database";
     // used to specify the dataverse of the adapter
     public static final String KEY_DATASET_DATAVERSE = "dataset-dataverse";
     // used to specify the socket addresses when reading data from sockets
@@ -82,6 +82,11 @@ public class ExternalDataConstants {
     public static final String KEY_EXPRESSION = "expression";
     public static final String KEY_LOCAL_SOCKET_PATH = "local-socket-path";
     public static final String KEY_FORMAT = "format";
+    public static final String KEY_SCHEMA = "schema";
+    public static final String KEY_PARQUET_ROW_GROUP_SIZE = "row-group-size";
+    public static final String PARQUET_DEFAULT_ROW_GROUP_SIZE = "10MB";
+    public static final String KEY_PARQUET_PAGE_SIZE = "page-size";
+    public static final String PARQUET_DEFAULT_PAGE_SIZE = "8KB";
     public static final String KEY_INCLUDE = "include";
     public static final String KEY_EXCLUDE = "exclude";
     public static final String KEY_QUOTE = "quote";
@@ -119,7 +124,7 @@ public class ExternalDataConstants {
     // a string representing the format of the record (for adapters which produces records with additional information like pk or metadata)
     public static final String KEY_RECORD_FORMAT = "record-format";
     public static final String TABLE_FORMAT = "table-format";
-    public static final String ICEBERG_METADATA_LOCATION = "metadata-path";
+    public static final String TABLE_METADATA_LOCATION = "metadata-path";
     public static final int SUPPORTED_ICEBERG_FORMAT_VERSION = 1;
     public static final String KEY_META_TYPE_NAME = "meta-type-name";
     public static final String KEY_ADAPTER_NAME = "adapter-name";
@@ -161,6 +166,8 @@ public class ExternalDataConstants {
     public static final String CLASS_NAME_PARQUET_INPUT_FORMAT =
             "org.apache.asterix.external.input.record.reader.hdfs.parquet.MapredParquetInputFormat";
     public static final String CLASS_NAME_HDFS_FILESYSTEM = "org.apache.hadoop.hdfs.DistributedFileSystem";
+    public static final String S3A_CHANGE_DETECTION_REQUIRED = "requireVersionChangeDetection";
+    public static final String S3A_CHANGE_DETECTION_REQUIRED_CONFIG_KEY = "fs.s3a.change.detection.version.required";
     /**
      * input formats aliases
      */
@@ -204,7 +211,15 @@ public class ExternalDataConstants {
     public static final String FORMAT_CSV = "csv";
     public static final String FORMAT_TSV = "tsv";
     public static final String FORMAT_PARQUET = "parquet";
+    public static final String PARQUET_SCHEMA_KEY = "parquet-schema";
+    public static final String PARQUET_WRITER_VERSION_KEY = "version";
+    public static final String PARQUET_WRITER_VERSION_VALUE_1 = "1";
+    public static final String PARQUET_WRITER_VERSION_VALUE_2 = "2";
+    public static final String DUMMY_DATABASE_NAME = "dbname";
+    public static final String DUMMY_TYPE_NAME = "typeName";
+    public static final String DUMMY_DATAVERSE_NAME = "a.b.c";
     public static final String FORMAT_APACHE_ICEBERG = "apache-iceberg";
+    public static final String FORMAT_DELTA = "delta";
     public static final Set<String> ALL_FORMATS;
     public static final Set<String> TEXTUAL_FORMATS;
 
@@ -246,6 +261,8 @@ public class ExternalDataConstants {
      * Constant characters
      */
     public static final char ESCAPE = '\\';
+
+    public static final char CSV_ESCAPE = '\"';
     public static final char QUOTE = '"';
     public static final char SPACE = ' ';
     public static final char TAB = '\t';
@@ -304,21 +321,33 @@ public class ExternalDataConstants {
      * Compression constants
      */
     public static final String KEY_COMPRESSION_GZIP = "gzip";
+    public static final String KEY_COMPRESSION_SNAPPY = "snappy";
+    public static final String KEY_COMPRESSION_ZSTD = "zstd";
+    public static final String KEY_COMPRESSION_GZIP_COMPRESSION_LEVEL = "gzipCompressionLevel";
 
     /**
      * Writer Constants
      */
     public static final String KEY_WRITER_MAX_RESULT = "max-objects-per-file";
+    public static final String KEY_VALIDATE_WRITE_PERMISSION = "validate-write-permission";
     public static final String KEY_WRITER_COMPRESSION = "compression";
-    public static final int WRITER_MAX_RESULT_DEFAULT = 1000;
+    public static final int WRITER_MAX_RESULT_DEFAULT = 10000;
+    public static final int WRITER_MAX_RESULT_MINIMUM = 1000;
     public static final Set<String> WRITER_SUPPORTED_FORMATS;
     public static final Set<String> WRITER_SUPPORTED_ADAPTERS;
-    public static final Set<String> WRITER_SUPPORTED_COMPRESSION;
+    public static final Set<String> TEXTUAL_WRITER_SUPPORTED_COMPRESSION;
+    public static final Set<String> PARQUET_WRITER_SUPPORTED_COMPRESSION;
+    public static final Set<String> PARQUET_WRITER_SUPPORTED_VERSION;
+    public static final int PARQUET_DICTIONARY_PAGE_SIZE = 1048576;
 
     static {
-        WRITER_SUPPORTED_FORMATS = Set.of(FORMAT_JSON_LOWER_CASE);
-        WRITER_SUPPORTED_ADAPTERS = Set.of(ALIAS_LOCALFS_ADAPTER.toLowerCase(), KEY_ADAPTER_NAME_AWS_S3.toLowerCase());
-        WRITER_SUPPORTED_COMPRESSION = Set.of(KEY_COMPRESSION_GZIP);
+        WRITER_SUPPORTED_FORMATS = Set.of(FORMAT_JSON_LOWER_CASE, FORMAT_PARQUET);
+        WRITER_SUPPORTED_ADAPTERS = Set.of(ALIAS_LOCALFS_ADAPTER.toLowerCase(), KEY_ADAPTER_NAME_AWS_S3.toLowerCase(),
+                KEY_ADAPTER_NAME_GCS.toLowerCase());
+        TEXTUAL_WRITER_SUPPORTED_COMPRESSION = Set.of(KEY_COMPRESSION_GZIP);
+        PARQUET_WRITER_SUPPORTED_COMPRESSION =
+                Set.of(KEY_COMPRESSION_GZIP, KEY_COMPRESSION_SNAPPY, KEY_COMPRESSION_ZSTD);
+        PARQUET_WRITER_SUPPORTED_VERSION = Set.of(PARQUET_WRITER_VERSION_VALUE_1, PARQUET_WRITER_VERSION_VALUE_2);
     }
 
     public static class ParquetOptions {

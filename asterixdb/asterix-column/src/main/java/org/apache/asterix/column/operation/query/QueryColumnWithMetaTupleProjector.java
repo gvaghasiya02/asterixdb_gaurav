@@ -35,6 +35,7 @@ import org.apache.hyracks.api.exceptions.IWarningCollector;
 import org.apache.hyracks.data.std.api.IValueReference;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
+import org.apache.hyracks.storage.am.lsm.btree.column.api.projection.ColumnProjectorType;
 import org.apache.hyracks.storage.am.lsm.btree.column.api.projection.IColumnProjectionInfo;
 
 public class QueryColumnWithMetaTupleProjector extends QueryColumnTupleProjector {
@@ -45,9 +46,9 @@ public class QueryColumnWithMetaTupleProjector extends QueryColumnTupleProjector
             ARecordType requestedType, Map<String, FunctionCallInformation> functionCallInfoMap,
             ARecordType requestedMetaType, IColumnRangeFilterEvaluatorFactory filterEvaluator,
             IColumnIterableFilterEvaluatorFactory columnFilterEvaluatorFactory, IWarningCollector warningCollector,
-            IHyracksTaskContext context) {
+            IHyracksTaskContext context, ColumnProjectorType projectorType) {
         super(datasetType, numberOfPrimaryKeys, requestedType, functionCallInfoMap, filterEvaluator,
-                columnFilterEvaluatorFactory, warningCollector, context);
+                columnFilterEvaluatorFactory, warningCollector, context, projectorType);
         this.metaType = metaType;
         this.requestedMetaType = requestedMetaType;
     }
@@ -58,7 +59,7 @@ public class QueryColumnWithMetaTupleProjector extends QueryColumnTupleProjector
             return QueryColumnWithMetaMetadata.create(datasetType, metaType, numberOfPrimaryKeys, serializedMetadata,
                     new ColumnValueReaderFactory(), ValueGetterFactory.INSTANCE, requestedType, functionCallInfoMap,
                     requestedMetaType, normalizedFilterEvaluatorFactory, columnFilterEvaluatorFactory, warningCollector,
-                    context);
+                    context, projectorType);
         } catch (IOException e) {
             throw HyracksDataException.create(e);
         }

@@ -19,9 +19,12 @@
 
 package org.apache.hyracks.storage.am.lsm.common.impls;
 
+import static org.apache.hyracks.util.ExitUtil.EC_INCONSISTENT_STORAGE_REFERENCES;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
@@ -54,6 +57,7 @@ import org.apache.hyracks.storage.am.lsm.common.api.ILSMOperationTracker;
 import org.apache.hyracks.storage.am.lsm.common.api.LSMOperationType;
 import org.apache.hyracks.storage.common.IIndexCursor;
 import org.apache.hyracks.storage.common.ISearchPredicate;
+import org.apache.hyracks.util.ExitUtil;
 import org.apache.hyracks.util.annotations.CriticalPath;
 import org.apache.hyracks.util.trace.ITracer;
 import org.apache.hyracks.util.trace.ITracer.Scope;
@@ -100,13 +104,21 @@ public class LSMHarness implements ILSMHarness {
         }
         try {
             validateOperationEnterComponentsState(ctx);
+            long start = System.nanoTime();
+            boolean dumpState = false;
             synchronized (opTracker) {
                 while (true) {
                     lsmIndex.getOperationalComponents(ctx);
-                    if (enterComponents(ctx, opType)) {
+                    if (enterComponents(ctx, opType, dumpState)) {
                         return true;
                     } else if (isTryOperation) {
                         return false;
+                    }
+                    dumpState = false;
+                    long minutes = TimeUnit.NANOSECONDS.toMinutes(System.nanoTime() - start);
+                    if (minutes > 2) {
+                        start = System.nanoTime();
+                        dumpState = true;
                     }
                     try {
                         opTracker.wait(100);
@@ -124,7 +136,7 @@ public class LSMHarness implements ILSMHarness {
     }
 
     @CriticalPath
-    protected boolean enterComponents(ILSMIndexOperationContext ctx, LSMOperationType opType)
+    protected boolean enterComponents(ILSMIndexOperationContext ctx, LSMOperationType opType, boolean dumpState)
             throws HyracksDataException {
         validateOperationEnterComponentsState(ctx);
         List<ILSMComponent> components = ctx.getComponentHolder();
@@ -136,6 +148,9 @@ public class LSMHarness implements ILSMHarness {
                 final ILSMComponent component = components.get(i);
                 boolean isMutableComponent = numEntered == 0 && component.getType() == LSMComponentType.MEMORY;
                 if (!component.threadEnter(opType, isMutableComponent)) {
+                    if (dumpState) {
+                        LOGGER.warn("couldn't enter component: {}", component.dumpState());
+                    }
                     break;
                 }
                 numEntered++;
@@ -232,56 +247,35 @@ public class LSMHarness implements ILSMHarness {
                             }
                         }
                         if (inactiveDiskComponentsToBeDeleted != null) {
+                            // note: the disk components have been removed before they were destroyed
                             inactiveDiskComponents.removeAll(inactiveDiskComponentsToBeDeleted);
                         }
                     }
                     List<ILSMMemoryComponent> inactiveMemoryComponents = lsmIndex.getInactiveMemoryComponents();
                     if (!inactiveMemoryComponents.isEmpty()) {
                         inactiveMemoryComponentsToBeCleanedUp = new ArrayList<>(inactiveMemoryComponents);
+                        // note: the inactive memory components have been cleared before they were cleaned up
                         inactiveMemoryComponents.clear();
                     }
                 }
             }
         } finally {
-            /*
-             * cleanup inactive disk components if any
-             */
-            if (inactiveDiskComponentsToBeDeleted != null) {
-                try {
-                    //schedule a replication job to delete these inactive disk components from replicas
-                    if (replicationEnabled) {
-                        lsmIndex.scheduleReplication(null, inactiveDiskComponentsToBeDeleted,
-                                ReplicationOperation.DELETE, opType);
-                    }
-                    for (ILSMDiskComponent c : inactiveDiskComponentsToBeDeleted) {
-                        c.deactivateAndDestroy();
-                    }
-                } catch (Throwable e) { // NOSONAR Log and re-throw
-                    if (LOGGER.isWarnEnabled()) {
-                        LOGGER.log(Level.WARN, "Failure scheduling replication or destroying merged component", e);
-                    }
-                    throw e; // NOSONAR: The last call in the finally clause
-                }
-            }
+            // the memory components clean up must be done first to avoid any unexpected exceptions during the rest
+            // of the finally block
             if (inactiveMemoryComponentsToBeCleanedUp != null) {
-                for (ILSMMemoryComponent c : inactiveMemoryComponentsToBeCleanedUp) {
-                    tracer.instant(c.toString(), traceCategory, Scope.p, lsmIndex::toString);
-                    c.cleanup();
-                    synchronized (opTracker) {
-                        c.reset();
-                        // Notify all waiting threads whenever the mutable component's state
-                        // has changed to inactive. This is important because even though we switched
-                        // the mutable components, it is possible that the component that we just
-                        // switched to is still busy flushing its data to disk. Thus, the notification
-                        // that was issued upon scheduling the flush is not enough.
-                        opTracker.notifyAll(); // NOSONAR: Always called inside synchronized block
-                    }
-                }
+                cleanupInactiveMemoryComponents(inactiveMemoryComponentsToBeCleanedUp);
             }
             if (opType == LSMOperationType.FLUSH) {
                 ILSMMemoryComponent flushingComponent = (ILSMMemoryComponent) ctx.getComponentHolder().get(0);
                 // We must call flushed without synchronizing on opTracker to avoid deadlocks
                 flushingComponent.flushed();
+            }
+            if (inactiveDiskComponentsToBeDeleted != null) {
+                if (replicationEnabled) {
+                    lsmIndex.scheduleReplication(null, inactiveDiskComponentsToBeDeleted, ReplicationOperation.DELETE,
+                            opType);
+                }
+                lsmIndex.scheduleCleanup(inactiveDiskComponentsToBeDeleted);
             }
         }
     }
@@ -521,9 +515,9 @@ public class LSMHarness implements ILSMHarness {
     @SuppressWarnings("squid:S2142")
     @Override
     public void flush(ILSMIOOperation operation) throws HyracksDataException {
-        LOGGER.debug("Started a flush operation for index: {}", lsmIndex);
+        LOGGER.debug("Started FLUSH operation {} for index: {}", operation, lsmIndex);
         synchronized (opTracker) {
-            while (!enterComponents(operation.getAccessor().getOpContext(), LSMOperationType.FLUSH)) {
+            while (!enterComponents(operation.getAccessor().getOpContext(), LSMOperationType.FLUSH, false)) {
                 try {
                     opTracker.wait();
                 } catch (InterruptedException e) {
@@ -543,14 +537,16 @@ public class LSMHarness implements ILSMHarness {
                     operation.getAccessor().getOpContext().getSearchOperationCallback(),
                     operation.getAccessor().getOpContext().getModificationCallback());
         }
-        LOGGER.debug("Finished the flush operation for {}. Result: {}",
-                (newComponent == null ? lsmIndex : newComponent), operation.getStatus());
+        String flushedComponent =
+                operation.getStatus() == LSMIOOperationStatus.SUCCESS ? newComponent.toString() : "FAILED";
+        LOGGER.debug("Finished FLUSH operation {} to new disk component {}. Status: {}", operation, flushedComponent,
+                operation.getStatus());
     }
 
     public void doIo(ILSMIOOperation operation) {
         try {
             operation.getCallback().beforeOperation(operation);
-            ILSMDiskComponent newComponent = operation.getIOOpertionType() == LSMIOOperationType.FLUSH
+            ILSMDiskComponent newComponent = operation.getIOOperationType() == LSMIOOperationType.FLUSH
                     ? lsmIndex.flush(operation) : lsmIndex.merge(operation);
             operation.setNewComponent(newComponent);
             operation.getCallback().afterOperation(operation);
@@ -561,7 +557,7 @@ public class LSMHarness implements ILSMHarness {
             operation.setStatus(LSMIOOperationStatus.FAILURE);
             operation.setFailure(e);
             if (LOGGER.isErrorEnabled()) {
-                LOGGER.log(Level.ERROR, "{} operation failed on {}", operation.getIOOpertionType(), lsmIndex, e);
+                LOGGER.error("{} operation {} failed on {}", operation.getIOOperationType(), operation, lsmIndex, e);
             }
         } finally {
             try {
@@ -570,8 +566,8 @@ public class LSMHarness implements ILSMHarness {
                 operation.setStatus(LSMIOOperationStatus.FAILURE);
                 operation.setFailure(th);
                 if (LOGGER.isErrorEnabled()) {
-                    LOGGER.log(Level.ERROR, "{} operation.afterFinalize failed on {}", operation.getIOOpertionType(),
-                            lsmIndex, th);
+                    LOGGER.error("{} operation.afterFinalize failed on {}", operation.getIOOperationType(), lsmIndex,
+                            th);
                 }
             }
         }
@@ -583,13 +579,11 @@ public class LSMHarness implements ILSMHarness {
 
     @Override
     public void merge(ILSMIOOperation operation) throws HyracksDataException {
-        if (LOGGER.isDebugEnabled()) {
-            MergeOperation mergeOp = (MergeOperation) operation;
-            LOGGER.debug("Started a merge operation (number of merging components {}) for index {}",
-                    mergeOp.getMergingComponents().size(), lsmIndex);
-        }
+        List<ILSMComponent> mergingComponents = ((MergeOperation) operation).getMergingComponents();
+        LOGGER.debug("Started MERGE operation {} of {} components for index: {}", operation, mergingComponents.size(),
+                lsmIndex);
         synchronized (opTracker) {
-            enterComponents(operation.getAccessor().getOpContext(), LSMOperationType.MERGE);
+            enterComponents(operation.getAccessor().getOpContext(), LSMOperationType.MERGE, false);
         }
         ILSMDiskComponent newComponent;
         try {
@@ -602,8 +596,9 @@ public class LSMHarness implements ILSMHarness {
                     operation.getAccessor().getOpContext().getSearchOperationCallback(),
                     operation.getAccessor().getOpContext().getModificationCallback());
         }
-        LOGGER.debug("Finished the merge operation for {}. Result: {}",
-                (newComponent == null ? lsmIndex : newComponent), operation.getStatus());
+        String mergedComponent =
+                operation.getStatus() == LSMIOOperationStatus.SUCCESS ? newComponent.toString() : "FAILED";
+        LOGGER.debug("Finished MERGE operation {}. New component: {}", operation, mergedComponent);
     }
 
     @Override
@@ -914,9 +909,37 @@ public class LSMHarness implements ILSMHarness {
                 exitComponents(componentReplacementCtx, LSMOperationType.SEARCH, null, false);
                 // enter new component
                 componentReplacementCtx.prepareToEnter();
-                enterComponents(componentReplacementCtx, LSMOperationType.SEARCH);
+                enterComponents(componentReplacementCtx, LSMOperationType.SEARCH, false);
                 componentReplacementCtx.replace(ctx);
             }
+        }
+    }
+
+    /**
+     * Resets the memory state of {@code inactiveMemoryComponents}. This method should not throw any exceptions.
+     * To account for cases where unexpected exceptions are thrown, we halt to avoid getting stuck with a bad in-memory
+     * state.
+     *
+     * @param inactiveMemoryComponents
+     */
+    private void cleanupInactiveMemoryComponents(List<ILSMMemoryComponent> inactiveMemoryComponents) {
+        try {
+            for (ILSMMemoryComponent c : inactiveMemoryComponents) {
+                tracer.instant(c.toString(), traceCategory, Scope.p, lsmIndex::toString);
+                c.cleanup();
+                synchronized (opTracker) {
+                    c.reset();
+                    // Notify all waiting threads whenever the mutable component's state
+                    // has changed to inactive. This is important because even though we switched
+                    // the mutable components, it is possible that the component that we just
+                    // switched to is still busy flushing its data to disk. Thus, the notification
+                    // that was issued upon scheduling the flush is not enough.
+                    opTracker.notifyAll(); // NOSONAR: Always called inside synchronized block
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.fatal("unexpected error while cleaning up inactive memory components", e);
+            ExitUtil.halt(EC_INCONSISTENT_STORAGE_REFERENCES);
         }
     }
 }

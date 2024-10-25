@@ -38,25 +38,29 @@ import org.apache.hyracks.storage.am.lsm.common.impls.IndexComponentFileReferenc
 import org.apache.hyracks.storage.am.lsm.common.impls.LSMComponentFileReferences;
 import org.apache.hyracks.storage.am.lsm.common.impls.TreeIndexFactory;
 import org.apache.hyracks.storage.common.compression.NoOpCompressorDecompressorFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class LSMBTreeFileManager extends AbstractLSMIndexFileManager {
-
+    private static final Logger LOGGER = LogManager.getLogger();
     private static final FilenameFilter BTREE_FILTER =
             (dir, name) -> !name.startsWith(".") && name.endsWith(BTREE_SUFFIX);
     private final TreeIndexFactory<? extends ITreeIndex> btreeFactory;
     private final boolean hasBloomFilter;
-
-    public LSMBTreeFileManager(IIOManager ioManager, FileReference file,
-            TreeIndexFactory<? extends ITreeIndex> btreeFactory, boolean hasBloomFilter,
-            ICompressorDecompressorFactory compressorDecompressorFactory) {
-        super(ioManager, file, null, compressorDecompressorFactory);
-        this.btreeFactory = btreeFactory;
-        this.hasBloomFilter = hasBloomFilter;
-    }
+    private final boolean allowHoles;
 
     public LSMBTreeFileManager(IIOManager ioManager, FileReference file,
             TreeIndexFactory<? extends ITreeIndex> btreeFactory, boolean hasBloomFilter) {
-        this(ioManager, file, btreeFactory, hasBloomFilter, NoOpCompressorDecompressorFactory.INSTANCE);
+        this(ioManager, file, btreeFactory, hasBloomFilter, NoOpCompressorDecompressorFactory.INSTANCE, false);
+    }
+
+    public LSMBTreeFileManager(IIOManager ioManager, FileReference file,
+            TreeIndexFactory<? extends ITreeIndex> btreeFactory, boolean hasBloomFilter,
+            ICompressorDecompressorFactory compressorDecompressorFactory, boolean allowHoles) {
+        super(ioManager, file, null, compressorDecompressorFactory);
+        this.btreeFactory = btreeFactory;
+        this.hasBloomFilter = hasBloomFilter;
+        this.allowHoles = allowHoles;
     }
 
     @Override
@@ -95,6 +99,8 @@ public class LSMBTreeFileManager extends AbstractLSMIndexFileManager {
             validateFiles(btreeFilesSet, allBloomFilterFiles, BLOOM_FILTER_FILTER, null, btreeFactory.getBufferCache());
             // Sanity check.
             if (allBTreeFiles.size() != allBloomFilterFiles.size()) {
+                LOGGER.error("Unequal number of trees and filters. Trees: {}, Filters: {}", allBTreeFiles,
+                        allBloomFilterFiles);
                 throw HyracksDataException.create(ErrorCode.UNEQUAL_NUM_FILTERS_TREES, baseDir);
             }
         }
@@ -179,5 +185,10 @@ public class LSMBTreeFileManager extends AbstractLSMIndexFileManager {
         }
 
         return validFiles;
+    }
+
+    @Override
+    protected boolean areHolesAllowed() {
+        return allowHoles;
     }
 }

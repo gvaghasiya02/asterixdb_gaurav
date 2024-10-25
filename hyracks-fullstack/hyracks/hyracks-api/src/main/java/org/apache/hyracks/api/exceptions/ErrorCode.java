@@ -156,6 +156,10 @@ public enum ErrorCode implements IError {
     ILLEGAL_STATE(126),
     INVALID_STRING_UNICODE(127),
     UNSUPPORTED_WRITE_SPEC(128),
+    JOB_REJECTED(129),
+    FRAME_BIGGER_THAN_SORT_MEMORY(130),
+    RESULT_DOES_NOT_FOLLOW_SCHEMA(131),
+    EXTRA_FIELD_IN_RESULT_NOT_FOUND_IN_SCHEMA(132),
 
     // Compilation error codes.
     RULECOLLECTION_NOT_INSTANCE_OF_LIST(10000),
@@ -166,7 +170,8 @@ public enum ErrorCode implements IError {
     OPERATOR_NOT_IMPLEMENTED(10005),
     INAPPLICABLE_HINT(10006),
     CROSS_PRODUCT_JOIN(10007),
-    GROUP_ALL_DECOR(10008);
+    GROUP_ALL_DECOR(10008),
+    EXPRESSION_CANNOT_BE_CONSTANT(10009);
 
     private static final String RESOURCE_PATH = "errormsg/en.properties";
     public static final String HYRACKS = "HYR";

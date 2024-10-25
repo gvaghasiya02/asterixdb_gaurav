@@ -35,12 +35,17 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.asterix.cloud.CloudResettableInputStream;
+import org.apache.asterix.cloud.IWriteBufferProvider;
+import org.apache.asterix.cloud.clients.CloudFile;
 import org.apache.asterix.cloud.clients.ICloudBufferedWriter;
 import org.apache.asterix.cloud.clients.ICloudClient;
+import org.apache.asterix.cloud.clients.ICloudGuardian;
+import org.apache.asterix.cloud.clients.ICloudWriter;
 import org.apache.asterix.cloud.clients.IParallelDownloader;
-import org.apache.asterix.cloud.clients.profiler.CountRequestProfiler;
-import org.apache.asterix.cloud.clients.profiler.IRequestProfiler;
-import org.apache.asterix.cloud.clients.profiler.NoOpRequestProfiler;
+import org.apache.asterix.cloud.clients.profiler.CountRequestProfilerLimiter;
+import org.apache.asterix.cloud.clients.profiler.IRequestProfilerLimiter;
+import org.apache.asterix.cloud.clients.profiler.RequestLimiterNoOpProfiler;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.api.util.IoUtil;
@@ -69,52 +74,77 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
 @ThreadSafe
-public class S3CloudClient implements ICloudClient {
+public final class S3CloudClient implements ICloudClient {
     private final S3ClientConfig config;
     private final S3Client s3Client;
-    private final IRequestProfiler profiler;
+    private final ICloudGuardian guardian;
+    private final IRequestProfilerLimiter profiler;
+    private final int writeBufferSize;
 
-    public S3CloudClient(S3ClientConfig config) {
-        this(config, buildClient(config));
+    public S3CloudClient(S3ClientConfig config, ICloudGuardian guardian) {
+        this(config, buildClient(config), guardian);
     }
 
-    public S3CloudClient(S3ClientConfig config, S3Client s3Client) {
+    public S3CloudClient(S3ClientConfig config, S3Client s3Client, ICloudGuardian guardian) {
         this.config = config;
         this.s3Client = s3Client;
+        this.guardian = guardian;
+        this.writeBufferSize = config.getWriteBufferSize();
         long profilerInterval = config.getProfilerLogInterval();
+        S3RequestRateLimiter limiter = new S3RequestRateLimiter(config);
         if (profilerInterval > 0) {
-            profiler = new CountRequestProfiler(profilerInterval);
+            profiler = new CountRequestProfilerLimiter(profilerInterval, limiter);
         } else {
-            profiler = NoOpRequestProfiler.INSTANCE;
+            profiler = new RequestLimiterNoOpProfiler(limiter);
         }
+        guardian.setCloudClient(this);
     }
 
     @Override
-    public ICloudBufferedWriter createBufferedWriter(String bucket, String path) {
-        return new S3BufferedWriter(s3Client, profiler, bucket, path);
+    public int getWriteBufferSize() {
+        return writeBufferSize;
     }
 
     @Override
-    public Set<String> listObjects(String bucket, String path, FilenameFilter filter) {
+    public IRequestProfilerLimiter getProfilerLimiter() {
+        return profiler;
+    }
+
+    @Override
+    public ICloudWriter createWriter(String bucket, String path, IWriteBufferProvider bufferProvider) {
+        ICloudBufferedWriter bufferedWriter =
+                new S3BufferedWriter(s3Client, profiler, guardian, bucket, config.getPrefix() + path);
+        return new CloudResettableInputStream(bufferedWriter, bufferProvider);
+    }
+
+    @Override
+    public Set<CloudFile> listObjects(String bucket, String path, FilenameFilter filter) {
+        guardian.checkReadAccess(bucket, path);
         profiler.objectsList();
         path = config.isLocalS3Provider() ? encodeURI(path) : path;
-        return filterAndGet(listS3Objects(s3Client, bucket, path), filter);
+        return filterAndGet(listS3Objects(s3Client, bucket, config.getPrefix() + path), filter);
     }
 
     @Override
     public int read(String bucket, String path, long offset, ByteBuffer buffer) throws HyracksDataException {
+        guardian.checkReadAccess(bucket, path);
         profiler.objectGet();
-        long readTo = offset + buffer.remaining();
-        GetObjectRequest rangeGetObjectRequest =
-                GetObjectRequest.builder().range("bytes=" + offset + "-" + readTo).bucket(bucket).key(path).build();
+        long bytesToRead = buffer.remaining();
+        long readTo = offset + buffer.remaining() - 1;
+        GetObjectRequest rangeGetObjectRequest = GetObjectRequest.builder().range("bytes=" + offset + "-" + readTo)
+                .bucket(bucket).key(config.getPrefix() + path).build();
 
         int totalRead = 0;
-        int read = 0;
+        int read;
 
         // TODO(htowaileb): add retry logic here
         try (ResponseInputStream<GetObjectResponse> response = s3Client.getObject(rangeGetObjectRequest)) {
             while (buffer.remaining() > 0) {
                 read = response.read(buffer.array(), buffer.position(), buffer.remaining());
+                if (read == -1) {
+                    throw new IllegalStateException("Unexpected EOF encountered. File: " + path + ", expected bytes: "
+                            + bytesToRead + ", bytes read: " + totalRead);
+                }
                 buffer.position(buffer.position() + read);
                 totalRead += read;
             }
@@ -130,8 +160,9 @@ public class S3CloudClient implements ICloudClient {
 
     @Override
     public byte[] readAllBytes(String bucket, String path) throws HyracksDataException {
+        guardian.checkReadAccess(bucket, path);
         profiler.objectGet();
-        GetObjectRequest getReq = GetObjectRequest.builder().bucket(bucket).key(path).build();
+        GetObjectRequest getReq = GetObjectRequest.builder().bucket(bucket).key(config.getPrefix() + path).build();
 
         try (ResponseInputStream<GetObjectResponse> stream = s3Client.getObject(getReq)) {
             return stream.readAllBytes();
@@ -143,9 +174,12 @@ public class S3CloudClient implements ICloudClient {
     }
 
     @Override
-    public InputStream getObjectStream(String bucket, String path) {
+    public InputStream getObjectStream(String bucket, String path, long offset, long length) {
+        guardian.checkReadAccess(bucket, path);
         profiler.objectGet();
-        GetObjectRequest getReq = GetObjectRequest.builder().bucket(bucket).key(path).build();
+        long readTo = offset + length - 1;
+        GetObjectRequest getReq = GetObjectRequest.builder().range("bytes=" + offset + "-" + readTo).bucket(bucket)
+                .key(config.getPrefix() + path).build();
         try {
             return s3Client.getObject(getReq);
         } catch (NoSuchKeyException e) {
@@ -156,25 +190,27 @@ public class S3CloudClient implements ICloudClient {
 
     @Override
     public void write(String bucket, String path, byte[] data) {
+        guardian.checkWriteAccess(bucket, path);
         profiler.objectWrite();
-        PutObjectRequest putReq = PutObjectRequest.builder().bucket(bucket).key(path).build();
-
-        // TODO(htowaileb): add retry logic here
+        PutObjectRequest putReq = PutObjectRequest.builder().bucket(bucket).key(config.getPrefix() + path).build();
         s3Client.putObject(putReq, RequestBody.fromBytes(data));
     }
 
     @Override
     public void copy(String bucket, String srcPath, FileReference destPath) {
+        guardian.checkReadAccess(bucket, srcPath);
+        srcPath = config.getPrefix() + srcPath;
         srcPath = config.isLocalS3Provider() ? encodeURI(srcPath) : srcPath;
         List<S3Object> objects = listS3Objects(s3Client, bucket, srcPath);
 
         profiler.objectsList();
         for (S3Object object : objects) {
+            guardian.checkWriteAccess(bucket, destPath.getRelativePath());
             profiler.objectCopy();
             String srcKey = object.key();
             String destKey = destPath.getChildPath(IoUtil.getFileNameFromPath(srcKey));
             CopyObjectRequest copyReq = CopyObjectRequest.builder().sourceBucket(bucket).sourceKey(srcKey)
-                    .destinationBucket(bucket).destinationKey(destKey).build();
+                    .destinationBucket(bucket).destinationKey(config.getPrefix() + destKey).build();
             s3Client.copyObject(copyReq);
         }
     }
@@ -191,7 +227,9 @@ public class S3CloudClient implements ICloudClient {
         while (pathIter.hasNext()) {
             objectIdentifiers.clear();
             for (int i = 0; pathIter.hasNext() && i < DELETE_BATCH_SIZE; i++) {
-                objectIdentifiers.add(builder.key(pathIter.next()).build());
+                String path = pathIter.next();
+                guardian.checkWriteAccess(bucket, path);
+                objectIdentifiers.add(builder.key(config.getPrefix() + path).build());
             }
 
             Delete delete = Delete.builder().objects(objectIdentifiers).build();
@@ -203,9 +241,12 @@ public class S3CloudClient implements ICloudClient {
 
     @Override
     public long getObjectSize(String bucket, String path) throws HyracksDataException {
+        guardian.checkReadAccess(bucket, path);
         profiler.objectGet();
         try {
-            return s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(path).build()).contentLength();
+            return s3Client
+                    .headObject(HeadObjectRequest.builder().bucket(bucket).key(config.getPrefix() + path).build())
+                    .contentLength();
         } catch (NoSuchKeyException ex) {
             return 0;
         } catch (Exception ex) {
@@ -215,9 +256,10 @@ public class S3CloudClient implements ICloudClient {
 
     @Override
     public boolean exists(String bucket, String path) throws HyracksDataException {
+        guardian.checkReadAccess(bucket, path);
         profiler.objectGet();
         try {
-            s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(path).build());
+            s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(config.getPrefix() + path).build());
             return true;
         } catch (NoSuchKeyException ex) {
             return false;
@@ -229,7 +271,7 @@ public class S3CloudClient implements ICloudClient {
     @Override
     public boolean isEmptyPrefix(String bucket, String path) throws HyracksDataException {
         profiler.objectsList();
-        return S3ClientUtils.isEmptyPrefix(s3Client, bucket, path);
+        return S3ClientUtils.isEmptyPrefix(s3Client, bucket, config.getPrefix() + path);
     }
 
     @Override
@@ -239,13 +281,13 @@ public class S3CloudClient implements ICloudClient {
 
     @Override
     public JsonNode listAsJson(ObjectMapper objectMapper, String bucket) {
-        List<S3Object> objects = listS3Objects(s3Client, bucket, "/");
+        List<S3Object> objects = listS3Objects(s3Client, bucket, config.getPrefix());
         ArrayNode objectsInfo = objectMapper.createArrayNode();
 
         objects.sort((x, y) -> String.CASE_INSENSITIVE_ORDER.compare(x.key(), y.key()));
         for (S3Object object : objects) {
             ObjectNode objectInfo = objectsInfo.addObject();
-            objectInfo.put("path", object.key());
+            objectInfo.put("path", object.key().substring(config.getPrefix().length()));
             objectInfo.put("size", object.size());
         }
         return objectsInfo;
@@ -254,6 +296,13 @@ public class S3CloudClient implements ICloudClient {
     @Override
     public void close() {
         s3Client.close();
+    }
+
+    /**
+     * FOR TESTING ONLY
+     */
+    public ICloudBufferedWriter createBufferedWriter(String bucket, String path) {
+        return new S3BufferedWriter(s3Client, profiler, guardian, bucket, config.getPrefix() + path);
     }
 
     private static S3Client buildClient(S3ClientConfig config) {
@@ -272,12 +321,13 @@ public class S3CloudClient implements ICloudClient {
         return builder.build();
     }
 
-    private Set<String> filterAndGet(List<S3Object> contents, FilenameFilter filter) {
-        Set<String> files = new HashSet<>();
+    private Set<CloudFile> filterAndGet(List<S3Object> contents, FilenameFilter filter) {
+        Set<CloudFile> files = new HashSet<>();
         for (S3Object s3Object : contents) {
             String path = config.isLocalS3Provider() ? S3ClientUtils.decodeURI(s3Object.key()) : s3Object.key();
             if (filter.accept(null, IoUtil.getFileNameFromPath(path))) {
-                files.add(path);
+                path = path.substring(config.getPrefix().length());
+                files.add(CloudFile.of(path, s3Object.size()));
             }
         }
         return files;

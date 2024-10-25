@@ -234,9 +234,14 @@ public class APIFramework {
 
         ICcApplicationContext ccAppContext = metadataProvider.getApplicationContext();
         CompilerProperties compilerProperties = ccAppContext.getCompilerProperties();
-        Map<String, Object> querySpecificConfig = validateConfig(metadataProvider.getConfig(), sourceLoc);
+        Map<String, Object> config = metadataProvider.getConfig();
+        Map<String, Object> querySpecificConfig = validateConfig(config, sourceLoc);
         final PhysicalOptimizationConfig physOptConf = OptimizationConfUtil.createPhysicalOptimizationConf(
                 compilerProperties, querySpecificConfig, configurableParameterNames, sourceLoc);
+        if (!config.containsKey(CompilerProperties.COMPILER_ORDERFIELDS_KEY)) {
+            config.put(CompilerProperties.COMPILER_ORDERFIELDS_KEY, Boolean.toString(physOptConf.isOrderField()));
+        }
+
         boolean cboMode = physOptConf.getCBOMode() || physOptConf.getCBOTestMode();
         HeuristicCompilerFactoryBuilder builder =
                 new HeuristicCompilerFactoryBuilder(OptimizationContextFactory.INSTANCE);
@@ -341,7 +346,8 @@ public class APIFramework {
                     final AlgebricksAbsolutePartitionConstraint jobLocations =
                             getJobLocations(spec, nodeJobTracker, computationLocations);
                     final IClusterCapacity jobRequiredCapacity =
-                            ResourceUtils.getRequiredCapacity(plan, jobLocations, physOptConf);
+                            ResourceUtils.getRequiredCapacity(plan, jobLocations, physOptConf, compilerProperties);
+                    addRuntimeMemoryOverhead(jobRequiredCapacity, compilerProperties);
                     spec.setRequiredClusterCapacity(jobRequiredCapacity);
                 }
             }
@@ -599,5 +605,15 @@ public class APIFramework {
         final Set<String> jobParticipatingNodes = jobTracker.getJobParticipatingNodes(spec, null);
         return new AlgebricksAbsolutePartitionConstraint(Arrays.stream(clusterLocations.getLocations())
                 .filter(jobParticipatingNodes::contains).toArray(String[]::new));
+    }
+
+    private static void addRuntimeMemoryOverhead(IClusterCapacity jobRequiredCapacity,
+            CompilerProperties compilerProperties) {
+        int runtimeMemoryOverheadPercentage = compilerProperties.getRuntimeMemoryOverheadPercentage();
+        if (runtimeMemoryOverheadPercentage > 0) {
+            double multiplier = 1 + runtimeMemoryOverheadPercentage / 100.0;
+            long aggregatedMemoryByteSize = jobRequiredCapacity.getAggregatedMemoryByteSize();
+            jobRequiredCapacity.setAggregatedMemoryByteSize((long) (aggregatedMemoryByteSize * multiplier));
+        }
     }
 }

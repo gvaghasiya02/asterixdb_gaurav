@@ -88,6 +88,11 @@ public final class QueryColumnTupleReference extends AbstractAsterixColumnTupleR
     }
 
     @Override
+    protected void skipMegaLeafNode() {
+        assembler.reset(0);
+    }
+
+    @Override
     protected boolean startNewPage(ByteBuffer pageZero, int numberOfColumns, int numberOfTuples)
             throws HyracksDataException {
         //Skip to filters
@@ -157,7 +162,8 @@ public final class QueryColumnTupleReference extends AbstractAsterixColumnTupleR
         // index == -1 if the normalized filter indicated that a mega leaf node
         // is filtered
         if (index == tupleIndex) {
-            assembler.setAt(index);
+            // setAt in the assembler expect the value index (i.e., tupleCount - antiMatterCount)
+            assembler.setAt(columnFilterEvaluator.getValueIndex());
             // set the next tuple index that satisfies the filter
             columnFilterEvaluator.evaluate();
             return assembler.nextValue();

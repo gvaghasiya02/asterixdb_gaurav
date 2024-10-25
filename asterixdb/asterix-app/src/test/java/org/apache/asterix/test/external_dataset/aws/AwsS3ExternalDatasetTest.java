@@ -18,8 +18,11 @@
  */
 package org.apache.asterix.test.external_dataset.aws;
 
+import static org.apache.asterix.test.external_dataset.ExternalDatasetTestUtils.createAvroFiles;
+import static org.apache.asterix.test.external_dataset.ExternalDatasetTestUtils.createAvroFilesRecursively;
 import static org.apache.asterix.test.external_dataset.ExternalDatasetTestUtils.createBinaryFiles;
 import static org.apache.asterix.test.external_dataset.ExternalDatasetTestUtils.createBinaryFilesRecursively;
+import static org.apache.asterix.test.external_dataset.ExternalDatasetTestUtils.createDeltaTable;
 import static org.apache.asterix.test.external_dataset.ExternalDatasetTestUtils.setDataPaths;
 import static org.apache.asterix.test.external_dataset.ExternalDatasetTestUtils.setUploaders;
 import static org.apache.asterix.test.external_dataset.parquet.BinaryFileConverterUtil.DEFAULT_PARQUET_SRC_PATH;
@@ -145,6 +148,7 @@ public class AwsS3ExternalDatasetTest {
     protected TestCaseContext tcCtx;
 
     public static final String PLAYGROUND_CONTAINER = "playground";
+    public static final String BROWSE_CONTAINER = "browse";
     public static final String DYNAMIC_PREFIX_AT_START_CONTAINER = "dynamic-prefix-at-start-container";
     public static final String FIXED_DATA_CONTAINER = "fixed-data"; // Do not use, has fixed data
     public static final String INCLUDE_EXCLUDE_CONTAINER = "include-exclude";
@@ -194,6 +198,9 @@ public class AwsS3ExternalDatasetTest {
         LangExecutionUtil.setUp(TEST_CONFIG_FILE_NAME, testExecutor);
         createBinaryFiles(DEFAULT_PARQUET_SRC_PATH);
         createBinaryFilesRecursively(EXTERNAL_FILTER_DATA_PATH);
+        createAvroFiles(DEFAULT_PARQUET_SRC_PATH);
+        createAvroFilesRecursively(EXTERNAL_FILTER_DATA_PATH);
+        createDeltaTable();
         setNcEndpoints(testExecutor);
         startAwsS3MockServer();
     }

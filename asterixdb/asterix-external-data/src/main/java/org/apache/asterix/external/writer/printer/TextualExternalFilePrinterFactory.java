@@ -19,13 +19,13 @@
 package org.apache.asterix.external.writer.printer;
 
 import org.apache.asterix.external.writer.compressor.IExternalFileCompressStreamFactory;
-import org.apache.asterix.runtime.writer.IExternalFilePrinter;
-import org.apache.asterix.runtime.writer.IExternalFilePrinterFactory;
+import org.apache.asterix.runtime.writer.IExternalPrinter;
+import org.apache.asterix.runtime.writer.IExternalPrinterFactory;
 import org.apache.hyracks.algebricks.data.IPrinterFactory;
 
-public class TextualExternalFilePrinterFactory implements IExternalFilePrinterFactory {
-    private static final long serialVersionUID = 9155959967258587588L;
-    private final IPrinterFactory printerFactory;
+public class TextualExternalFilePrinterFactory implements IExternalPrinterFactory {
+    private static final long serialVersionUID = 8971234908711234L;
+    protected final IPrinterFactory printerFactory;
     private final IExternalFileCompressStreamFactory compressStreamFactory;
 
     public TextualExternalFilePrinterFactory(IPrinterFactory printerFactory,
@@ -35,7 +35,7 @@ public class TextualExternalFilePrinterFactory implements IExternalFilePrinterFa
     }
 
     @Override
-    public IExternalFilePrinter createPrinter() {
+    public IExternalPrinter createPrinter() {
         return new TextualExternalFilePrinter(printerFactory.createPrinter(), compressStreamFactory);
     }
 }

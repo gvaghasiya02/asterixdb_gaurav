@@ -24,7 +24,9 @@ import static org.apache.asterix.common.utils.StorageConstants.STORAGE_ROOT_DIR_
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.file.FileStore;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -33,7 +35,10 @@ import java.util.Set;
 import org.apache.asterix.cloud.bulk.DeleteBulkCloudOperation;
 import org.apache.asterix.cloud.bulk.NoOpDeleteBulkCallBack;
 import org.apache.asterix.cloud.clients.CloudClientProvider;
+import org.apache.asterix.cloud.clients.CloudFile;
 import org.apache.asterix.cloud.clients.ICloudClient;
+import org.apache.asterix.cloud.clients.ICloudGuardian;
+import org.apache.asterix.cloud.clients.ICloudWriter;
 import org.apache.asterix.cloud.util.CloudFileUtil;
 import org.apache.asterix.common.api.INamespacePathResolver;
 import org.apache.asterix.common.cloud.IPartitionBootstrapper;
@@ -45,39 +50,50 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.api.io.IFileHandle;
 import org.apache.hyracks.api.io.IIOBulkOperation;
+import org.apache.hyracks.api.io.IODeviceHandle;
 import org.apache.hyracks.api.util.IoUtil;
+import org.apache.hyracks.cloud.filesystem.PhysicalDrive;
+import org.apache.hyracks.cloud.io.ICloudIOManager;
+import org.apache.hyracks.cloud.io.request.ICloudBeforeRetryRequest;
+import org.apache.hyracks.cloud.io.request.ICloudRequest;
+import org.apache.hyracks.cloud.io.stream.CloudInputStream;
+import org.apache.hyracks.cloud.util.CloudRetryableRequestUtil;
 import org.apache.hyracks.control.nc.io.IOManager;
-import org.apache.hyracks.util.file.FileUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
-public abstract class AbstractCloudIOManager extends IOManager implements IPartitionBootstrapper {
+public abstract class AbstractCloudIOManager extends IOManager implements IPartitionBootstrapper, ICloudIOManager {
     private static final Logger LOGGER = LogManager.getLogger();
-    //TODO(DB): change
-    private final String metadataNamespacePath;
+    private static final byte[] EMPTY_FILE_BYTES = "empty".getBytes();
     protected final ICloudClient cloudClient;
+    protected final ICloudGuardian guardian;
     protected final IWriteBufferProvider writeBufferProvider;
     protected final String bucket;
     protected final Set<Integer> partitions;
     protected final List<FileReference> partitionPaths;
     protected final IOManager localIoManager;
+    protected final INamespacePathResolver nsPathResolver;
+    private final List<FileStore> drivePaths;
 
     public AbstractCloudIOManager(IOManager ioManager, CloudProperties cloudProperties,
-            INamespacePathResolver nsPathResolver) throws HyracksDataException {
+            INamespacePathResolver nsPathResolver, ICloudGuardian guardian) throws HyracksDataException {
         super(ioManager.getIODevices(), ioManager.getDeviceComputer(), ioManager.getIOParallelism(),
                 ioManager.getQueueSize());
-        this.metadataNamespacePath = FileUtil.joinPath(STORAGE_ROOT_DIR_NAME, PARTITION_DIR_PREFIX + METADATA_PARTITION,
-                nsPathResolver.resolve(MetadataConstants.METADATA_NAMESPACE));
+        this.nsPathResolver = nsPathResolver;
         this.bucket = cloudProperties.getStorageBucket();
-        cloudClient = CloudClientProvider.getClient(cloudProperties);
+        cloudClient = CloudClientProvider.getClient(cloudProperties, guardian);
+        this.guardian = guardian;
         int numOfThreads = getIODevices().size() * getIOParallelism();
-        writeBufferProvider = new WriteBufferProvider(numOfThreads);
+        writeBufferProvider = new WriteBufferProvider(numOfThreads, cloudClient.getWriteBufferSize());
         partitions = new HashSet<>();
         partitionPaths = new ArrayList<>();
         this.localIoManager = ioManager;
+        drivePaths = PhysicalDrive.getDrivePaths(ioDevices);
     }
 
     /*
@@ -88,7 +104,9 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
 
     @Override
     public IRecoveryManager.SystemState getSystemStateOnMissingCheckpoint() {
-        if (cloudClient.listObjects(bucket, metadataNamespacePath, IoUtil.NO_OP_FILTER).isEmpty()) {
+        Set<CloudFile> existingMetadataFiles = getCloudMetadataPartitionFiles();
+        CloudFile bootstrapMarkerPath = CloudFile.of(StoragePathUtil.getBootstrapMarkerRelativePath(nsPathResolver));
+        if (existingMetadataFiles.isEmpty() || existingMetadataFiles.contains(bootstrapMarkerPath)) {
             LOGGER.info("First time to initialize this cluster: systemState = PERMANENT_DATA_LOSS");
             return IRecoveryManager.SystemState.PERMANENT_DATA_LOSS;
         } else {
@@ -99,11 +117,15 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
 
     @Override
     public final void bootstrap(Set<Integer> activePartitions, List<FileReference> currentOnDiskPartitions,
-            boolean metadataNode, int metadataPartition, boolean cleanup) throws HyracksDataException {
+            boolean metadataNode, int metadataPartition, boolean cleanup, boolean ensureCompleteBootstrap)
+            throws HyracksDataException {
         partitions.clear();
         partitions.addAll(activePartitions);
         if (metadataNode) {
             partitions.add(metadataPartition);
+            if (ensureCompleteBootstrap) {
+                ensureCompleteMetadataBootstrap();
+            }
         }
 
         partitionPaths.clear();
@@ -112,12 +134,13 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
             partitionPaths.add(resolve(STORAGE_ROOT_DIR_NAME + File.separator + partitionDir));
         }
 
-        LOGGER.warn("Initializing cloud manager with storage partitions: {}", partitions);
+        LOGGER.info("Initializing cloud manager with ({}) storage partitions: {}", partitions.size(), partitions);
 
         if (cleanup) {
             deleteUnkeptPartitionDirs(currentOnDiskPartitions);
             cleanupLocalFiles();
         }
+
         // Has different implementations depending on the caching policy
         downloadPartitions(metadataNode, metadataPartition);
     }
@@ -134,7 +157,7 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
     }
 
     private void cleanupLocalFiles() throws HyracksDataException {
-        Set<String> cloudFiles = cloudClient.listObjects(bucket, STORAGE_ROOT_DIR_NAME, IoUtil.NO_OP_FILTER);
+        Set<CloudFile> cloudFiles = cloudClient.listObjects(bucket, STORAGE_ROOT_DIR_NAME, IoUtil.NO_OP_FILTER);
         if (cloudFiles.isEmpty()) {
             LOGGER.warn("No files in the cloud. Deleting all local files in partitions {}...", partitions);
             for (FileReference partitionPath : partitionPaths) {
@@ -153,6 +176,76 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
 
     protected abstract void downloadPartitions(boolean metadataNode, int metadataPartition) throws HyracksDataException;
 
+    protected abstract Set<UncachedFileReference> getUncachedFiles();
+
+    /*
+     * ******************************************************************
+     * ICloudIOManager functions
+     * ******************************************************************
+     */
+
+    @Override
+    public final void cloudRead(IFileHandle fHandle, long offset, ByteBuffer data) throws HyracksDataException {
+        int position = data.position();
+        ICloudRequest request =
+                () -> cloudClient.read(bucket, fHandle.getFileReference().getRelativePath(), offset, data);
+        ICloudBeforeRetryRequest retry = () -> data.position(position);
+        CloudRetryableRequestUtil.run(request, retry);
+    }
+
+    @Override
+    public final CloudInputStream cloudRead(IFileHandle fHandle, long offset, long length) throws HyracksDataException {
+        return CloudRetryableRequestUtil.run(() -> new CloudInputStream(this, fHandle,
+                cloudClient.getObjectStream(bucket, fHandle.getFileReference().getRelativePath(), offset, length),
+                offset, length));
+    }
+
+    @Override
+    public void restoreStream(CloudInputStream cloudStream) {
+        LOGGER.warn("Restoring stream from cloud, {}", cloudStream);
+        /*
+         * This cloud request should not be called using CloudRetryableRequestUtil as it is the responsibility of the
+         * caller to warp this request as ICloudRequest or ICloudRetry.
+         */
+        InputStream stream = cloudClient.getObjectStream(bucket, cloudStream.getPath(), cloudStream.getOffset(),
+                cloudStream.getRemaining());
+        cloudStream.setInputStream(stream);
+    }
+
+    @Override
+    public final int localWriter(IFileHandle fHandle, long offset, ByteBuffer data) throws HyracksDataException {
+        // Using syncWrite here to avoid closing the file channel when the thread is interrupted
+        return localIoManager.syncWrite(fHandle, offset, data);
+    }
+
+    @Override
+    public final int cloudWrite(IFileHandle fHandle, long offset, ByteBuffer data) throws HyracksDataException {
+        ICloudWriter cloudWriter = ((CloudFileHandle) fHandle).getCloudWriter();
+        int writtenBytes;
+        try {
+            ensurePosition(fHandle, cloudWriter.position(), offset);
+            writtenBytes = cloudWriter.write(data);
+        } catch (HyracksDataException e) {
+            cloudWriter.abort();
+            throw e;
+        }
+        return writtenBytes;
+    }
+
+    @Override
+    public final long cloudWrite(IFileHandle fHandle, long offset, ByteBuffer[] data) throws HyracksDataException {
+        ICloudWriter cloudWriter = ((CloudFileHandle) fHandle).getCloudWriter();
+        int writtenBytes;
+        try {
+            ensurePosition(fHandle, cloudWriter.position(), offset);
+            writtenBytes = cloudWriter.write(data[0], data[1]);
+        } catch (HyracksDataException e) {
+            cloudWriter.abort();
+            throw e;
+        }
+        return writtenBytes;
+    }
+
     /*
      * ******************************************************************
      * IIOManager functions
@@ -162,8 +255,9 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
     @Override
     public final IFileHandle open(FileReference fileRef, FileReadWriteMode rwMode, FileSyncMode syncMode)
             throws HyracksDataException {
-        CloudFileHandle fHandle = new CloudFileHandle(cloudClient, bucket, fileRef, writeBufferProvider);
-        onOpen(fHandle, rwMode, syncMode);
+        ICloudWriter cloudWriter = cloudClient.createWriter(bucket, fileRef.getRelativePath(), writeBufferProvider);
+        CloudFileHandle fHandle = new CloudFileHandle(fileRef, cloudWriter);
+        onOpen(fHandle);
         try {
             fHandle.open(rwMode, syncMode);
         } catch (IOException e) {
@@ -177,33 +271,38 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
      *
      * @param fileHandle file to open
      */
-    protected abstract void onOpen(CloudFileHandle fileHandle, FileReadWriteMode rwMode, FileSyncMode syncMode)
-            throws HyracksDataException;
+    protected abstract void onOpen(CloudFileHandle fileHandle) throws HyracksDataException;
 
     @Override
     public final long doSyncWrite(IFileHandle fHandle, long offset, ByteBuffer[] dataArray)
             throws HyracksDataException {
+        // Save original position and limit
+        ByteBuffer buffer1 = dataArray[0];
+        int position1 = buffer1.position();
+
+        ByteBuffer buffer2 = dataArray[1];
+        int position2 = buffer2.position();
+
         long writtenBytes = localIoManager.doSyncWrite(fHandle, offset, dataArray);
-        CloudResettableInputStream inputStream = ((CloudFileHandle) fHandle).getInputStream();
-        try {
-            inputStream.write(dataArray[0], dataArray[1]);
-        } catch (HyracksDataException e) {
-            inputStream.abort();
-            throw e;
-        }
+
+        // Restore original position
+        buffer1.position(position1);
+        buffer2.position(position2);
+
+        cloudWrite(fHandle, offset, dataArray);
         return writtenBytes;
     }
 
     @Override
-    public final int doSyncWrite(IFileHandle fHandle, long offset, ByteBuffer dataArray) throws HyracksDataException {
-        int writtenBytes = localIoManager.doSyncWrite(fHandle, offset, dataArray);
-        CloudResettableInputStream inputStream = ((CloudFileHandle) fHandle).getInputStream();
-        try {
-            inputStream.write(dataArray);
-        } catch (HyracksDataException e) {
-            inputStream.abort();
-            throw e;
-        }
+    public final int doSyncWrite(IFileHandle fHandle, long offset, ByteBuffer data) throws HyracksDataException {
+        // Save original position and limit
+        int position = data.position();
+
+        int writtenBytes = localIoManager.doSyncWrite(fHandle, offset, data);
+
+        // Restore original position
+        data.position(position);
+        cloudWrite(fHandle, offset, data);
         return writtenBytes;
     }
 
@@ -228,16 +327,16 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
         if (metadata) {
             // only finish writing if metadata == true to prevent write limiter from finishing the stream and
             // completing the upload.
-            CloudResettableInputStream stream = ((CloudFileHandle) fileHandle).getInputStream();
+            ICloudWriter cloudWriter = ((CloudFileHandle) fileHandle).getCloudWriter();
             try {
-                stream.finish();
+                cloudWriter.finish();
             } catch (HyracksDataException e) {
                 savedEx = e;
             }
 
             if (savedEx != null) {
                 try {
-                    stream.abort();
+                    cloudWriter.abort();
                 } catch (HyracksDataException e) {
                     savedEx.addSuppressed(e);
                 }
@@ -252,6 +351,7 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
     public final void create(FileReference fileRef) throws HyracksDataException {
         // We need to delete the local file on create as the cloud storage didn't complete the upload
         // In other words, both cloud files and the local files are not in sync
+        overwrite(fileRef, EMPTY_FILE_BYTES);
         localIoManager.delete(fileRef);
         localIoManager.create(fileRef);
     }
@@ -271,23 +371,116 @@ public abstract class AbstractCloudIOManager extends IOManager implements IParti
     }
 
     /**
-     * Returns a list of all stored objects (sorted ASC by path) in the cloud and their sizes
+     * Returns a list of all stored objects (sorted ASC by path) in the cloud and their sizes. The already cached files
+     * are retrieved by listing the local disk, while the uncached files are retrieved from uncached files trackers.
      *
      * @param objectMapper to create the result {@link JsonNode}
      * @return {@link JsonNode} with stored objects' information
      */
     public final JsonNode listAsJson(ObjectMapper objectMapper) {
-        return cloudClient.listAsJson(objectMapper, bucket);
+        ArrayNode objectsInfo = objectMapper.createArrayNode();
+        try {
+            List<CloudFile> allFiles = list();
+            allFiles.sort((x, y) -> String.CASE_INSENSITIVE_ORDER.compare(x.getPath(), y.getPath()));
+            for (CloudFile file : allFiles) {
+                ObjectNode objectInfo = objectsInfo.addObject();
+                objectInfo.put("path", file.getPath());
+                objectInfo.put("size", file.getSize());
+            }
+            return objectsInfo;
+        } catch (Throwable th) {
+            LOGGER.warn("Failed to retrieve list of all cloud files", th);
+            objectsInfo.removeAll();
+            ObjectNode objectInfo = objectsInfo.addObject();
+            objectInfo.put("error", "Failed to retrieve list of all cloud files. " + th.getMessage());
+            return objectsInfo;
+        }
+    }
+
+    private List<CloudFile> list() {
+        List<CloudFile> allFiles = new ArrayList<>();
+        // get cached files (read from disk)
+        for (IODeviceHandle deviceHandle : getIODevices()) {
+            FileReference storageRoot = deviceHandle.createFileRef(STORAGE_ROOT_DIR_NAME);
+
+            Set<FileReference> deviceFiles;
+            try {
+                deviceFiles = localIoManager.list(storageRoot, IoUtil.NO_OP_FILTER);
+            } catch (Throwable th) {
+                LOGGER.warn("Failed to get local storage files for root {}", storageRoot.getRelativePath(), th);
+                continue;
+            }
+
+            for (FileReference fileReference : deviceFiles) {
+                try {
+                    allFiles.add(CloudFile.of(fileReference.getRelativePath(), fileReference.getFile().length()));
+                } catch (Throwable th) {
+                    LOGGER.warn("Encountered issue for local storage file {}", fileReference.getRelativePath(), th);
+                }
+            }
+        }
+
+        // get uncached files from uncached files tracker
+        for (UncachedFileReference uncachedFile : getUncachedFiles()) {
+            allFiles.add(CloudFile.of(uncachedFile.getRelativePath(), uncachedFile.getSize()));
+        }
+        return allFiles;
     }
 
     /**
      * Writes the bytes to the specified key in the bucket
      *
-     * @param key the key where the bytes will be written
+     * @param key   the key where the bytes will be written
      * @param bytes the bytes to write
      */
     public final void put(String key, byte[] bytes) {
         cloudClient.write(bucket, key, bytes);
     }
 
+    public ICloudClient getCloudClient() {
+        return cloudClient;
+    }
+
+    private Set<CloudFile> getCloudMetadataPartitionFiles() {
+        String metadataNamespacePath = StoragePathUtil.getNamespacePath(nsPathResolver,
+                MetadataConstants.METADATA_NAMESPACE, METADATA_PARTITION);
+        return cloudClient.listObjects(bucket, metadataNamespacePath, IoUtil.NO_OP_FILTER);
+    }
+
+    private void ensureCompleteMetadataBootstrap() throws HyracksDataException {
+        Set<CloudFile> metadataPartitionFiles = getCloudMetadataPartitionFiles();
+        CloudFile marker = CloudFile.of(StoragePathUtil.getBootstrapMarkerRelativePath(nsPathResolver));
+        boolean foundBootstrapMarker = metadataPartitionFiles.contains(marker);
+        // if the bootstrap file exists, we failed to bootstrap --> delete all partial files in metadata partition
+        if (foundBootstrapMarker) {
+            LOGGER.info(
+                    "detected failed bootstrap attempted, deleting all existing files in the metadata partition: {}",
+                    metadataPartitionFiles);
+            IIOBulkOperation deleteBulkOperation = createDeleteBulkOperation();
+            for (CloudFile file : metadataPartitionFiles) {
+                deleteBulkOperation.add(resolve(file.getPath()));
+            }
+            performBulkOperation(deleteBulkOperation);
+        }
+    }
+
+    private void ensurePosition(IFileHandle fileHandle, long cloudOffset, long requestedWriteOffset) {
+        if (cloudOffset != requestedWriteOffset) {
+            throw new IllegalStateException("Misaligned positions in " + fileHandle.getFileReference()
+                    + ", cloudOffset: " + cloudOffset + " != requestedWriteOffset: " + requestedWriteOffset);
+        }
+    }
+
+    public long getTotalRemoteStorageSizeForNodeBytes() {
+        long size = 0;
+        for (CloudFile file : list()) {
+            size += file.getSize();
+        }
+        return size;
+    }
+
+    @Override
+    public long getTotalDiskUsage() {
+        return PhysicalDrive.getUsedSpace(drivePaths);
+    }
 }

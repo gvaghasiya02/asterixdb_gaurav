@@ -18,6 +18,7 @@
  */
 package org.apache.asterix.common.exceptions;
 
+import org.apache.asterix.common.utils.IdentifierUtil;
 import org.apache.hyracks.api.exceptions.IError;
 import org.apache.hyracks.api.util.ErrorMessageUtil;
 
@@ -95,7 +96,8 @@ public enum ErrorCode implements IError {
     WRITE_PATH_LENGTH_EXCEEDS_MAX_LENGTH(65),
     TYPE_MISMATCH_EXTRA_FIELD(66),
     UNSUPPORTED_COLUMN_TYPE(67),
-
+    INVALID_KEY_TYPE(68),
+    FAILED_TO_READ_KEY(69),
     UNSUPPORTED_JRE(100),
 
     EXTERNAL_UDF_RESULT_TYPE_ERROR(200),
@@ -295,7 +297,18 @@ public enum ErrorCode implements IError {
     UNSUPPORTED_COLUMN_LSM_FILTER(1192),
     UNKNOWN_STORAGE_FORMAT(1193),
     UNSUPPORTED_INDEX_IN_COLUMNAR_FORMAT(1194),
-
+    COMPOSITE_KEY_NOT_SUPPORTED(1195),
+    EXTERNAL_SINK_ERROR(1196),
+    MINIMUM_VALUE_ALLOWED_FOR_PARAM(1197),
+    DUPLICATE_FIELD_IN_PRIMARY_KEY(1198),
+    INCOMPATIBLE_FIELDS_IN_PRIMARY_KEY(1199),
+    PREFIX_SHOULD_NOT_START_WITH_SLASH(1200),
+    ILLEGAL_SIZE_PROVIDED(1201),
+    UNSUPPORTED_WRITER_COMPRESSION_SCHEME(1202),
+    INVALID_PARQUET_SCHEMA(1203),
+    TYPE_UNSUPPORTED_PARQUET_WRITE(1204),
+    INVALID_PARQUET_WRITER_VERSION(1205),
+    INVALID_DELTA_TABLE_FORMAT(1206),
     // Feed errors
     DATAFLOW_ILLEGAL_STATE(3001),
     UTIL_DATAFLOW_UTILS_TUPLE_TOO_LARGE(3002),
@@ -412,6 +425,8 @@ public enum ErrorCode implements IError {
     PARSER_DATA_PARSER_UNEXPECTED_TOKEN(3120),
     REQUIRED_PARAM_OR_PARAM_IF_PARAM_IS_PRESENT(3121),
     PARAM_NOT_ALLOWED_IF_PARAM_IS_PRESENT(3122),
+    // Avro error
+    UNSUPPORTED_TYPE_FOR_AVRO(3123),
 
     // Lifecycle management errors
     DUPLICATE_PARTITION_ID(4000),
@@ -450,8 +465,8 @@ public enum ErrorCode implements IError {
     }
 
     private static class ErrorMessageMapHolder {
-        private static final String[] enumMessages =
-                ErrorMessageUtil.defineMessageEnumOrdinalMap(values(), RESOURCE_PATH);
+        private static final String[] enumMessages = IdentifierUtil
+                .replaceIdentifiers(ErrorMessageUtil.defineMessageEnumOrdinalMap(values(), RESOURCE_PATH));
 
         private static String get(ErrorCode errorCode) {
             return enumMessages[errorCode.ordinal()];

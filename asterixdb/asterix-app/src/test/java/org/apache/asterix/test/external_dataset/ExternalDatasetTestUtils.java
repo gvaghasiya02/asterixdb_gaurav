@@ -18,9 +18,12 @@
  */
 package org.apache.asterix.test.external_dataset;
 
+import static org.apache.asterix.test.external_dataset.avro.AvroFileConverterUtil.AVRO_GEN_BASEDIR;
 import static org.apache.asterix.test.external_dataset.aws.AwsS3ExternalDatasetTest.BOM_FILE_CONTAINER;
+import static org.apache.asterix.test.external_dataset.aws.AwsS3ExternalDatasetTest.BROWSE_CONTAINER;
 import static org.apache.asterix.test.external_dataset.aws.AwsS3ExternalDatasetTest.DYNAMIC_PREFIX_AT_START_CONTAINER;
 import static org.apache.asterix.test.external_dataset.aws.AwsS3ExternalDatasetTest.FIXED_DATA_CONTAINER;
+import static org.apache.asterix.test.external_dataset.deltalake.DeltaTableGenerator.DELTA_GEN_BASEDIR;
 import static org.apache.asterix.test.external_dataset.parquet.BinaryFileConverterUtil.BINARY_GEN_BASEDIR;
 
 import java.io.BufferedWriter;
@@ -33,9 +36,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collection;
 
+import org.apache.asterix.test.external_dataset.avro.AvroFileConverterUtil;
+import org.apache.asterix.test.external_dataset.deltalake.DeltaTableGenerator;
 import org.apache.asterix.test.external_dataset.parquet.BinaryFileConverterUtil;
 import org.apache.asterix.testframework.context.TestCaseContext;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hyracks.api.util.IoUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -51,6 +57,7 @@ public class ExternalDatasetTestUtils {
     private static final FilenameFilter JSON_FILTER = ((dir, name) -> name.endsWith(".json"));
     private static final FilenameFilter CSV_FILTER = ((dir, name) -> name.endsWith(".csv"));
     private static final FilenameFilter PARQUET_FILTER = ((dir, name) -> name.endsWith(".parquet"));
+    private static final FilenameFilter AVRO_FILTER = ((dir, name) -> name.endsWith(".avro"));
 
     // Base directory paths for data files
     private static String JSON_DATA_PATH;
@@ -64,6 +71,7 @@ public class ExternalDatasetTestUtils {
     public static final String TSV_DEFINITION = "tsv-data/reviews/";
     public static final String MIXED_DEFINITION = "mixed-data/reviews/";
     public static final String PARQUET_DEFINITION = "parquet-data/reviews/";
+    public static final String AVRO_DEFINITION = "avro-data/reviews/";
 
     // This is used for a test to generate over 1000 number of files
     public static final String OVER_1000_OBJECTS_PATH = "over-1000-objects";
@@ -74,6 +82,7 @@ public class ExternalDatasetTestUtils {
     private static Uploader fixedDataLoader;
     private static Uploader mixedDataLoader;
     private static Uploader bomFileLoader;
+    private static Uploader browseDataLoader;
 
     protected TestCaseContext tcCtx;
 
@@ -101,6 +110,20 @@ public class ExternalDatasetTestUtils {
         BinaryFileConverterUtil.convertToParquet(basePath, parquetRawJsonDir, BINARY_GEN_BASEDIR);
     }
 
+    public static void createAvroFiles(String avroRawJsonDir) throws IOException {
+        File basePath = new File(".");
+        // cleaning directory
+        BinaryFileConverterUtil.cleanBinaryDirectory(basePath, AVRO_GEN_BASEDIR);
+        AvroFileConverterUtil.convertToAvro(basePath, avroRawJsonDir, AVRO_GEN_BASEDIR);
+    }
+
+    public static void createDeltaTable() throws IOException {
+        File basePath = new File(".");
+        // cleaning directory
+        BinaryFileConverterUtil.cleanBinaryDirectory(basePath, DELTA_GEN_BASEDIR);
+        DeltaTableGenerator.prepareDeltaTableContainer(new Configuration());
+    }
+
     /**
      * Generate binary files (e.g., parquet files)
      */
@@ -112,6 +135,14 @@ public class ExternalDatasetTestUtils {
         int startIndex = dataToConvertDirPath.indexOf("/external-filter");
         BinaryFileConverterUtil.convertToParquetRecursively(basePath, dataToConvertDirPath, BINARY_GEN_BASEDIR,
                 JSON_FILTER, startIndex);
+    }
+
+    public static void createAvroFilesRecursively(String dataToConvertDirPath) throws IOException {
+        //base path
+        File basePath = new File(".");
+        int startIndex = dataToConvertDirPath.indexOf("/external-filter");
+        AvroFileConverterUtil.convertToAvroRecursively(basePath, dataToConvertDirPath, AVRO_GEN_BASEDIR, JSON_FILTER,
+                startIndex);
     }
 
     public static void setDataPaths(String jsonDataPath, String csvDataPath, String tsvDataPath) {
@@ -127,6 +158,16 @@ public class ExternalDatasetTestUtils {
         ExternalDatasetTestUtils.fixedDataLoader = fixedDataLoader;
         ExternalDatasetTestUtils.mixedDataLoader = mixedDataLoader;
         ExternalDatasetTestUtils.bomFileLoader = bomFileLoader;
+    }
+
+    public static void setUploaders(Uploader playgroundDataLoader, Uploader dynamicPrefixAtStartDataLoader,
+            Uploader fixedDataLoader, Uploader mixedDataLoader, Uploader bomFileLoader, Uploader browseDataLoader) {
+        ExternalDatasetTestUtils.playgroundDataLoader = playgroundDataLoader;
+        ExternalDatasetTestUtils.dynamicPrefixAtStartDataLoader = dynamicPrefixAtStartDataLoader;
+        ExternalDatasetTestUtils.fixedDataLoader = fixedDataLoader;
+        ExternalDatasetTestUtils.mixedDataLoader = mixedDataLoader;
+        ExternalDatasetTestUtils.bomFileLoader = bomFileLoader;
+        ExternalDatasetTestUtils.browseDataLoader = browseDataLoader;
     }
 
     /**
@@ -157,7 +198,41 @@ public class ExternalDatasetTestUtils {
         loadParquetFiles();
         LOGGER.info("Parquet files added successfully");
 
+        LOGGER.info("Adding Avro files to the bucket");
+        loadAvroFiles();
+        LOGGER.info("Avro files added successfully");
+
+        LOGGER.info("Adding Delta Table files to the bucket");
+        loadDeltaTableFiles();
+        LOGGER.info("Delta files added successfully");
+
         LOGGER.info("Files added successfully");
+    }
+
+    public static void prepareBrowseContainer() {
+        /*
+        file hierarchy inside browse container
+        browse/1.json
+        browse/2.json
+        browse/level1/3.json
+        browse/level1/4.json
+        browse/level1/level2/5.json
+        browse/level2/level3/6.json
+         */
+        // -- todo:Utsav add a test for Browse S3 path which returns multiple folders, skipped for now as S3 mock server does not support this.
+        LOGGER.info("Adding JSON files to " + BROWSE_CONTAINER);
+        browseDataLoader.upload("1.json", "{\"id\":" + 1 + "}");
+        browseDataLoader.upload("2.json", "{\"id\":" + 2 + "}");
+        browseDataLoader.upload("level1/3.json", "{\"id\":" + 3 + "}");
+        browseDataLoader.upload("level1/4.json", "{\"id\":" + 4 + "}");
+        browseDataLoader.upload("level1/level2/5.json", "{\"id\":" + 5 + "}");
+        browseDataLoader.upload("level2/level3/6.json", "{\"id\":" + 6 + "}");
+
+        //Adding 1000+ files
+        for (int i = 1; i <= 1500; i++) {
+            browseDataLoader.upload("level3/" + i + ".json", "{\"id\":" + i + "}");
+        }
+        LOGGER.info("JSON Files added successfully");
     }
 
     /**
@@ -325,6 +400,49 @@ public class ExternalDatasetTestUtils {
             String fileName = file.getName();
             String externalFilterDefinition = file.getParent().substring(generatedDataBasePath.length() + 1) + "/";
             loadData(file.getParent(), "", fileName, "parquet-data/" + externalFilterDefinition, "", false, false);
+        }
+    }
+
+    private static void loadAvroFiles() {
+        String generatedDataBasePath = AVRO_GEN_BASEDIR;
+        String definition = AVRO_DEFINITION;
+        String definitionSegment = "";
+
+        loadData(generatedDataBasePath, "", "dummy_tweet.avro", definition, definitionSegment, false, false);
+        loadData(generatedDataBasePath, "", "id_age.avro", definition, definitionSegment, false, false);
+        loadData(generatedDataBasePath, "", "id_age-string.avro", definition, definitionSegment, false, false);
+        loadData(generatedDataBasePath, "", "id_name.avro", definition, definitionSegment, false, false);
+        loadData(generatedDataBasePath, "", "id_name_comment.avro", definition, definitionSegment, false, false);
+        loadData(generatedDataBasePath, "", "heterogeneous_1.avro", definition, definitionSegment, false, false);
+        loadData(generatedDataBasePath, "", "heterogeneous_2.avro", definition, definitionSegment, false, false);
+        loadData(generatedDataBasePath, "", "avro_type.avro", definition, definitionSegment, false, false);
+
+        Collection<File> files =
+                IoUtil.getMatchingFiles(Paths.get(generatedDataBasePath + "/external-filter"), AVRO_FILTER);
+        for (File file : files) {
+            String fileName = file.getName();
+            String externalFilterDefinition = file.getParent().substring(generatedDataBasePath.length() + 1) + "/";
+            loadData(file.getParent(), "", fileName, "avro-data/" + externalFilterDefinition, "", false, false);
+        }
+    }
+
+    private static void loadDeltaTableFiles() {
+        String generatedDataBasePath = DELTA_GEN_BASEDIR;
+        loadDeltaDirectory(generatedDataBasePath, "/empty_delta_table", PARQUET_FILTER, "delta-data/");
+        loadDeltaDirectory(generatedDataBasePath, "/empty_delta_table/_delta_log", JSON_FILTER, "delta-data/");
+        loadDeltaDirectory(generatedDataBasePath, "/modified_delta_table", PARQUET_FILTER, "delta-data/");
+        loadDeltaDirectory(generatedDataBasePath, "/modified_delta_table/_delta_log", JSON_FILTER, "delta-data/");
+        loadDeltaDirectory(generatedDataBasePath, "/multiple_file_delta_table", PARQUET_FILTER, "delta-data/");
+        loadDeltaDirectory(generatedDataBasePath, "/multiple_file_delta_table/_delta_log", JSON_FILTER, "delta-data/");
+    }
+
+    private static void loadDeltaDirectory(String dataBasePath, String rootPath, FilenameFilter filter,
+            String definitionPart) {
+        Collection<File> files = IoUtil.getMatchingFiles(Paths.get(dataBasePath + rootPath), filter);
+        for (File file : files) {
+            String fileName = file.getName();
+            String externalFilterDefinition = file.getParent().substring(dataBasePath.length() + 1) + "/";
+            loadData(file.getParent(), "", fileName, definitionPart + externalFilterDefinition, "", false, false);
         }
     }
 

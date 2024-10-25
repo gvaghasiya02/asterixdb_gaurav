@@ -19,6 +19,7 @@
 package org.apache.asterix.cloud.clients.aws.s3;
 
 import java.util.Map;
+import java.util.Objects;
 
 import org.apache.asterix.common.config.CloudProperties;
 import org.apache.asterix.external.util.aws.s3.S3Constants;
@@ -28,6 +29,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 
 public final class S3ClientConfig {
+
     // The maximum number of file that can be deleted (AWS restriction)
     static final int DELETE_BATCH_SIZE = 1000;
     private final String region;
@@ -35,23 +37,39 @@ public final class S3ClientConfig {
     private final String prefix;
     private final boolean anonymousAuth;
     private final long profilerLogInterval;
+    private final int writeBufferSize;
+    private final long tokenAcquireTimeout;
+    private final int readMaxRequestsPerSeconds;
+    private final int writeMaxRequestsPerSeconds;
 
     public S3ClientConfig(String region, String endpoint, String prefix, boolean anonymousAuth,
-            long profilerLogInterval) {
-        this.region = region;
+            long profilerLogInterval, int writeBufferSize) {
+        this(region, endpoint, prefix, anonymousAuth, profilerLogInterval, writeBufferSize, 1, 0, 0);
+    }
+
+    private S3ClientConfig(String region, String endpoint, String prefix, boolean anonymousAuth,
+            long profilerLogInterval, int writeBufferSize, long tokenAcquireTimeout, int writeMaxRequestsPerSeconds,
+            int readMaxRequestsPerSeconds) {
+        this.region = Objects.requireNonNull(region, "region");
         this.endpoint = endpoint;
-        this.prefix = prefix;
+        this.prefix = Objects.requireNonNull(prefix, "prefix");
         this.anonymousAuth = anonymousAuth;
         this.profilerLogInterval = profilerLogInterval;
+        this.writeBufferSize = writeBufferSize;
+        this.tokenAcquireTimeout = tokenAcquireTimeout;
+        this.writeMaxRequestsPerSeconds = writeMaxRequestsPerSeconds;
+        this.readMaxRequestsPerSeconds = readMaxRequestsPerSeconds;
     }
 
     public static S3ClientConfig of(CloudProperties cloudProperties) {
         return new S3ClientConfig(cloudProperties.getStorageRegion(), cloudProperties.getStorageEndpoint(),
                 cloudProperties.getStoragePrefix(), cloudProperties.isStorageAnonymousAuth(),
-                cloudProperties.getProfilerLogInterval());
+                cloudProperties.getProfilerLogInterval(), cloudProperties.getWriteBufferSize(),
+                cloudProperties.getTokenAcquireTimeout(), cloudProperties.getWriteMaxRequestsPerSecond(),
+                cloudProperties.getReadMaxRequestsPerSecond());
     }
 
-    public static S3ClientConfig of(Map<String, String> configuration) {
+    public static S3ClientConfig of(Map<String, String> configuration, int writeBufferSize) {
         // Used to determine local vs. actual S3
         String endPoint = configuration.getOrDefault(S3Constants.SERVICE_END_POINT_FIELD_NAME, "");
         // Disabled
@@ -62,7 +80,7 @@ public final class S3ClientConfig {
         String prefix = "";
         boolean anonymousAuth = false;
 
-        return new S3ClientConfig(region, endPoint, prefix, anonymousAuth, profilerLogInterval);
+        return new S3ClientConfig(region, endPoint, prefix, anonymousAuth, profilerLogInterval, writeBufferSize);
     }
 
     public String getRegion() {
@@ -90,7 +108,24 @@ public final class S3ClientConfig {
         return profilerLogInterval;
     }
 
+    public int getWriteBufferSize() {
+        return writeBufferSize;
+    }
+
+    public long getTokenAcquireTimeout() {
+        return tokenAcquireTimeout;
+    }
+
+    public int getWriteMaxRequestsPerSeconds() {
+        return writeMaxRequestsPerSeconds;
+    }
+
+    public int getReadMaxRequestsPerSeconds() {
+        return readMaxRequestsPerSeconds;
+    }
+
     private boolean isS3Mock() {
         return endpoint != null && !endpoint.isEmpty();
     }
+
 }

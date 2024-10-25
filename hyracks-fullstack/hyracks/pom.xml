@@ -26,7 +26,7 @@
   <parent>
     <groupId>org.apache.hyracks</groupId>
     <artifactId>apache-hyracks</artifactId>
-    <version>0.3.9-SNAPSHOT</version>
+    <version>0.3.10-SNAPSHOT</version>
   </parent>
 
   <build>
@@ -101,5 +101,7 @@
     <module>hyracks-hdfs</module>
     <module>hyracks-dist</module>
     <module>hyracks-http</module>
+    <module>hyracks-unsafe</module>
+    <module>hyracks-cloud</module>
   </modules>
 </project>

@@ -18,14 +18,15 @@
  */
 package org.apache.asterix.optimizer.rules.pushdown.schema;
 
-import org.apache.hyracks.api.exceptions.SourceLocation;
+import org.apache.hyracks.algebricks.core.algebra.base.ILogicalExpression;
+import org.apache.hyracks.algebricks.core.algebra.expressions.AbstractFunctionCallExpression;
 
 public class ArrayExpectedSchemaNode extends AbstractComplexExpectedSchemaNode {
     private IExpectedSchemaNode child;
 
-    public ArrayExpectedSchemaNode(AbstractComplexExpectedSchemaNode parent, SourceLocation sourceLocation,
-            String functionName) {
-        super(parent, sourceLocation, functionName);
+    public ArrayExpectedSchemaNode(AbstractComplexExpectedSchemaNode parent,
+            AbstractFunctionCallExpression parentExpression, ILogicalExpression expression) {
+        super(parent, parentExpression, expression);
     }
 
     @Override
@@ -47,11 +48,16 @@ public class ArrayExpectedSchemaNode extends AbstractComplexExpectedSchemaNode {
     }
 
     @Override
-    public void replaceChild(IExpectedSchemaNode oldNode, IExpectedSchemaNode newNode) {
-        if (oldNode != child) {
-            //this should not happen
-            throw new IllegalStateException("Node " + oldNode.getType() + " is not a child");
+    public IExpectedSchemaNode replaceChild(IExpectedSchemaNode oldNode, IExpectedSchemaNode newNode) {
+        if (child.getType() == newNode.getType() || isReplaceableAny(newNode)) {
+            // We are trying to replace with the same node type, or with a replaceable any, ignore.
+            return child;
+        } else if (isChildReplaceable(child, newNode)) {
+            child = newNode;
+            return child;
         }
-        child = newNode;
+
+        // This should never happen, but safeguard against unexpected behavior
+        throw new IllegalStateException("Cannot replace " + child.getType() + " with " + newNode.getType());
     }
 }

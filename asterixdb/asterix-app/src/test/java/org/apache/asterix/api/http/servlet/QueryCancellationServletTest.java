@@ -35,8 +35,10 @@ import org.apache.asterix.common.config.ExternalProperties;
 import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.runtime.utils.RequestTracker;
 import org.apache.asterix.translator.ClientRequest;
+import org.apache.hyracks.api.application.ICCServiceContext;
 import org.apache.hyracks.api.client.IHyracksClientConnection;
 import org.apache.hyracks.api.job.JobId;
+import org.apache.hyracks.control.cc.ClusterControllerService;
 import org.apache.hyracks.http.api.IServletRequest;
 import org.apache.hyracks.http.api.IServletResponse;
 import org.junit.Test;
@@ -66,6 +68,11 @@ public class QueryCancellationServletTest {
         // Tests the case that query is not in the map.
         IServletRequest mockRequest = mockRequest("1");
         IServletResponse mockResponse = mock(IServletResponse.class);
+        ICCServiceContext mockCCServiceCtx = mock(ICCServiceContext.class);
+        ClusterControllerService mockCCService = mock(ClusterControllerService.class);
+        Mockito.when(appCtx.getServiceContext()).thenReturn(mockCCServiceCtx);
+        Mockito.when(appCtx.getServiceContext().getControllerService()).thenReturn(mockCCService);
+        Mockito.when(mockCCServiceCtx.getControllerService()).thenReturn(mockCCService);
         cancellationServlet.handle(mockRequest, mockResponse);
         verify(mockResponse, times(1)).setStatus(HttpResponseStatus.NOT_FOUND);
 

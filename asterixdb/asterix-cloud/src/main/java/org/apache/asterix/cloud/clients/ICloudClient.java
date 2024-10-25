@@ -24,6 +24,8 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Set;
 
+import org.apache.asterix.cloud.IWriteBufferProvider;
+import org.apache.asterix.cloud.clients.profiler.IRequestProfilerLimiter;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.control.nc.io.IOManager;
@@ -35,15 +37,25 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * Interface containing methods to perform IO operation on the Cloud Storage
  */
 public interface ICloudClient {
+    /**
+     * @return write buffer size
+     */
+    int getWriteBufferSize();
+
+    /**
+     * @return the requests profiler-limiter
+     */
+    IRequestProfilerLimiter getProfilerLimiter();
 
     /**
      * Creates a cloud buffered writer
      *
-     * @param bucket bucket to write to
-     * @param path   path to write to
-     * @return buffered writer
+     * @param bucket         bucket to write to
+     * @param path           path to write to
+     * @param bufferProvider buffer provider
+     * @return cloud writer
      */
-    ICloudBufferedWriter createBufferedWriter(String bucket, String path);
+    ICloudWriter createWriter(String bucket, String path, IWriteBufferProvider bufferProvider);
 
     /**
      * Lists objects at the specified bucket and path, and applies the file name filter on the returned objects
@@ -53,7 +65,7 @@ public interface ICloudClient {
      * @param filter filter to apply
      * @return file names returned after applying the file name filter
      */
-    Set<String> listObjects(String bucket, String path, FilenameFilter filter);
+    Set<CloudFile> listObjects(String bucket, String path, FilenameFilter filter);
 
     /**
      * Performs a range-read from the specified bucket and path starting at the offset. The amount read is equal to the
@@ -72,7 +84,7 @@ public interface ICloudClient {
      *
      * @param bucket bucket
      * @param path   path
-     * @return bytes
+     * @return byte array containing the content, or <code>null</code> if the key does not exist
      * @throws HyracksDataException HyracksDataException
      */
     byte[] readAllBytes(String bucket, String path) throws HyracksDataException;
@@ -82,9 +94,11 @@ public interface ICloudClient {
      *
      * @param bucket bucket
      * @param path   path
-     * @return inputstream
+     * @param offset offset
+     * @param length length
+     * @return input stream of requested range
      */
-    InputStream getObjectStream(String bucket, String path);
+    InputStream getObjectStream(String bucket, String path, long offset, long length);
 
     /**
      * Writes the content of the byte array into the bucket at the specified path
@@ -139,7 +153,7 @@ public interface ICloudClient {
      * @param ioManager local {@link IOManager}
      * @return an instance of a new parallel downloader
      */
-    IParallelDownloader createParallelDownloader(String bucket, IOManager ioManager);
+    IParallelDownloader createParallelDownloader(String bucket, IOManager ioManager) throws HyracksDataException;
 
     /**
      * Produces a {@link JsonNode} that contains information about the stored objects in the cloud
@@ -153,5 +167,5 @@ public interface ICloudClient {
     /**
      * Performs any necessary closing and cleaning up
      */
-    void close();
+    void close() throws HyracksDataException;
 }

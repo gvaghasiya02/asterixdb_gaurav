@@ -20,20 +20,21 @@ package org.apache.asterix.cloud;
 
 import java.io.IOException;
 
-import org.apache.asterix.cloud.clients.ICloudBufferedWriter;
-import org.apache.asterix.cloud.clients.ICloudClient;
+import org.apache.asterix.cloud.clients.ICloudWriter;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.api.io.IIOManager;
+import org.apache.hyracks.cloud.filesystem.FileSystemOperationDispatcherUtil;
 import org.apache.hyracks.control.nc.io.FileHandle;
 
 public class CloudFileHandle extends FileHandle {
-    private final CloudResettableInputStream inputStream;
+    private final ICloudWriter cloudWriter;
+    private int blockSize;
+    private int fileDescriptor;
 
-    public CloudFileHandle(ICloudClient cloudClient, String bucket, FileReference fileRef,
-            IWriteBufferProvider bufferProvider) {
+    public CloudFileHandle(FileReference fileRef, ICloudWriter cloudWriter) {
         super(fileRef);
-        ICloudBufferedWriter bufferedWriter = cloudClient.createBufferedWriter(bucket, fileRef.getRelativePath());
-        inputStream = new CloudResettableInputStream(bufferedWriter, bufferProvider);
+        this.cloudWriter = cloudWriter;
     }
 
     @Override
@@ -41,15 +42,19 @@ public class CloudFileHandle extends FileHandle {
         if (fileRef.getFile().exists()) {
             super.open(rwMode, syncMode);
         }
+        fileDescriptor = FileSystemOperationDispatcherUtil.getFileDescriptor(getFileChannel());
+        blockSize = FileSystemOperationDispatcherUtil.getBlockSize(fileDescriptor);
     }
 
-    @Override
-    public synchronized void close() throws IOException {
-        inputStream.close();
-        super.close();
+    public ICloudWriter getCloudWriter() {
+        return cloudWriter;
     }
 
-    public CloudResettableInputStream getInputStream() {
-        return inputStream;
+    public int getBlockSize() throws HyracksDataException {
+        return blockSize;
+    }
+
+    public int getFileDescriptor() throws HyracksDataException {
+        return fileDescriptor;
     }
 }

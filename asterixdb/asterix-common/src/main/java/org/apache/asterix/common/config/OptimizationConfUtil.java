@@ -39,10 +39,10 @@ import org.apache.hyracks.control.common.config.OptionTypes;
 
 public class OptimizationConfUtil {
 
-    private static final int MIN_FRAME_LIMIT_FOR_SORT = AbstractStableSortPOperator.MIN_FRAME_LIMIT_FOR_SORT;
-    private static final int MIN_FRAME_LIMIT_FOR_GROUP_BY = AbstractGroupByPOperator.MIN_FRAME_LIMIT_FOR_GROUP_BY;
-    private static final int MIN_FRAME_LIMIT_FOR_JOIN = AbstractJoinPOperator.MIN_FRAME_LIMIT_FOR_JOIN;
-    private static final int MIN_FRAME_LIMIT_FOR_WINDOW = WindowPOperator.MIN_FRAME_LIMIT_FOR_WINDOW;
+    public static final int MIN_FRAME_LIMIT_FOR_SORT = AbstractStableSortPOperator.MIN_FRAME_LIMIT_FOR_SORT;
+    public static final int MIN_FRAME_LIMIT_FOR_GROUP_BY = AbstractGroupByPOperator.MIN_FRAME_LIMIT_FOR_GROUP_BY;
+    public static final int MIN_FRAME_LIMIT_FOR_JOIN = AbstractJoinPOperator.MIN_FRAME_LIMIT_FOR_JOIN;
+    public static final int MIN_FRAME_LIMIT_FOR_WINDOW = WindowPOperator.MIN_FRAME_LIMIT_FOR_WINDOW;
     public static final int MIN_FRAME_LIMIT_FOR_TEXT_SEARCH = 5; // see InvertedIndexPOperator
 
     private OptimizationConfUtil() {
@@ -95,6 +95,12 @@ public class OptimizationConfUtil {
                 compilerProperties.getQueryPlanShapeMode());
         boolean columnFilter = getBoolean(querySpecificConfig, CompilerProperties.COMPILER_COLUMN_FILTER_KEY,
                 compilerProperties.isColumnFilter());
+        int maxVariableOccurrencesForInlining =
+                getMaxVariableOccurrencesForInlining(compilerProperties, querySpecificConfig, sourceLoc);
+        boolean orderFields = getBoolean(querySpecificConfig, CompilerProperties.COMPILER_ORDERFIELDS_KEY,
+                compilerProperties.isOrderedFields());
+        boolean OptimizeGroupBy = getBoolean(querySpecificConfig, CompilerProperties.COMPILER_OPTIMIZE_GROUPBY,
+                compilerProperties.isOptimizeGroupBy());
 
         PhysicalOptimizationConfig physOptConf = new PhysicalOptimizationConfig();
         physOptConf.setFrameSize(frameSize);
@@ -119,6 +125,13 @@ public class OptimizationConfUtil {
         physOptConf.setForceJoinOrderMode(forceJoinOrder);
         physOptConf.setQueryPlanShapeMode(queryPlanShape);
         physOptConf.setColumnFilter(columnFilter);
+        physOptConf.setMinSortFrames(compilerProperties.getMinSortMemoryFrames());
+        physOptConf.setMinJoinFrames(compilerProperties.getMinJoinMemoryFrames());
+        physOptConf.setMinGroupFrames(compilerProperties.getMinGroupMemoryFrames());
+        physOptConf.setMinWindowFrames(compilerProperties.getMinWindowMemoryFrames());
+        physOptConf.setMaxVariableOccurrencesForInlining(maxVariableOccurrencesForInlining);
+        physOptConf.setOrderFields(orderFields);
+        physOptConf.setOptimizeGroupByEnabled(OptimizeGroupBy);
 
         // We should have already validated the parameter names at this point...
         Set<String> filteredParameterNames = new HashSet<>(parameterNames);
@@ -214,5 +227,17 @@ public class OptimizationConfUtil {
             return valueInQuery;
         }
         return defaultValue;
+    }
+
+    private static int getMaxVariableOccurrencesForInlining(CompilerProperties compilerProperties,
+            Map<String, Object> querySpecificConfig, SourceLocation sourceLoc) throws AsterixException {
+        String valueInQuery =
+                (String) querySpecificConfig.get(CompilerProperties.COMPILER_MAX_VARIABLE_OCCURRENCES_INLINING_KEY);
+        try {
+            return valueInQuery == null ? compilerProperties.getMaxVariableOccurrencesForInlining()
+                    : OptionTypes.NONNEGATIVE_INTEGER.parse(valueInQuery);
+        } catch (IllegalArgumentException e) {
+            throw AsterixException.create(ErrorCode.COMPILATION_ERROR, sourceLoc, e.getMessage());
+        }
     }
 }

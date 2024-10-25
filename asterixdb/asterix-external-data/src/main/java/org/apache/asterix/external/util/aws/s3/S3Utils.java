@@ -23,6 +23,8 @@ import static org.apache.asterix.common.exceptions.ErrorCode.PARAM_NOT_ALLOWED_I
 import static org.apache.asterix.common.exceptions.ErrorCode.REQUIRED_PARAM_IF_PARAM_IS_PRESENT;
 import static org.apache.asterix.common.exceptions.ErrorCode.S3_REGION_NOT_SUPPORTED;
 import static org.apache.asterix.external.util.ExternalDataUtils.getPrefix;
+import static org.apache.asterix.external.util.ExternalDataUtils.isDeltaTable;
+import static org.apache.asterix.external.util.ExternalDataUtils.validateDeltaTableProperties;
 import static org.apache.asterix.external.util.ExternalDataUtils.validateIncludeExclude;
 import static org.apache.asterix.external.util.aws.s3.S3Constants.ACCESS_KEY_ID_FIELD_NAME;
 import static org.apache.asterix.external.util.aws.s3.S3Constants.ERROR_INTERNAL_ERROR;
@@ -48,6 +50,7 @@ import static org.apache.hyracks.api.util.ExceptionUtils.getMessageOrToString;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -81,6 +84,7 @@ import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.model.CommonPrefix;
 import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
@@ -88,6 +92,7 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.model.S3Response;
+import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
 public class S3Utils {
     private S3Utils() {
@@ -115,6 +120,42 @@ public class S3Utils {
         String serviceEndpoint = configuration.get(SERVICE_END_POINT_FIELD_NAME);
 
         S3ClientBuilder builder = S3Client.builder();
+
+        // Credentials
+        AwsCredentialsProvider credentialsProvider =
+                buildCredentialsProvider(instanceProfile, accessKeyId, secretAccessKey, sessionToken);
+
+        builder.credentialsProvider(credentialsProvider);
+
+        // Validate the region
+        List<Region> regions = S3Client.serviceMetadata().regions();
+        Optional<Region> selectedRegion = regions.stream().filter(region -> region.id().equals(regionId)).findFirst();
+
+        if (selectedRegion.isEmpty()) {
+            throw new CompilationException(S3_REGION_NOT_SUPPORTED, regionId);
+        }
+        builder.region(selectedRegion.get());
+
+        // Validate the service endpoint if present
+        if (serviceEndpoint != null) {
+            try {
+                URI uri = new URI(serviceEndpoint);
+                try {
+                    builder.endpointOverride(uri);
+                } catch (NullPointerException ex) {
+                    throw new CompilationException(ErrorCode.EXTERNAL_SOURCE_ERROR, ex, getMessageOrToString(ex));
+                }
+            } catch (URISyntaxException ex) {
+                throw new CompilationException(ErrorCode.EXTERNAL_SOURCE_ERROR, ex,
+                        String.format("Invalid service endpoint %s", serviceEndpoint));
+            }
+        }
+
+        return builder.build();
+    }
+
+    public static AwsCredentialsProvider buildCredentialsProvider(String instanceProfile, String accessKeyId,
+            String secretAccessKey, String sessionToken) throws CompilationException {
 
         // Credentials
         AwsCredentialsProvider credentialsProvider;
@@ -167,34 +208,7 @@ public class S3Utils {
             throw new CompilationException(REQUIRED_PARAM_IF_PARAM_IS_PRESENT, ACCESS_KEY_ID_FIELD_NAME,
                     SESSION_TOKEN_FIELD_NAME);
         }
-
-        builder.credentialsProvider(credentialsProvider);
-
-        // Validate the region
-        List<Region> regions = S3Client.serviceMetadata().regions();
-        Optional<Region> selectedRegion = regions.stream().filter(region -> region.id().equals(regionId)).findFirst();
-
-        if (selectedRegion.isEmpty()) {
-            throw new CompilationException(S3_REGION_NOT_SUPPORTED, regionId);
-        }
-        builder.region(selectedRegion.get());
-
-        // Validate the service endpoint if present
-        if (serviceEndpoint != null) {
-            try {
-                URI uri = new URI(serviceEndpoint);
-                try {
-                    builder.endpointOverride(uri);
-                } catch (NullPointerException ex) {
-                    throw new CompilationException(ErrorCode.EXTERNAL_SOURCE_ERROR, ex, getMessageOrToString(ex));
-                }
-            } catch (URISyntaxException ex) {
-                throw new CompilationException(ErrorCode.EXTERNAL_SOURCE_ERROR, ex,
-                        String.format("Invalid service endpoint %s", serviceEndpoint));
-            }
-        }
-
-        return builder.build();
+        return credentialsProvider;
     }
 
     /**
@@ -260,9 +274,11 @@ public class S3Utils {
      */
     public static void validateProperties(Map<String, String> configuration, SourceLocation srcLoc,
             IWarningCollector collector) throws CompilationException {
-
+        if (isDeltaTable(configuration)) {
+            validateDeltaTableProperties(configuration);
+        }
         // check if the format property is present
-        if (configuration.get(ExternalDataConstants.KEY_FORMAT) == null) {
+        else if (configuration.get(ExternalDataConstants.KEY_FORMAT) == null) {
             throw new CompilationException(ErrorCode.PARAMETERS_REQUIRED, srcLoc, ExternalDataConstants.KEY_FORMAT);
         }
 
@@ -509,5 +525,59 @@ public class S3Utils {
                 filesOnly.add(object);
             }
         }
+    }
+
+    public static Map<String, List<String>> S3ObjectsOfSingleDepth(Map<String, String> configuration, String container,
+            String prefix) throws CompilationException, HyracksDataException {
+        // create s3 client
+        S3Client s3Client = buildAwsS3Client(configuration);
+        // fetch all the s3 objects
+        return listS3ObjectsOfSingleDepth(s3Client, container, prefix);
+    }
+
+    /**
+     * Uses the latest API to retrieve the objects from the storage of a single level.
+     *
+     * @param s3Client              S3 client
+     * @param container             container name
+     * @param prefix                definition prefix
+     */
+    private static Map<String, List<String>> listS3ObjectsOfSingleDepth(S3Client s3Client, String container,
+            String prefix) throws HyracksDataException {
+        Map<String, List<String>> allObjects = new HashMap<>();
+        ListObjectsV2Iterable listObjectsInterable;
+        ListObjectsV2Request.Builder listObjectsBuilder =
+                ListObjectsV2Request.builder().bucket(container).prefix(prefix).delimiter("/");
+        listObjectsBuilder.prefix(prefix);
+        List<String> files = new ArrayList<>();
+        List<String> folders = new ArrayList<>();
+        // to skip the prefix as a file from the response
+        boolean checkPrefixInFile = true;
+        listObjectsInterable = s3Client.listObjectsV2Paginator(listObjectsBuilder.build());
+        for (ListObjectsV2Response response : listObjectsInterable) {
+            // put all the files
+            for (S3Object object : response.contents()) {
+                String fileName = object.key();
+                fileName = fileName.substring(prefix.length(), fileName.length());
+                if (checkPrefixInFile) {
+                    if (prefix.equals(object.key()))
+                        checkPrefixInFile = false;
+                    else {
+                        files.add(fileName);
+                    }
+                } else {
+                    files.add(fileName);
+                }
+            }
+            // put all the folders
+            for (CommonPrefix object : response.commonPrefixes()) {
+                String folderName = object.prefix();
+                folderName = folderName.substring(prefix.length(), folderName.length());
+                folders.add(folderName.endsWith("/") ? folderName.substring(0, folderName.length() - 1) : folderName);
+            }
+        }
+        allObjects.put("files", files);
+        allObjects.put("folders", folders);
+        return allObjects;
     }
 }

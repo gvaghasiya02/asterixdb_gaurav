@@ -21,29 +21,43 @@ package org.apache.asterix.optimizer.rules.pushdown.schema;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.asterix.om.types.ARecordType;
-import org.apache.asterix.om.types.IAType;
-import org.apache.hyracks.api.exceptions.SourceLocation;
+import org.apache.asterix.metadata.utils.PushdownUtil;
+import org.apache.hyracks.algebricks.core.algebra.base.ILogicalExpression;
+import org.apache.hyracks.algebricks.core.algebra.expressions.AbstractFunctionCallExpression;
+import org.apache.hyracks.algebricks.core.algebra.functions.FunctionIdentifier;
+
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 
 public class ObjectExpectedSchemaNode extends AbstractComplexExpectedSchemaNode {
     private final Map<String, IExpectedSchemaNode> children;
+    private final Int2ObjectMap<String> fieldIdToFieldName;
 
-    public ObjectExpectedSchemaNode(AbstractComplexExpectedSchemaNode parent, SourceLocation sourceLocation,
-            String functionName) {
-        super(parent, sourceLocation, functionName);
+    public ObjectExpectedSchemaNode(AbstractComplexExpectedSchemaNode parent,
+            AbstractFunctionCallExpression parentExpression, ILogicalExpression expression) {
+        super(parent, parentExpression, expression);
         children = new HashMap<>();
+        fieldIdToFieldName = new Int2ObjectOpenHashMap<>();
     }
 
     public boolean isRoot() {
         return false;
     }
 
-    public Map<String, IExpectedSchemaNode> getChildren() {
-        return children;
+    public void addChild(String fieldName, int fieldId, IExpectedSchemaNode child) {
+        FunctionIdentifier fid = child.getParentExpression().getFunctionIdentifier();
+        children.put(fieldName, child);
+        if (fieldId > -1) {
+            fieldIdToFieldName.put(fieldId, fieldName);
+        }
     }
 
-    public void addChild(String fieldName, IExpectedSchemaNode child) {
-        children.put(fieldName, child);
+    public void addAllFieldNameIds(ObjectExpectedSchemaNode node) {
+        fieldIdToFieldName.putAll(node.fieldIdToFieldName);
+    }
+
+    public Map<String, IExpectedSchemaNode> getChildren() {
+        return children;
     }
 
     @Override
@@ -57,32 +71,29 @@ public class ObjectExpectedSchemaNode extends AbstractComplexExpectedSchemaNode 
     }
 
     @Override
-    public void replaceChild(IExpectedSchemaNode oldNode, IExpectedSchemaNode newNode) {
+    public IExpectedSchemaNode replaceChild(IExpectedSchemaNode oldNode, IExpectedSchemaNode newNode) {
         String fieldName = getChildFieldName(oldNode);
-        children.replace(fieldName, newNode);
+        IExpectedSchemaNode child = children.get(fieldName);
+        if (child.getType() == newNode.getType() || isReplaceableAny(newNode)) {
+            // We are trying to replace with the same node type, or with a replaceable any, ignore.
+            return child;
+        } else if (isChildReplaceable(child, newNode)) {
+            children.replace(fieldName, newNode);
+            return newNode;
+        }
+
+        // This should never happen, but safeguard against unexpected behavior
+        throw new IllegalStateException("Cannot replace " + child.getType() + " with " + newNode.getType());
     }
 
     public String getChildFieldName(IExpectedSchemaNode requestedChild) {
-        String key = null;
-        for (Map.Entry<String, IExpectedSchemaNode> child : children.entrySet()) {
-            if (child.getValue() == requestedChild) {
-                key = child.getKey();
-                break;
-            }
+        AbstractFunctionCallExpression expr = requestedChild.getParentExpression();
+        int fieldNameId = PushdownUtil.getFieldNameId(requestedChild.getParentExpression());
+
+        if (fieldNameId > -1) {
+            return fieldIdToFieldName.get(fieldNameId);
         }
 
-        if (key == null) {
-            //this should not happen
-            throw new IllegalStateException("Node " + requestedChild.getType() + " is not a child");
-        }
-        return key;
-    }
-
-    protected IAType getType(IAType childType, IExpectedSchemaNode childNode, String typeName) {
-        String key = getChildFieldName(childNode);
-        IAType[] fieldTypes = { childType };
-        String[] fieldNames = { key };
-
-        return new ARecordType("typeName", fieldNames, fieldTypes, false);
+        return PushdownUtil.getFieldName(expr);
     }
 }

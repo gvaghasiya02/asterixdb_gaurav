@@ -51,6 +51,8 @@ import org.apache.asterix.lang.common.statement.Query;
 import org.apache.asterix.lang.common.statement.ViewDecl;
 import org.apache.asterix.lang.common.struct.UnaryExprType;
 import org.apache.asterix.lang.common.visitor.GatherFunctionCallsVisitor;
+import org.apache.asterix.metadata.declared.MetadataProvider;
+import org.apache.asterix.metadata.entities.EntityDetails;
 import org.apache.asterix.object.base.AdmArrayNode;
 import org.apache.asterix.object.base.AdmBigIntNode;
 import org.apache.asterix.object.base.AdmBooleanNode;
@@ -241,8 +243,8 @@ public class ExpressionUtils {
         }
     }
 
-    public static void collectDependencies(Expression expression, IQueryRewriter rewriter,
-            List<DependencyFullyQualifiedName> outDatasetDependencies,
+    public static void collectDependencies(MetadataProvider metadataProvider, Expression expression,
+            IQueryRewriter rewriter, List<DependencyFullyQualifiedName> outDatasetDependencies,
             List<DependencyFullyQualifiedName> outSynonymDependencies,
             List<DependencyFullyQualifiedName> outFunctionDependencies) throws CompilationException {
         // Duplicate elimination
@@ -260,6 +262,18 @@ public class ExpressionUtils {
                         if (FunctionUtil.isBuiltinDatasetFunction(signature)) {
                             Triple<DatasetFullyQualifiedName, Boolean, DatasetFullyQualifiedName> dsArgs =
                                     FunctionUtil.parseDatasetFunctionArguments(functionCall);
+                            DatasetFullyQualifiedName datasetFullyQualifiedName = dsArgs.first;
+                            if (dsArgs.second) {
+                                metadataProvider.addAccessedEntity(
+                                        EntityDetails.newView(datasetFullyQualifiedName.getDatabaseName(),
+                                                datasetFullyQualifiedName.getDataverseName(),
+                                                datasetFullyQualifiedName.getDatasetName()));
+                            } else {
+                                metadataProvider.addAccessedEntity(
+                                        EntityDetails.newDataset(datasetFullyQualifiedName.getDatabaseName(),
+                                                datasetFullyQualifiedName.getDataverseName(),
+                                                datasetFullyQualifiedName.getDatasetName()));
+                            }
                             DatasetFullyQualifiedName synonymReference = dsArgs.third;
                             if (synonymReference != null) {
                                 // resolved via synonym -> store synonym name as a dependency
@@ -280,6 +294,9 @@ public class ExpressionUtils {
                         }
                     } else {
                         if (seenFunctions.add(signature)) {
+                            String functionName = signature.getName() + "(" + signature.getArity() + ")";
+                            metadataProvider.addAccessedEntity(EntityDetails.newFunction(signature.getDatabaseName(),
+                                    signature.getDataverseName(), functionName, signature.getArity()));
                             outFunctionDependencies.add(new DependencyFullyQualifiedName(signature.getDatabaseName(),
                                     signature.getDataverseName(), signature.getName(),
                                     Integer.toString(signature.getArity())));

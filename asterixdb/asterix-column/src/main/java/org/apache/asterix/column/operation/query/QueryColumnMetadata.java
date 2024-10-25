@@ -18,6 +18,8 @@
  */
 package org.apache.asterix.column.operation.query;
 
+import static org.apache.asterix.column.util.SchemaConstants.LOG_PROBABILITY;
+import static org.apache.asterix.column.util.SchemaConstants.RECORD_SCHEMA;
 import static org.apache.asterix.om.utils.ProjectionFiltrationTypeUtil.ALL_FIELDS_TYPE;
 
 import java.io.ByteArrayInputStream;
@@ -39,14 +41,15 @@ import org.apache.asterix.column.filter.iterable.IColumnIterableFilterEvaluatorF
 import org.apache.asterix.column.filter.range.IColumnRangeFilterEvaluatorFactory;
 import org.apache.asterix.column.filter.range.IColumnRangeFilterValueAccessor;
 import org.apache.asterix.column.metadata.AbstractColumnImmutableReadMetadata;
-import org.apache.asterix.column.metadata.FieldNamesDictionary;
 import org.apache.asterix.column.metadata.schema.AbstractSchemaNode;
 import org.apache.asterix.column.metadata.schema.ObjectSchemaNode;
 import org.apache.asterix.column.metadata.schema.visitor.SchemaClipperVisitor;
-import org.apache.asterix.column.util.SchemaStringBuilderVisitor;
+import org.apache.asterix.column.util.SchemaJSONBuilderVisitor;
 import org.apache.asterix.column.values.IColumnValuesReader;
 import org.apache.asterix.column.values.IColumnValuesReaderFactory;
 import org.apache.asterix.column.values.reader.PrimitiveColumnValuesReader;
+import org.apache.asterix.om.dictionary.AbstractFieldNamesDictionary;
+import org.apache.asterix.om.dictionary.IFieldNamesDictionary;
 import org.apache.asterix.om.types.ARecordType;
 import org.apache.asterix.runtime.projection.FunctionCallInformation;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
@@ -55,6 +58,7 @@ import org.apache.hyracks.api.exceptions.IWarningCollector;
 import org.apache.hyracks.data.std.api.IValueReference;
 import org.apache.hyracks.data.std.primitive.IntegerPointable;
 import org.apache.hyracks.storage.am.lsm.btree.column.api.AbstractColumnTupleReader;
+import org.apache.hyracks.storage.am.lsm.btree.column.api.projection.ColumnProjectorType;
 import org.apache.hyracks.util.LogRedactionUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,7 +68,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class QueryColumnMetadata extends AbstractColumnImmutableReadMetadata {
     private static final Logger LOGGER = LogManager.getLogger();
-    private final FieldNamesDictionary fieldNamesDictionary;
+    private final IFieldNamesDictionary fieldNamesDictionary;
     private final PrimitiveColumnValuesReader[] primaryKeyReaders;
     private final IColumnFilterEvaluator normalizedFilterEvaluator;
     private final List<IColumnRangeFilterValueAccessor> filterValueAccessors;
@@ -75,12 +79,12 @@ public class QueryColumnMetadata extends AbstractColumnImmutableReadMetadata {
 
     protected QueryColumnMetadata(ARecordType datasetType, ARecordType metaType,
             PrimitiveColumnValuesReader[] primaryKeyReaders, IValueReference serializedMetadata,
-            FieldNamesDictionary fieldNamesDictionary, ObjectSchemaNode root, IColumnValuesReaderFactory readerFactory,
+            IFieldNamesDictionary fieldNamesDictionary, ObjectSchemaNode root, IColumnValuesReaderFactory readerFactory,
             IValueGetterFactory valueGetterFactory, IColumnFilterEvaluator normalizedFilterEvaluator,
             List<IColumnRangeFilterValueAccessor> filterValueAccessors,
-            IColumnIterableFilterEvaluator columnFilterEvaluator, List<IColumnValuesReader> filterColumnReaders)
-            throws HyracksDataException {
-        super(datasetType, metaType, primaryKeyReaders.length, serializedMetadata, -1);
+            IColumnIterableFilterEvaluator columnFilterEvaluator, List<IColumnValuesReader> filterColumnReaders,
+            ColumnProjectorType projectorType) throws HyracksDataException {
+        super(datasetType, metaType, primaryKeyReaders.length, serializedMetadata, -1, projectorType);
         this.fieldNamesDictionary = fieldNamesDictionary;
         this.primaryKeyReaders = primaryKeyReaders;
         this.normalizedFilterEvaluator = normalizedFilterEvaluator;
@@ -95,7 +99,7 @@ public class QueryColumnMetadata extends AbstractColumnImmutableReadMetadata {
         return assembler;
     }
 
-    public final FieldNamesDictionary getFieldNamesDictionary() {
+    public final IFieldNamesDictionary getFieldNamesDictionary() {
         return fieldNamesDictionary;
     }
 
@@ -175,7 +179,7 @@ public class QueryColumnMetadata extends AbstractColumnImmutableReadMetadata {
             Map<String, FunctionCallInformation> functionCallInfoMap,
             IColumnRangeFilterEvaluatorFactory normalizedEvaluatorFactory,
             IColumnIterableFilterEvaluatorFactory columnFilterEvaluatorFactory, IWarningCollector warningCollector,
-            IHyracksTaskContext context) throws IOException {
+            IHyracksTaskContext context, ColumnProjectorType projectorType) throws IOException {
         byte[] bytes = serializedMetadata.getByteArray();
         int offset = serializedMetadata.getStartOffset();
         int length = serializedMetadata.getLength();
@@ -187,7 +191,7 @@ public class QueryColumnMetadata extends AbstractColumnImmutableReadMetadata {
         DataInput input = new DataInputStream(new ByteArrayInputStream(bytes, fieldNamesStart, length));
 
         //FieldNames
-        FieldNamesDictionary fieldNamesDictionary = FieldNamesDictionary.deserialize(input);
+        IFieldNamesDictionary fieldNamesDictionary = AbstractFieldNamesDictionary.deserialize(input);
 
         //Schema
         ObjectSchemaNode root = (ObjectSchemaNode) AbstractSchemaNode.deserialize(input, null);
@@ -222,7 +226,7 @@ public class QueryColumnMetadata extends AbstractColumnImmutableReadMetadata {
         // log normalized filter
         logFilter(jobId, normalizedFilterEvaluator, normalizedEvaluatorFactory.toString());
         // log requested schema
-        logSchema(jobId, clippedRoot, SchemaStringBuilderVisitor.RECORD_SCHEMA, fieldNamesDictionary);
+        logSchema(jobId, clippedRoot, RECORD_SCHEMA, fieldNamesDictionary);
 
         // Primary key readers
         PrimitiveColumnValuesReader[] primaryKeyReaders =
@@ -230,7 +234,7 @@ public class QueryColumnMetadata extends AbstractColumnImmutableReadMetadata {
 
         return new QueryColumnMetadata(datasetType, null, primaryKeyReaders, serializedMetadata, fieldNamesDictionary,
                 clippedRoot, readerFactory, valueGetterFactory, normalizedFilterEvaluator, filterValueAccessors,
-                columnFilterEvaluator, filterColumnReaders);
+                columnFilterEvaluator, filterColumnReaders, projectorType);
     }
 
     protected static ObjectSchemaNode clip(ARecordType requestedType, ObjectSchemaNode root,
@@ -267,11 +271,11 @@ public class QueryColumnMetadata extends AbstractColumnImmutableReadMetadata {
     }
 
     protected static void logSchema(String jobId, ObjectSchemaNode root, String schemaSource,
-            FieldNamesDictionary fieldNamesDictionary) throws HyracksDataException {
-        if (jobId != null && LOGGER.isDebugEnabled()) {
-            SchemaStringBuilderVisitor schemaBuilder = new SchemaStringBuilderVisitor(fieldNamesDictionary);
+            IFieldNamesDictionary fieldNamesDictionary) throws HyracksDataException {
+        if (jobId != null && LOGGER.isDebugEnabled() && System.nanoTime() % LOG_PROBABILITY == 0) {
+            SchemaJSONBuilderVisitor schemaBuilder = new SchemaJSONBuilderVisitor(fieldNamesDictionary);
             String schema = LogRedactionUtil.userData(schemaBuilder.build(root));
-            LOGGER.debug("Queried {} schema [{}]: \n {}", schemaSource, jobId, schema);
+            LOGGER.debug("Queried {} schema [{}]: {}", schemaSource, jobId, schema);
         }
     }
 }

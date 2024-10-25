@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.asterix.common.api.IIOBlockingOperation;
 import org.apache.asterix.common.transactions.ILogManager;
 import org.apache.asterix.common.transactions.LogRecord;
 import org.apache.asterix.common.transactions.LogType;
@@ -260,22 +261,47 @@ public class DatasetInfo extends Info implements Comparable<DatasetInfo> {
         }
     }
 
-    public void waitForIO(int partition) throws HyracksDataException {
+    public void waitForIOAndPerform(int partition, IIOBlockingOperation operation) throws HyracksDataException {
         logManager.log(waitLog);
         synchronized (this) {
             while (partitionPendingIO.getOrDefault(partition, 0) > 0) {
                 try {
+                    int numPendingIOOps = partitionPendingIO.getOrDefault(partition, 0);
+                    LOGGER.debug("Waiting for {} IO operations in {} partition {}", numPendingIOOps, this, partition);
                     wait();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw HyracksDataException.create(e);
                 }
             }
+
+            LOGGER.debug("All IO operations for {} partition {} are finished", this, partition);
+
+            Set<IndexInfo> indexes = partitionIndexes.get(partition);
+            if (indexes != null) {
+                // Perform the required operation
+                operation.perform(indexes);
+            }
+
             if (partitionPendingIO.getOrDefault(partition, 0) < 0) {
                 LOGGER.error("number of IO operations cannot be negative for dataset {}, partition {}", this,
                         partition);
                 throw new IllegalStateException(
                         "Number of IO operations cannot be negative: " + this + ", partition " + partition);
+            }
+        }
+    }
+
+    public void waitForFlushes() throws HyracksDataException {
+        logManager.log(waitLog);
+        synchronized (this) {
+            while (pendingFlushes > 0) {
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw HyracksDataException.create(e);
+                }
             }
         }
     }

@@ -39,6 +39,8 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.util.concurrent.UncheckedExecutionException;
+
 public class InvokeUtil {
 
     private static final Logger LOGGER = LogManager.getLogger();
@@ -211,7 +213,8 @@ public class InvokeUtil {
         }
     }
 
-    @SuppressWarnings({ "squid:S1181", "squid:S1193", "ConstantConditions" }) // catching Throwable, instanceofs
+    @SuppressWarnings({ "squid:S1181", "squid:S1193", "ConstantConditions", "UnreachableCode" })
+    // catching Throwable, instanceofs, false-positive unreachable code
     public static void tryWithCleanups(ThrowingAction action, ThrowingAction... cleanups) throws Exception {
         Throwable savedT = null;
         boolean suppressedInterrupted = false;
@@ -285,6 +288,32 @@ public class InvokeUtil {
         }
     }
 
+    public static void tryWithCleanupsUnchecked(Runnable action, Runnable... cleanups) {
+        Throwable savedT = null;
+        try {
+            action.run();
+        } catch (Throwable t) {
+            savedT = t;
+        } finally {
+            for (Runnable cleanup : cleanups) {
+                try {
+                    cleanup.run();
+                } catch (Throwable t) {
+                    if (savedT != null) {
+                        savedT.addSuppressed(t);
+                    } else {
+                        savedT = t;
+                    }
+                }
+            }
+        }
+        if (savedT instanceof Error) {
+            throw (Error) savedT;
+        } else if (savedT != null) {
+            throw new UncheckedExecutionException(savedT);
+        }
+    }
+
     /**
      * Runs the supplied action, after suspending any pending interruption. An error will be logged if
      * the action is itself interrupted.
@@ -355,6 +384,26 @@ public class InvokeUtil {
             }
         }
         throw HyracksDataException.create(new InterruptedException());
+    }
+
+    public static Exception unwrapUnchecked(UncheckedExecutionException e) {
+        Throwable cause = e.getCause();
+        if (cause instanceof Error err) {
+            throw err;
+        } else if (cause instanceof Exception ex) {
+            return ex;
+        } else {
+            return HyracksDataException.create(cause);
+        }
+    }
+
+    public static HyracksDataException unwrapUncheckedHyracks(UncheckedExecutionException e) {
+        Throwable cause = e.getCause();
+        if (cause instanceof Error err) {
+            throw err;
+        } else {
+            return HyracksDataException.create(cause);
+        }
     }
 
     @FunctionalInterface

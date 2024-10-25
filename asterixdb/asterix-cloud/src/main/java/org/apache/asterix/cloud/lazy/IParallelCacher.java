@@ -18,23 +18,60 @@
  */
 package org.apache.asterix.cloud.lazy;
 
+import java.io.File;
 import java.io.FilenameFilter;
 import java.util.Collection;
 import java.util.Set;
 
+import org.apache.asterix.cloud.UncachedFileReference;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 
 public interface IParallelCacher {
     /**
-     * Check whether an index file data and metadata are already cached
+     * Check whether a file is cacheable or not
      *
-     * @param indexDir index directory
-     * @return true if the index is already cached, false otherwise
+     * @param fileReference file
+     * @return true if the file is already cached, false otherwise
      */
-    boolean isCached(FileReference indexDir);
+    boolean isCacheable(FileReference fileReference);
 
+    /**
+     * Returns a list of all uncached files
+     *
+     * @return all uncached files
+     */
+    Set<UncachedFileReference> getUncachedFiles();
+
+    /**
+     * Returns a list of all uncached files of specified directory
+     *
+     * @param dir    directory to list
+     * @param filter file name filter
+     * @return set of uncached files
+     */
     Set<FileReference> getUncachedFiles(FileReference dir, FilenameFilter filter);
+
+    /**
+     * Returns the size of a file
+     *
+     * @param fileReference file
+     * @return the size of the file if it exists or zero otherwise (as expected when calling {@link File#length()})
+     */
+    long getSize(FileReference fileReference);
+
+    /**
+     * @return total size of uncached files
+     */
+    long getUncachedTotalSize();
+
+    /**
+     * Creates empty data files
+     *
+     * @param indexFile a file reference in an index
+     * @return true if the remaining number of uncached files is zero, false otherwise
+     */
+    boolean createEmptyDataFiles(FileReference indexFile) throws HyracksDataException;
 
     /**
      * Downloads all index's data files for all partitions.
@@ -43,7 +80,7 @@ public interface IParallelCacher {
      * @param indexFile a file reference in an index
      * @return true if the remaining number of uncached files is zero, false otherwise
      */
-    boolean downloadData(FileReference indexFile) throws HyracksDataException;
+    boolean downloadDataFiles(FileReference indexFile) throws HyracksDataException;
 
     /**
      * Downloads all index's metadata files for all partitions.
@@ -52,7 +89,7 @@ public interface IParallelCacher {
      * @param indexFile a file reference in an index
      * @return true if the remaining number of uncached files is zero, false otherwise
      */
-    boolean downloadMetadata(FileReference indexFile) throws HyracksDataException;
+    boolean downloadMetadataFiles(FileReference indexFile) throws HyracksDataException;
 
     /**
      * Remove the deleted files from the uncached file set
@@ -63,15 +100,22 @@ public interface IParallelCacher {
     boolean remove(Collection<FileReference> deletedFiles);
 
     /**
-     * Remove the deleted file from the uncached file set
+     * Remove a file from the uncached file set
      *
-     * @param deletedFile the deleted file
+     * @param fileReference the deleted file
      * @return true if the remaining number of uncached files is zero, false otherwise
      */
-    boolean remove(FileReference deletedFile);
+    boolean remove(FileReference fileReference);
+
+    /**
+     * Add files to indicated that they are not cached anymore
+     *
+     * @param files to be uncached
+     */
+    void add(Collection<FileReference> files);
 
     /**
      * Close cacher resources
      */
-    void close();
+    void close() throws HyracksDataException;
 }

@@ -47,6 +47,7 @@ import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
 import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.api.job.profiling.IOperatorStats;
 import org.apache.hyracks.api.job.profiling.NoOpOperatorStats;
+import org.apache.hyracks.api.util.CleanupUtils;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAppender;
@@ -323,9 +324,6 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
                         if (!failed) {
                             state.hybridHJ.closeBuild();
                             ctx.setStateObject(state);
-                            if (LOGGER.isTraceEnabled()) {
-                                LOGGER.trace("OptimizedHybridHashJoin closed its build phase");
-                            }
                         } else {
                             state.hybridHJ.clearBuildTempFiles();
                         }
@@ -413,10 +411,6 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
                     writer.open();
                     state.hybridHJ.initProbe(probComp);
                     state.hybridHJ.setOperatorStats(stats);
-
-                    if (LOGGER.isDebugEnabled()) {
-                        LOGGER.debug("OptimizedHybridHashJoin is starting the probe phase.");
-                    }
                 }
 
                 @Override
@@ -427,7 +421,7 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
                 @Override
                 public void fail() throws HyracksDataException {
                     failed = true;
-                    if (state.hybridHJ != null) {
+                    if (state != null && state.hybridHJ != null) {
                         state.hybridHJ.fail();
                     }
                     writer.fail();
@@ -438,14 +432,16 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
                     if (failed) {
                         try {
                             // Clear temp files if fail() was called.
-                            state.hybridHJ.clearBuildTempFiles();
-                            state.hybridHJ.clearProbeTempFiles();
+                            if (state != null && state.hybridHJ != null) {
+                                state.hybridHJ.clearBuildTempFiles();
+                                state.hybridHJ.clearProbeTempFiles();
+                            }
                         } finally {
                             writer.close(); // writer should always be closed.
                         }
-                        logProbeComplete();
                         return;
                     }
+                    Throwable ex = null;
                     try {
                         try {
                             state.hybridHJ.completeProbe(writer);
@@ -476,35 +472,27 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
                             joinPartitionPair(bReader, pReader, bSize, pSize, 1);
                         }
                     } catch (Exception e) {
+                        ex = e;
                         if (state.hybridHJ != null) {
                             state.hybridHJ.fail();
                         }
                         // Since writer.nextFrame() is called in the above "try" body, we have to call writer.fail()
                         // to send the failure signal to the downstream, when there is a throwable thrown.
-                        writer.fail();
+                        CleanupUtils.fail(writer, ex);
                         // Clear temp files as this.fail() nor this.close() will no longer be called after close().
                         state.hybridHJ.clearBuildTempFiles();
                         state.hybridHJ.clearProbeTempFiles();
-                        // Re-throw the whatever is caught.
-                        throw e;
                     } finally {
-                        try {
-                            logProbeComplete();
-                        } finally {
-                            writer.close();
-                        }
+                        ex = CleanupUtils.close(writer, ex);
+                    }
+                    if (ex != null) {
+                        throw HyracksDataException.create(ex);
                     }
                 }
 
                 @Override
                 public void setOperatorStats(IOperatorStats stats) {
                     this.stats = stats;
-                }
-
-                private void logProbeComplete() {
-                    if (LOGGER.isDebugEnabled()) {
-                        LOGGER.debug("OptimizedHybridHashJoin closed its probe phase");
-                    }
                 }
 
                 //The buildSideReader should be always the original buildSideReader, so should the probeSideReader

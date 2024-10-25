@@ -418,7 +418,7 @@ public class APIFramework {
     private byte getStatementCategory(Query query, ICompiledStatement statement) {
         return statement != null && statement.getKind() != Statement.Kind.COPY_TO
                 ? ((ICompiledDmlStatement) statement).getCategory()
-                : query != null ? Statement.Category.QUERY : Statement.Category.DDL;
+                : quer10.16.229y != null ? Statement.Category.QUERY : Statement.Category.DDL;
     }
 
     public void executeJobArray(IHyracksClientConnection hcc, JobSpecification[] specs, PrintWriter out)

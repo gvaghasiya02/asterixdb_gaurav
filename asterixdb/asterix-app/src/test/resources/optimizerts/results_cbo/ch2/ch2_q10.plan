@@ -14,7 +14,7 @@
                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                             }
                       -- HASH_PARTITION_EXCHANGE [$$182, $$183, $$184, $$185, $$186]  |PARTITIONED|
-                        -- SORT_GROUP_BY[$$166, $$161, $$162, $$163, $$164]  |PARTITIONED|
+                        -- OPTIMIZE_GROUP_BY[$$166, $$161, $$162, $$163, $$164]  |PARTITIONED|
                                 {
                                   -- AGGREGATE  |LOCAL|
                                     -- NESTED_TUPLE_SOURCE  |LOCAL|

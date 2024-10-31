@@ -9,7 +9,7 @@
                       -- NESTED_TUPLE_SOURCE  |LOCAL|
                   }
             -- HASH_PARTITION_EXCHANGE [$$231, $$232]  |PARTITIONED|
-              -- SORT_GROUP_BY[$$225, $$198]  |PARTITIONED|
+              -- OPTIMIZE_GROUP_BY[$$225, $$198]  |PARTITIONED|
                       {
                         -- AGGREGATE  |LOCAL|
                           -- NESTED_TUPLE_SOURCE  |LOCAL|

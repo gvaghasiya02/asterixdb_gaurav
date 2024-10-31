@@ -13,7 +13,7 @@
                               -- NESTED_TUPLE_SOURCE  |LOCAL|
                           }
                     -- HASH_PARTITION_EXCHANGE [$$377]  |PARTITIONED|
-                      -- SORT_GROUP_BY[$$su_name]  |PARTITIONED|
+                      -- OPTIMIZE_GROUP_BY[$$su_name]  |PARTITIONED|
                               {
                                 -- AGGREGATE  |LOCAL|
                                   -- NESTED_TUPLE_SOURCE  |LOCAL|
@@ -29,7 +29,7 @@
                                               -- NESTED_TUPLE_SOURCE  |LOCAL|
                                           }
                                     -- HASH_PARTITION_EXCHANGE [$$368, $$369, $$370, $$371, $$372, $$373, $$374, $$375]  |PARTITIONED|
-                                      -- SORT_GROUP_BY[$$330, $$356, $$355, $$332, $$333, $$329, $$328, $$357]  |PARTITIONED|
+                                      -- OPTIMIZE_GROUP_BY[$$330, $$356, $$355, $$332, $$333, $$329, $$328, $$357]  |PARTITIONED|
                                               {
                                                 -- AGGREGATE  |LOCAL|
                                                   -- NESTED_TUPLE_SOURCE  |LOCAL|

@@ -99,6 +99,8 @@ public class OptimizationConfUtil {
                 getMaxVariableOccurrencesForInlining(compilerProperties, querySpecificConfig, sourceLoc);
         boolean orderFields = getBoolean(querySpecificConfig, CompilerProperties.COMPILER_ORDERFIELDS_KEY,
                 compilerProperties.isOrderedFields());
+        boolean OptimizeGroupBy = getBoolean(querySpecificConfig, CompilerProperties.COMPILER_OPTIMIZE_GROUPBY,
+                compilerProperties.isOptimizeGroupBy());
 
         PhysicalOptimizationConfig physOptConf = new PhysicalOptimizationConfig();
         physOptConf.setFrameSize(frameSize);
@@ -129,6 +131,7 @@ public class OptimizationConfUtil {
         physOptConf.setMinWindowFrames(compilerProperties.getMinWindowMemoryFrames());
         physOptConf.setMaxVariableOccurrencesForInlining(maxVariableOccurrencesForInlining);
         physOptConf.setOrderFields(orderFields);
+        physOptConf.setOptimizeGroupByEnabled(OptimizeGroupBy);
 
         // We should have already validated the parameter names at this point...
         Set<String> filteredParameterNames = new HashSet<>(parameterNames);

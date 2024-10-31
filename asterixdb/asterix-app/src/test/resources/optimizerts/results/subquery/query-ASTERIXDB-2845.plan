@@ -38,7 +38,7 @@
                                                           -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                       }
                                                 -- HASH_PARTITION_EXCHANGE [$$343, $$344]  |PARTITIONED|
-                                                  -- SORT_GROUP_BY[$$292, $$293]  |PARTITIONED|
+                                                  -- OPTIMIZE_GROUP_BY[$$292, $$293]  |PARTITIONED|
                                                           {
                                                             -- AGGREGATE  |LOCAL|
                                                               -- NESTED_TUPLE_SOURCE  |LOCAL|
@@ -86,7 +86,7 @@
                                                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                             }
                                                       -- HASH_PARTITION_EXCHANGE [$$346, $$347]  |PARTITIONED|
-                                                        -- SORT_GROUP_BY[$$330, $$331]  |PARTITIONED|
+                                                        -- OPTIMIZE_GROUP_BY[$$330, $$331]  |PARTITIONED|
                                                                 {
                                                                   -- AGGREGATE  |LOCAL|
                                                                     -- NESTED_TUPLE_SOURCE  |LOCAL|
@@ -114,7 +114,7 @@
                                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                                             }
                                       -- HASH_PARTITION_EXCHANGE [$$349, $$350]  |PARTITIONED|
-                                        -- SORT_GROUP_BY[$$294, $$295]  |PARTITIONED|
+                                        -- OPTIMIZE_GROUP_BY[$$294, $$295]  |PARTITIONED|
                                                 {
                                                   -- AGGREGATE  |LOCAL|
                                                     -- NESTED_TUPLE_SOURCE  |LOCAL|

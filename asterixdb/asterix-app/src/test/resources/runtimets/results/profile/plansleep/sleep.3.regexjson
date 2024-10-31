@@ -229,7 +229,7 @@
                                                         "runtime-id": "R{.+}",
                                                         "min-time": "R{[0-9.]+}",
                                                         "max-time": "R{[0-9.]+}",
-                                                        "physical-operator": "SORT_GROUP_BY[$$50]",
+                                                        "physical-operator": "OPTIMIZE_GROUP_BY[$$50]",
                                                         "execution-mode": "PARTITIONED",
                                                         "optimizer-estimates": "R{.+}",
                                                         "inputs": [

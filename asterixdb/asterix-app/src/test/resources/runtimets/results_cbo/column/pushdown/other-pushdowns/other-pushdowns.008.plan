@@ -23,7 +23,7 @@ distribute result [$$69] [cardinality: 1.0, op-cost: 0.0, total-cost: 1.0]
                           nested tuple source [cardinality: 0.0, op-cost: 0.0, total-cost: 0.0]
                           -- NESTED_TUPLE_SOURCE  |LOCAL|
                      } [cardinality: 1.0, op-cost: 0.0, total-cost: 1.0]
-              -- SORT_GROUP_BY[$$71]  |PARTITIONED|
+              -- OPTIMIZE_GROUP_BY[$$71]  |PARTITIONED|
                 exchange [cardinality: 1.0, op-cost: 0.0, total-cost: 1.0]
                 -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                   select (eq(lowercase($$71), "string")) [cardinality: 1.0, op-cost: 0.0, total-cost: 1.0]

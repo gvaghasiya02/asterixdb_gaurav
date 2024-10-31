@@ -39,6 +39,10 @@ public class ArrayBackedValueStorage implements IMutableValueStorage, IPointable
         data = new GrowableArray();
     }
 
+    public ArrayBackedValueStorage(GrowableArray fieldData) {
+        data = fieldData;
+    }
+
     @Override
     public void reset() {
         data.reset();

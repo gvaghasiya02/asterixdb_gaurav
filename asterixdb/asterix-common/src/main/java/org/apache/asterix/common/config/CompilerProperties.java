@@ -145,6 +145,7 @@ public class CompilerProperties extends AbstractProperties {
                 BOOLEAN,
                 AlgebricksConfig.COLUMN_FILTER_DEFAULT,
                 "Enable/disable the use of column min/max filters"),
+        COMPILER_OPTIMIZE_GROUPBY(BOOLEAN, true, "Enable/disable optimize groupby"),
         COMPILER_RUNTIME_MEMORY_OVERHEAD(
                 NONNEGATIVE_INTEGER,
                 5,
@@ -243,6 +244,8 @@ public class CompilerProperties extends AbstractProperties {
             Option.COMPILER_MAX_VARIABLE_OCCURRENCES_INLINING.ini();
 
     public static final String COMPILER_ORDERFIELDS_KEY = Option.COMPILER_ORDERFIELDS.ini();
+
+    public static final String COMPILER_OPTIMIZE_GROUPBY = Option.COMPILER_OPTIMIZE_GROUPBY.ini();
 
     public static final int COMPILER_PARALLELISM_AS_STORAGE = 0;
 
@@ -374,6 +377,10 @@ public class CompilerProperties extends AbstractProperties {
 
     public boolean isOrderedFields() {
         return accessor.getBoolean(Option.COMPILER_ORDERFIELDS);
+    }
+
+    public boolean isOptimizeGroupBy() {
+        return accessor.getBoolean(Option.COMPILER_OPTIMIZE_GROUPBY);
     }
 
     public int getRuntimeMemoryOverheadPercentage() {

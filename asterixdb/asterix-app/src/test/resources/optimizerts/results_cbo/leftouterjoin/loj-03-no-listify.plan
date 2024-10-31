@@ -23,7 +23,7 @@
                                                   -- NESTED_TUPLE_SOURCE  |LOCAL|
                                               }
                                         -- HASH_PARTITION_EXCHANGE [$$295]  |PARTITIONED|
-                                          -- SORT_GROUP_BY[$$258]  |PARTITIONED|
+                                          -- OPTIMIZE_GROUP_BY[$$258]  |PARTITIONED|
                                                   {
                                                     -- AGGREGATE  |LOCAL|
                                                       -- NESTED_TUPLE_SOURCE  |LOCAL|
@@ -50,7 +50,7 @@
                                                         -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                     }
                                               -- HASH_PARTITION_EXCHANGE [$$297]  |PARTITIONED|
-                                                -- SORT_GROUP_BY[$$259]  |PARTITIONED|
+                                                -- OPTIMIZE_GROUP_BY[$$259]  |PARTITIONED|
                                                         {
                                                           -- AGGREGATE  |LOCAL|
                                                             -- NESTED_TUPLE_SOURCE  |LOCAL|
@@ -77,7 +77,7 @@
                                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                                             }
                                       -- HASH_PARTITION_EXCHANGE [$$299]  |PARTITIONED|
-                                        -- SORT_GROUP_BY[$$260]  |PARTITIONED|
+                                        -- OPTIMIZE_GROUP_BY[$$260]  |PARTITIONED|
                                                 {
                                                   -- AGGREGATE  |LOCAL|
                                                     -- NESTED_TUPLE_SOURCE  |LOCAL|
@@ -106,7 +106,7 @@
                                         -- NESTED_TUPLE_SOURCE  |LOCAL|
                                     }
                               -- HASH_PARTITION_EXCHANGE [$$301]  |PARTITIONED|
-                                -- SORT_GROUP_BY[$$261]  |PARTITIONED|
+                                -- OPTIMIZE_GROUP_BY[$$261]  |PARTITIONED|
                                         {
                                           -- AGGREGATE  |LOCAL|
                                             -- NESTED_TUPLE_SOURCE  |LOCAL|

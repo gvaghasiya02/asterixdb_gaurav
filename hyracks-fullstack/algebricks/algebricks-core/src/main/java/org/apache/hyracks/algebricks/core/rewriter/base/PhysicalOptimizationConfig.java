@@ -65,6 +65,7 @@ public class PhysicalOptimizationConfig {
     private static final String MAX_VARIABLE_OCCURRENCES_INLINING = "MAX_VARIABLE_OCCURRENCES_INLINING";
 
     private static final String ORDER_FIELDS = "ORDER_FIELDS";
+    private static final String OPTIMIZE_GROUPBY = "OPTIMIZE_GROUPBY";
 
     private final Properties properties = new Properties();
 
@@ -436,5 +437,13 @@ public class PhysicalOptimizationConfig {
     private String getString(String property, String defaultValue) {
         String value = properties.getProperty(property);
         return value == null ? defaultValue : value;
+    }
+
+    public boolean isOptimizationGroupBy() {
+        return getBoolean(OPTIMIZE_GROUPBY, AlgebricksConfig.OPTIMIZE_GROUPBY_DEFAULT);
+    }
+
+    public void setOptimizeGroupByEnabled(boolean OptimizeGroupBy) {
+        setBoolean(OPTIMIZE_GROUPBY, OptimizeGroupBy);
     }
 }

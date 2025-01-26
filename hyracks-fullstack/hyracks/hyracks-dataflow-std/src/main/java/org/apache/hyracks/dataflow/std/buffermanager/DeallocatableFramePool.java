@@ -125,4 +125,8 @@ public class DeallocatableFramePool implements IDeallocatableFramePool {
         allocated = 0;
         buffers.clear();
     }
+
+    public int getAllocated() {
+        return allocated;
+    }
 }

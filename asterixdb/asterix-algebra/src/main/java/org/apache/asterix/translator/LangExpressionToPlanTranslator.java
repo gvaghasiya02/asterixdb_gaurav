@@ -1255,6 +1255,7 @@ abstract class LangExpressionToPlanTranslator
         gOp.setGroupAll(gc.isGroupAll());
         if (propagateHashHint) {
             gOp.getAnnotations().put(OperatorAnnotations.USE_HASH_GROUP_BY, gc.hasHashGroupByHint());
+            gOp.setDataInputFrames(gc.getDataInputInFrames());
         }
         gOp.setSourceLocation(sourceLoc);
         return new Pair<>(gOp, null);

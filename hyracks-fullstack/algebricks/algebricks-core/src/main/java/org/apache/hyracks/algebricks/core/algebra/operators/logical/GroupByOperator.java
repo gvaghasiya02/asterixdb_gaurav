@@ -50,6 +50,7 @@ public class GroupByOperator extends AbstractOperatorWithNestedPlans {
 
     private boolean groupAll = false;
     private boolean global = true;
+    private long dataInputFrames = 0;
 
     public GroupByOperator() {
         super();
@@ -299,5 +300,13 @@ public class GroupByOperator extends AbstractOperatorWithNestedPlans {
             throw new IllegalStateException("Conflicting parameters for GROUP BY: there should be no GROUP BY keys "
                     + "when the GROUP ALL flag is set to true");
         }
+    }
+
+    public void setDataInputFrames(long dataInputFrames) {
+        this.dataInputFrames = dataInputFrames;
+    }
+
+    public long getDataInputFrames() {
+        return dataInputFrames;
     }
 }

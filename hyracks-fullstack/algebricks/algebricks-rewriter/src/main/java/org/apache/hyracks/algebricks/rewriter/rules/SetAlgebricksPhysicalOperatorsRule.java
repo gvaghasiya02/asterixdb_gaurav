@@ -275,7 +275,7 @@ public class SetAlgebricksPhysicalOperatorsRule implements IAlgebraicRewriteRule
             if (!hasIntermediateAgg) {
                 return null;
             }
-            return new ExternalGroupByPOperator(gby.getGroupByVarList());
+            return new ExternalGroupByPOperator(gby.getGroupByVarList(), gby.getDataInputFrames());
         }
 
         @Override

@@ -35,12 +35,17 @@ public class ResponseMetrics {
     private long cloudReadRequestsCount;
     private long cloudPagesReadCount;
     private long cloudPagesPersistedCount;
+    private long addedToQueueTime;
+    private long executionStartTime;
+    private long executionEndTime;
+    private long addedToMemoryQueueTime;
 
     private ResponseMetrics() {
     }
 
     public static ResponseMetrics of(long elapsedTime, long executionTime, long resultCount, long resultSize,
-            long processedObjects, long errorCount, long warnCount, long compileTime, long queueWaitTime,
+            long processedObjects, long errorCount, long warnCount, long addedToQueueTime, long addedToMemoryQueueTime,
+            long executionStartTime, long executionEndTime, long compileTime, long queueWaitTime,
             double bufferCacheHitRatio, long bufferCachePageReadCount, long cloudRequestsCount,
             long cloudPagesReadCount, long cloudPagesPersistedCount) {
         ResponseMetrics metrics = new ResponseMetrics();
@@ -51,6 +56,10 @@ public class ResponseMetrics {
         metrics.processedObjects = processedObjects;
         metrics.errorCount = errorCount;
         metrics.warnCount = warnCount;
+        metrics.addedToQueueTime = addedToQueueTime;
+        metrics.addedToMemoryQueueTime = addedToMemoryQueueTime;
+        metrics.executionStartTime = executionStartTime;
+        metrics.executionEndTime = executionEndTime;
         metrics.compileTime = compileTime;
         metrics.queueWaitTime = queueWaitTime;
         metrics.bufferCacheHitRatio = bufferCacheHitRatio;

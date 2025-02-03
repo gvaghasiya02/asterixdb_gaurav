@@ -36,6 +36,12 @@ import org.apache.hyracks.api.job.JobSpecification;
  */
 public interface IJobCapacityController {
 
+    double getMemoryRatio(JobSpecification job);
+
+    default boolean hasEnoughMemory(long avgMemoryUsage) {
+        return true;
+    };
+
     enum JobSubmissionStatus {
         EXECUTE,
         QUEUE
@@ -61,6 +67,12 @@ public interface IJobCapacityController {
      *            the job specification.
      */
     void release(JobSpecification job);
+
+    default void setJobSizeTag(JobSpecification job) {
+        job.setSizeTag(JobSpecification.JobSizeTag.SMALL);
+    };
+
+    int getNumberOfAvailableCores();
 
     /**
      * The cluster current capacity.

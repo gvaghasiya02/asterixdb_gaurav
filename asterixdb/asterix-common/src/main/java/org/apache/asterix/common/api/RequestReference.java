@@ -30,6 +30,7 @@ public class RequestReference implements IRequestReference {
     private long time;
     private String userAgent;
     private String remoteAddr;
+    private String username;
 
     private RequestReference(String uuid, String node, long time) {
         this.uuid = uuid;
@@ -70,6 +71,10 @@ public class RequestReference implements IRequestReference {
     public String getRemoteAddr() {
         return remoteAddr;
     }
+
+    public void setUsername(String username) { this.username = username; }
+
+    public String getUsername(){ return this.username; }
 
     @Override
     public String toString() {

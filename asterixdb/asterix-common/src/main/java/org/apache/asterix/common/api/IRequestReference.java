@@ -56,4 +56,6 @@ public interface IRequestReference extends Serializable {
      * @return remote address from which the request was received.
      */
     String getRemoteAddr();
+
+    String getUsername();
 }

@@ -364,6 +364,7 @@ public class APIFramework {
                                 ResourceUtils.getRequiredCapacity(plan, jobLocations, physOptConf, compilerProperties);
                         addRuntimeMemoryOverhead(jobRequiredCapacity, compilerProperties);
                         spec.setRequiredClusterCapacity(jobRequiredCapacity);
+                        spec.setUsername(requestParameters.getRequestReference().getUsername());
                         if (requestParameters != null && requestParameters.getRequestReference() != null
                                 && requestParameters.getRequestReference().getUserAgent() != null)
                             spec.setUserID(requestParameters.getRequestReference().getUserAgent());

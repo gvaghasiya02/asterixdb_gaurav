@@ -43,6 +43,7 @@ public class Receptionist implements IReceptionist {
                 RequestReference.of(uuid, NetworkUtil.toHostPort(localAddress), System.currentTimeMillis());
         ref.setUserAgent(request.getHeader(HttpHeaders.USER_AGENT));
         ref.setRemoteAddr(NetworkUtil.toHostPort(request.getRemoteAddress()));
+        ref.setUsername(request.getHeader(HttpHeaders.AUTHORIZATION));
         return ref;
     }
 

@@ -111,6 +111,8 @@ public class JobSpecification implements Serializable, IOperatorDescriptorRegist
 
     private transient List<IOperatorDescriptor> metaOps;
 
+    private String username;
+
     // This constructor uses the default frame size. It is for test purposes only.
     // For other use cases, use the one which sets the frame size.
     public JobSpecification() {
@@ -480,4 +482,7 @@ public class JobSpecification implements Serializable, IOperatorDescriptorRegist
             return constraint.getRValue().toString();
         }
     }
+
+    public String getUsername() { return username; }
+    public void setUsername(String username) { this.username = username; }
 }

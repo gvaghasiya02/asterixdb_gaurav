@@ -102,6 +102,7 @@ import org.apache.asterix.metadata.bootstrap.AsterixStateProxy;
 import org.apache.asterix.metadata.lock.MetadataLockManager;
 import org.apache.asterix.metadata.utils.MetadataLockUtil;
 import org.apache.asterix.runtime.job.resource.JobCapacityController;
+import org.apache.asterix.runtime.job.resource.ROCBasedJobCapacityController;
 import org.apache.asterix.translator.IStatementExecutorFactory;
 import org.apache.asterix.translator.Receptionist;
 import org.apache.asterix.util.MetadataBuiltinFunctions;
@@ -219,6 +220,11 @@ public class CCApplication extends BaseCCApplication {
         ccServiceCtx.addJobLifecycleListener(globalTxManager);
 
         jobCapacityController = new JobCapacityController(controllerService.getResourceManager(), this);
+        if (ccConfig.getJobCapacityController() == "Default") {
+            jobCapacityController = new JobCapacityController(controllerService.getResourceManager(), this);
+        } else {
+            jobCapacityController = new ROCBasedJobCapacityController(controllerService.getResourceManager(), this);
+        }
     }
 
     protected INamespaceResolver createNamespaceResolver(boolean useDatabaseResolution) {

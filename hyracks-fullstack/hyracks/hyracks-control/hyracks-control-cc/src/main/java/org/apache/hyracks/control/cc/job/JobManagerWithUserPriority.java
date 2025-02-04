@@ -55,6 +55,10 @@ public class JobManagerWithUserPriority extends JobManager {
         LOGGER.warn("SizeTag: " + jobRun.getJobSpecification().getSizeTag());
         CCServiceContext serviceCtx = ccs.getContext();
         serviceCtx.notifyJobCreation(jobRun.getJobId(), job, status);
+        if (jobRun.getJobSpecification().getSizeTag() == JobSpecification.JobSizeTag.ZERO) {
+            executeJob(jobRun);
+            return;
+        }
         //        if (jobRun.getJobSpecification().getSizeTag() == JobSpecification.JobSizeTag.ZERO && jobCapacityController
         //                .allocate(jobRun.getJobSpecification()) == IJobCapacityController.JobSubmissionStatus.EXECUTE) {
         //            LOGGER.warn("Executed without queueing!");

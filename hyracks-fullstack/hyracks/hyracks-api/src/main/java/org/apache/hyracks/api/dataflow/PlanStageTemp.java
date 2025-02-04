@@ -16,44 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.asterix.app.resource;
+package org.apache.hyracks.api.dataflow;
 
+import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
-import org.apache.hyracks.algebricks.core.algebra.base.OperatorResourcesComputer;
-import org.apache.hyracks.api.dataflow.IOperatorDescriptor;
-
-public class PlanStage {
-
-    private final Set<ILogicalOperator> operators = new HashSet<>();
+public class PlanStageTemp implements Serializable {
     private final Set<IOperatorDescriptor> operatorDescriptors = new HashSet<>();
     private final int stageId;
 
-    PlanStage(int stageId) {
+    public PlanStageTemp(int stageId) {
         this.stageId = stageId;
     }
 
     @Override
     public String toString() {
-        return "Stage{" + "stageId=" + stageId + ", operators(" + operators.size() + ")" + "=" + operators + '}';
-    }
-
-    public Set<ILogicalOperator> getOperators() {
-        return operators;
+        return "Stage{" + "stageId=" + stageId + ", operators(" + operatorDescriptors.size() + ")" + "="
+                + operatorDescriptors + '}';
     }
 
     public Set<IOperatorDescriptor> getOperatorDescriptors() {
         return operatorDescriptors;
-    }
-
-    public long getRequiredMemory(OperatorResourcesComputer resourcesComputer) {
-        return operators.stream().mapToLong(resourcesComputer::getOperatorRequiredMemory).sum();
-    }
-
-    public int getRequiredCores(OperatorResourcesComputer resourcesComputer) {
-        return operators.stream().mapToInt(resourcesComputer::getOperatorRequiredCores).max()
-                .orElse(OperatorResourcesComputer.MIN_OPERATOR_CORES);
     }
 }

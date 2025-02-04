@@ -264,6 +264,21 @@ public abstract class AbstractMultiNCIntegrationTest {
 
                 }
 
+                //                @Override
+                //                public double getMemoryRatio(JobSpecification job) {
+                //                    return job.getMemoryRatio();
+                //                }
+
+                @Override
+                public void setJobSizeTag(JobSpecification job) {
+                    job.setSizeTag(JobSpecification.JobSizeTag.SMALL);
+                }
+
+                @Override
+                public boolean hasEnoughMemory(long memory) {
+                    return maxRAM >= memory;
+                }
+
                 @Override
                 public int getNumberOfAvailableCores() {
                     return Runtime.getRuntime().availableProcessors();

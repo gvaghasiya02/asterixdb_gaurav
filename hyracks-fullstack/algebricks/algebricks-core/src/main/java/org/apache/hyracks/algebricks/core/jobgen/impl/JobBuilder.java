@@ -37,6 +37,7 @@ import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.utils.Pair;
 import org.apache.hyracks.algebricks.core.algebra.base.IHyracksJobBuilder;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
+import org.apache.hyracks.algebricks.core.algebra.base.OperatorResourcesComputer;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogicalOperator.ExecutionMode;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.SubplanOperator;
@@ -215,8 +216,12 @@ public class JobBuilder implements IHyracksJobBuilder {
     public void buildSpec(List<ILogicalOperator> roots) throws AlgebricksException {
         buildAsterixComponents();
         Map<IConnectorDescriptor, TargetConstraint> tgtConstraints = setupConnectors();
+        OperatorResourcesComputer resourcesComputer =
+                new OperatorResourcesComputer(jobSpec.getNumberOfComputationalResources(), jobSpec.getFrameSize());
         for (ILogicalOperator r : roots) {
             IOperatorDescriptor opDesc = findOpDescForAlgebraicOp(r);
+            opDesc.setCoreRequirements(resourcesComputer.getOperatorRequiredCores(r));
+            opDesc.setMemoryRequirements(resourcesComputer.getOperatorRequiredMemory(r));
             jobSpec.addRoot(opDesc);
         }
         setAllPartitionConstraints(tgtConstraints);
@@ -340,6 +345,8 @@ public class JobBuilder implements IHyracksJobBuilder {
 
     private Map<IConnectorDescriptor, TargetConstraint> setupConnectors() throws AlgebricksException {
         Map<IConnectorDescriptor, TargetConstraint> tgtConstraints = new HashMap<>();
+        OperatorResourcesComputer resourcesComputer =
+                new OperatorResourcesComputer(jobSpec.getNumberOfComputationalResources(), jobSpec.getFrameSize());
         for (ILogicalOperator exchg : connectors.keySet()) {
             ILogicalOperator inOp = inEdges.get(exchg).get(0);
             ILogicalOperator outOp = outEdges.get(exchg).get(0);
@@ -353,6 +360,11 @@ public class JobBuilder implements IHyracksJobBuilder {
             if (connPair.second != null) {
                 tgtConstraints.put(conn, connPair.second);
             }
+            inOpDesc.setCoreRequirements(resourcesComputer.getOperatorRequiredCores(inOp));
+            outOpDesc.setCoreRequirements(resourcesComputer.getOperatorRequiredCores(outOp));
+            inOpDesc.setMemoryRequirements(resourcesComputer.getOperatorRequiredMemory(inOp));
+            outOpDesc.setMemoryRequirements(resourcesComputer.getOperatorRequiredMemory(outOp));
+
         }
         return tgtConstraints;
     }

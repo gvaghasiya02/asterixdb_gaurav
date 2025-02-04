@@ -268,6 +268,7 @@ public class JobManager implements IJobManager {
         }
         run.setStatus(run.getPendingStatus(), run.getPendingExceptions());
         run.setEndTime(System.currentTimeMillis());
+        jobQueue.notifyJobFinished(run);
         run.setExecutionEndTime(System.nanoTime());
         if (activeRunMap.remove(jobId) != null) {
             incrementJobCounters(run, successful);
@@ -294,7 +295,8 @@ public class JobManager implements IJobManager {
         }
         jobQueue.notifyJobFinished(run);
         // Picks the next job to execute.
-        pickJobsToRun();
+        if (run.getJobSpecification().getSizeTag() != JobSpecification.JobSizeTag.ZERO)
+            pickJobsToRun();
 
         // throws caught exceptions if any
         if (caughtException != null) {

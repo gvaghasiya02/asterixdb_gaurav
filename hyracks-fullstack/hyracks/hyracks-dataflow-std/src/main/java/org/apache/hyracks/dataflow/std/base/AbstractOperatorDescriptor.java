@@ -46,12 +46,39 @@ public abstract class AbstractOperatorDescriptor implements IOperatorDescriptor 
 
     protected SourceLocation sourceLoc;
 
+    protected int coreRequirements;
+
+    @Override
+    public long getMemoryRequirements() {
+        return memoryRequirements;
+    }
+
+    @Override
+    public void setMemoryRequirements(long memoryRequirements) {
+        this.memoryRequirements = memoryRequirements;
+    }
+
+    protected long memoryRequirements;
+
+    protected int inputSize;
+
     public AbstractOperatorDescriptor(IOperatorDescriptorRegistry spec, int inputArity, int outputArity) {
         odId = spec.createOperatorDescriptorId(this);
         this.inputArity = inputArity;
         this.outputArity = outputArity;
         outRecDescs = new RecordDescriptor[outputArity];
         displayName = getClass().getName() + "[" + odId + "]";
+        this.inputSize = -1;
+    }
+
+    @Override
+    public void setInputSize(int inputSize) {
+        this.inputSize = inputSize;
+    }
+
+    @Override
+    public int getInputSize() {
+        return inputSize;
     }
 
     @Override
@@ -102,6 +129,16 @@ public abstract class AbstractOperatorDescriptor implements IOperatorDescriptor 
     @Override
     public void contributeSchedulingConstraints(IConstraintAcceptor constraintAcceptor, ICCServiceContext serviceCtx) {
         // do nothing
+    }
+
+    @Override
+    public void setCoreRequirements(int c) {
+        coreRequirements = c;
+    }
+
+    @Override
+    public int getCoreRequirements() {
+        return coreRequirements;
     }
 
     @Override

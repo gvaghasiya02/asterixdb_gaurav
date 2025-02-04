@@ -35,6 +35,7 @@ import java.util.Set;
 import org.apache.asterix.algebra.base.ILangExpressionToPlanTranslator;
 import org.apache.asterix.algebra.base.ILangExpressionToPlanTranslatorFactory;
 import org.apache.asterix.api.http.server.ResultUtil;
+import org.apache.asterix.app.resource.PlanStagesGenerator;
 import org.apache.asterix.app.result.fields.ExplainOnlyResultsPrinter;
 import org.apache.asterix.app.result.fields.SignaturePrinter;
 import org.apache.asterix.common.api.INodeJobTracker;
@@ -77,7 +78,6 @@ import org.apache.asterix.translator.IRequestParameters;
 import org.apache.asterix.translator.ResultMetadata;
 import org.apache.asterix.translator.SessionConfig;
 import org.apache.asterix.translator.SessionOutput;
-import org.apache.asterix.utils.ResourceUtils;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksAbsolutePartitionConstraint;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksPartitionConstraint;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
@@ -349,8 +349,9 @@ public class APIFramework {
 
             JobEventListenerFactory jobEventListenerFactory =
                     new JobEventListenerFactory(txnId, metadataProvider.isWriteTransaction());
-            JobSpecification spec = compiler.createJob(ccAppContext, jobEventListenerFactory, runtimeFlags);
-
+            //            JobSpecification spec = compiler.createJob(ccAppContext, jobEventListenerFactory, runtimeFlags);
+            JobSpecification spec = compiler.createJob(ccAppContext, jobEventListenerFactory,
+                    computationLocations.getLocations().length);
             if (isQuery || isCopy) {
                 if (!compiler.skipJobCapacityAssignment()) {
                     if (requestParameters == null || !requestParameters.isSkipAdmissionPolicy()) {
@@ -360,11 +361,18 @@ public class APIFramework {
                         final INodeJobTracker nodeJobTracker = ccAppContext.getNodeJobTracker();
                         final AlgebricksAbsolutePartitionConstraint jobLocations =
                                 getJobLocations(spec, nodeJobTracker, computationLocations);
-                        final IClusterCapacity jobRequiredCapacity =
-                                ResourceUtils.getRequiredCapacity(plan, jobLocations, physOptConf, compilerProperties);
-                        addRuntimeMemoryOverhead(jobRequiredCapacity, compilerProperties);
-                        spec.setRequiredClusterCapacity(jobRequiredCapacity);
-                        spec.setUsername(requestParameters.getRequestReference().getUsername());
+                        //                        final IClusterCapacity jobRequiredCapacity =
+                        //                                ResourceUtils.getRequiredCapacity(plan, jobLocations, physOptConf, compilerProperties);
+                        //                        addRuntimeMemoryOverhead(jobRequiredCapacity, compilerProperties);
+                        //                        spec.setRequiredClusterCapacity(jobRequiredCapacity);
+                        spec.setNumberOfComputationalResources(jobLocations.getLocations().length);
+                        //                        spec.setUsername(requestParameters.getRequestReference().getUsername());
+                        PlanStagesGenerator stagesGenerator = new PlanStagesGenerator(spec);
+                        try {
+                            stagesGenerator.visit(spec.getOperatorMap().get(spec.getRoots().get(0)));
+                        } catch (HyracksException e) {
+                            e.printStackTrace();
+                        }
                         if (requestParameters != null && requestParameters.getRequestReference() != null
                                 && requestParameters.getRequestReference().getUserAgent() != null)
                             spec.setUserID(requestParameters.getRequestReference().getUserAgent());

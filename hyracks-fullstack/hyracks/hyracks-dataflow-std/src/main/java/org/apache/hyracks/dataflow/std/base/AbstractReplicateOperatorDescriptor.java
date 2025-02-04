@@ -52,6 +52,10 @@ public abstract class AbstractReplicateOperatorDescriptor extends AbstractOperat
     protected final int numberOfNonMaterializedOutputs;
     protected final int numberOfMaterializedOutputs;
 
+    public boolean isRequiredMaterialization() {
+        return requiresMaterialization;
+    }
+
     public AbstractReplicateOperatorDescriptor(IOperatorDescriptorRegistry spec, RecordDescriptor rDesc,
             int outputArity) {
         this(spec, rDesc, outputArity, new boolean[outputArity]);

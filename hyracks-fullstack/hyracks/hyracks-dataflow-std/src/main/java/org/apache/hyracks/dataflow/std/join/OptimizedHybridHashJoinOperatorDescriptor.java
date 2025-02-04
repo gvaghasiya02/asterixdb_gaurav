@@ -170,6 +170,7 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
         this.buildPredEvalFactory = predEvalFactory1;
         this.isLeftOuter = isLeftOuter;
         this.nonMatchWriterFactories = nonMatchWriterFactories;
+        this.setInputSize(inputsize0);
     }
 
     public OptimizedHybridHashJoinOperatorDescriptor(IOperatorDescriptorRegistry spec, int memSizeInFrames,

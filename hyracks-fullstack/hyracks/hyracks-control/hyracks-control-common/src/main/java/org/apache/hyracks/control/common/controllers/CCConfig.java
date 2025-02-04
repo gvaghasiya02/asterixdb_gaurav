@@ -71,6 +71,7 @@ public class CCConfig extends ControllerConfig {
         @SuppressWarnings("RedundantCast") // not redundant- false positive from IDEA
         ROOT_DIR(STRING, (Function<IApplicationConfig, String>) appConfig -> FileUtil.joinPath(appConfig.getString(ControllerConfig.Option.DEFAULT_DIR), "ClusterControllerService"), "<value of " + ControllerConfig.Option.DEFAULT_DIR.cmdline() + ">/ClusterControllerService"),
         CLUSTER_TOPOLOGY(STRING),
+        JOB_CAPACITY_CONTROLLER(STRING, "ROC"),
         JOB_QUEUE_CLASS(STRING, "org.apache.hyracks.control.cc.scheduler.FIFOJobQueue"),
         JOB_QUEUE_CAPACITY(POSITIVE_INTEGER, 4096),
         JOB_MANAGER_CLASS(STRING, "org.apache.hyracks.control.cc.job.JobManager"),
@@ -219,6 +220,8 @@ public class CCConfig extends ControllerConfig {
                     return "Timeout for Commit";
                 case GLOBAL_TXN_ROLLBACK_TIMEOUT:
                     return "Timeout for Rollback";
+                case JOB_CAPACITY_CONTROLLER:
+                    return " Job Capacity Controller";
                 default:
                     throw new IllegalStateException("NYI: " + this);
             }
@@ -290,6 +293,10 @@ public class CCConfig extends ControllerConfig {
 
     public void setClusterPublicAddress(String clusterPublicAddress) {
         configManager.set(Option.CLUSTER_PUBLIC_ADDRESS, clusterPublicAddress);
+    }
+
+    public String getJobCapacityController() {
+        return getAppConfig().getString(Option.JOB_CAPACITY_CONTROLLER);
     }
 
     public int getClusterPublicPort() {

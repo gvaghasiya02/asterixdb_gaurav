@@ -41,7 +41,7 @@ import org.apache.logging.log4j.Logger;
 public class JobCapacityController implements IJobCapacityController {
 
     private static final Logger LOGGER = LogManager.getLogger();
-    private final IResourceManager resourceManager;
+    final IResourceManager resourceManager;
     private final ICCApplication ccApp;
 
     public JobCapacityController(IResourceManager resourceManager, ICCApplication ccApp) {

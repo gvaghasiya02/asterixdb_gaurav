@@ -39,6 +39,7 @@ import org.apache.hyracks.api.dataflow.ConnectorDescriptorId;
 import org.apache.hyracks.api.dataflow.IConnectorDescriptor;
 import org.apache.hyracks.api.dataflow.IOperatorDescriptor;
 import org.apache.hyracks.api.dataflow.OperatorDescriptorId;
+import org.apache.hyracks.api.dataflow.PlanStageTemp;
 import org.apache.hyracks.api.dataflow.connectors.IConnectorPolicyAssignmentPolicy;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.resource.ClusterCapacity;
@@ -54,6 +55,8 @@ public class JobSpecification implements Serializable, IOperatorDescriptorRegist
 
     private static final int DEFAULT_FRAME_SIZE = 32768;
 
+    private int numberOfComputationalResources;
+
     private String userID;
 
     public enum JobSizeTag {
@@ -64,6 +67,16 @@ public class JobSpecification implements Serializable, IOperatorDescriptorRegist
         MEDIUM,
         LARGE
     }
+
+    public double getMemoryRatio() {
+        return memoryRatio;
+    }
+
+    public void setMemoryRatio(double memoryRatio) {
+        this.memoryRatio = memoryRatio;
+    }
+
+    private double memoryRatio = 0;
 
     private JobSizeTag sizeTag;
 
@@ -95,6 +108,8 @@ public class JobSpecification implements Serializable, IOperatorDescriptorRegist
 
     private long maxWarnings;
 
+    private long largestStageMemoryRequirement;
+
     private String requestId;
 
     private IJobletEventListenerFactory jobletEventListenerFactory;
@@ -112,6 +127,50 @@ public class JobSpecification implements Serializable, IOperatorDescriptorRegist
     private transient List<IOperatorDescriptor> metaOps;
 
     private String username;
+
+    public PlanStageTemp getLargestStage() {
+        return largestStage;
+    }
+
+    public void setLargestStage(PlanStageTemp largestStage) {
+        this.largestStage = largestStage;
+    }
+
+    private PlanStageTemp largestStage;
+
+    public long getLargestStageMemoryRequirements() {
+        if (largestStageMemoryRequirement > 0) {
+            return largestStageMemoryRequirement;
+        }
+        long maxMEmoryRequired = 0;
+        for (PlanStageTemp stage : stages) {
+            long stageMemoryRequirement = 0;
+            for (IOperatorDescriptor opDesc : stage.getOperatorDescriptors()) {
+                if (opDesc.getInputSize() > 0) {
+                    stageMemoryRequirement += opDesc.getInputSize();
+                } else {
+                    stageMemoryRequirement += opDesc.getMemoryRequirements();
+                }
+            }
+            if (stageMemoryRequirement > maxMEmoryRequired) {
+                maxMEmoryRequired = stageMemoryRequirement;
+                largestStage = stage;
+            }
+
+        }
+        largestStageMemoryRequirement = maxMEmoryRequired;
+        return largestStageMemoryRequirement;
+    }
+
+    public void setStages(List<PlanStageTemp> stages) {
+        this.stages = stages;
+    }
+
+    public List<PlanStageTemp> getStages() {
+        return stages;
+    }
+
+    private List<PlanStageTemp> stages;
 
     // This constructor uses the default frame size. It is for test purposes only.
     // For other use cases, use the one which sets the frame size.
@@ -135,6 +194,7 @@ public class JobSpecification implements Serializable, IOperatorDescriptorRegist
         maxReattempts = 0;
         useConnectorPolicyForScheduling = false;
         requiredClusterCapacity = new ClusterCapacity();
+        stages = new ArrayList<>();
         setFrameSize(frameSize);
     }
 
@@ -224,7 +284,10 @@ public class JobSpecification implements Serializable, IOperatorDescriptorRegist
     }
 
     public IConnectorDescriptor getInputConnectorDescriptor(OperatorDescriptorId odId, int inputIndex) {
-        return opInputMap.get(odId).get(inputIndex);
+        if (opInputMap.containsKey(odId)) {
+            return opInputMap.get(odId).get(inputIndex);
+        }
+        return null;
     }
 
     public Map<OperatorDescriptorId, List<IConnectorDescriptor>> getOperatorInputMap() {
@@ -483,6 +546,19 @@ public class JobSpecification implements Serializable, IOperatorDescriptorRegist
         }
     }
 
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public void setNumberOfComputationalResources(int c) {
+        numberOfComputationalResources = c;
+    }
+
+    public int getNumberOfComputationalResources() {
+        return numberOfComputationalResources;
+    }
 }

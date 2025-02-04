@@ -34,5 +34,8 @@ public interface ICompiler {
     JobSpecification createJob(Object appContext, IJobletEventListenerFactory jobletEventListenerFactory,
             EnumSet<JobFlag> runtimeFlags) throws AlgebricksException;
 
+    JobSpecification createJob(Object appContext, IJobletEventListenerFactory jobEventListenerFactory,
+            int numComputationResources) throws AlgebricksException;
+
     boolean skipJobCapacityAssignment();
 }

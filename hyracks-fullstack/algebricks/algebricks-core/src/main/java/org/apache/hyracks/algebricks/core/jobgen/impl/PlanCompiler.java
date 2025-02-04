@@ -38,6 +38,7 @@ import org.apache.hyracks.api.job.JobSpecification;
 public class PlanCompiler {
     private JobGenContext context;
     private Map<Mutable<ILogicalOperator>, List<Mutable<ILogicalOperator>>> operatorVisitedToParents = new HashMap<>();
+    private int numComputation;
 
     boolean genLog2PhysMap = false;
 
@@ -53,19 +54,20 @@ public class PlanCompiler {
         this.genLog2PhysMap = true;
     }
 
-    public JobSpecification compilePlan(ILogicalPlan plan, IJobletEventListenerFactory jobEventListenerFactory)
-            throws AlgebricksException {
-        return compilePlanImpl(plan, false, null, jobEventListenerFactory);
+    public JobSpecification compilePlan(ILogicalPlan plan, IJobletEventListenerFactory jobEventListenerFactory,
+            int numComputation) throws AlgebricksException {
+        return compilePlanImpl(plan, false, null, jobEventListenerFactory, numComputation);
     }
 
     public JobSpecification compileNestedPlan(ILogicalPlan plan, IOperatorSchema outerPlanSchema)
             throws AlgebricksException {
-        return compilePlanImpl(plan, true, outerPlanSchema, null);
+        return compilePlanImpl(plan, true, outerPlanSchema, null, 0);
     }
 
     private JobSpecification compilePlanImpl(ILogicalPlan plan, boolean isNestedPlan, IOperatorSchema outerPlanSchema,
-            IJobletEventListenerFactory jobEventListenerFactory) throws AlgebricksException {
+            IJobletEventListenerFactory jobEventListenerFactory, int numComputation) throws AlgebricksException {
         JobSpecification spec = new JobSpecification(context.getFrameSize());
+        spec.setNumberOfComputationalResources(numComputation);
         spec.setMaxWarnings(context.getMaxWarnings());
         if (jobEventListenerFactory != null) {
             spec.setJobletEventListenerFactory(jobEventListenerFactory);

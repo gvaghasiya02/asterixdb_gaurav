@@ -51,6 +51,7 @@ import org.apache.hyracks.api.job.JobSpecification;
 
 public abstract class AbstractPhysicalOperator implements IPhysicalOperator {
 
+    public static final int MIN_OPERATOR_CORES = 1;
     protected IPhysicalPropertiesVector deliveredProperties;
     protected LocalMemoryRequirements localMemoryRequirements;
     private boolean disableJobGenBelow = false;
@@ -133,6 +134,12 @@ public abstract class AbstractPhysicalOperator implements IPhysicalOperator {
 
     protected void contributeOpDesc(IHyracksJobBuilder builder, AbstractLogicalOperator op,
             IOperatorDescriptor opDesc) {
+        if (op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.PARTITIONED
+                || op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.LOCAL) {
+            opDesc.setCoreRequirements(builder.getJobSpec().getNumberOfComputationalResources());
+        } else {
+            opDesc.setCoreRequirements(MIN_OPERATOR_CORES);
+        }
         if (op.getExecutionMode() == ExecutionMode.UNPARTITIONED) {
             AlgebricksPartitionConstraint apc = new AlgebricksCountPartitionConstraint(1);
             builder.contributeAlgebricksPartitionConstraint(opDesc, apc);

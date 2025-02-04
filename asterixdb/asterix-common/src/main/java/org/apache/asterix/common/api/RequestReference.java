@@ -72,9 +72,13 @@ public class RequestReference implements IRequestReference {
         return remoteAddr;
     }
 
-    public void setUsername(String username) { this.username = username; }
+    public void setUsername(String username) {
+        this.username = username;
+    }
 
-    public String getUsername(){ return this.username; }
+    public String getUsername() {
+        return this.username;
+    }
 
     @Override
     public String toString() {

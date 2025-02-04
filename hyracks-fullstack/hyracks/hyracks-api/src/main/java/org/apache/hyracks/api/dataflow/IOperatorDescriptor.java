@@ -33,6 +33,18 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * @author vinayakb
  */
 public interface IOperatorDescriptor extends Serializable {
+    void setCoreRequirements(int c);
+
+    int getCoreRequirements();
+
+    long getMemoryRequirements();
+
+    void setMemoryRequirements(long memoryRequirements);
+
+    void setInputSize(int inputSize);
+
+    int getInputSize();
+
     /**
      * Returns the id of the operator.
      *

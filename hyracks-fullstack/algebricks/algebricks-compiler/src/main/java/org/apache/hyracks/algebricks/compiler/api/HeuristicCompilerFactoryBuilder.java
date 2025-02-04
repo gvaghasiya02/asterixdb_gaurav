@@ -170,7 +170,16 @@ public class HeuristicCompilerFactoryBuilder extends AbstractCompilerFactoryBuil
                 throws AlgebricksException {
             AlgebricksConfig.ALGEBRICKS_LOGGER.trace("Starting Job Generation.\n");
             PlanCompiler pc = factory.createPlanCompiler(oc, appContext, writerFactory);
-            return pc.compilePlan(plan, jobEventListenerFactory);
+            //            return pc.compilePlan(plan, jobEventListenerFactory);
+            return pc.compilePlan(plan, jobEventListenerFactory, 0);
+        }
+
+        @Override
+        public JobSpecification createJob(Object appContext, IJobletEventListenerFactory jobEventListenerFactory,
+                int numComputationResources) throws AlgebricksException {
+            AlgebricksConfig.ALGEBRICKS_LOGGER.trace("Starting Job Generation.\n");
+            PlanCompiler pc = factory.createPlanCompiler(oc, appContext, writerFactory);
+            return pc.compilePlan(plan, jobEventListenerFactory, numComputationResources);
         }
 
         @Override
@@ -181,7 +190,7 @@ public class HeuristicCompilerFactoryBuilder extends AbstractCompilerFactoryBuil
             if (runtimeFlags.contains(JobFlag.PROFILE_RUNTIME)) {
                 pc.enableLog2PhysMapping();
             }
-            return pc.compilePlan(plan, jobEventListenerFactory);
+            return pc.compilePlan(plan, jobEventListenerFactory, 0);
         }
 
         @Override

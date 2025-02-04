@@ -24,50 +24,20 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
-import org.apache.hyracks.algebricks.common.exceptions.NotImplementedException;
-import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
-import org.apache.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
-import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractReplicateOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.AssignOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.DataSourceScanOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.DelegateOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.DistinctOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.DistributeResultOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.EmptyTupleSourceOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.ExchangeOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.ForwardOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.IndexInsertDeleteUpsertOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.InnerJoinOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.InsertDeleteUpsertOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.IntersectOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.LeftOuterJoinOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.LeftOuterUnnestMapOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.LeftOuterUnnestOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.LimitOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.MaterializeOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.NestedTupleSourceOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.OrderOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.ProjectOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.ReplicateOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.RunningAggregateOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.ScriptOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.SelectOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.SinkOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.SplitOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.SubplanOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.SwitchOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.TokenizeOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.UnionAllOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.UnnestMapOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.UnnestOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.WindowOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.WriteOperator;
-import org.apache.hyracks.algebricks.core.algebra.visitors.ILogicalOperatorVisitor;
+import org.apache.hyracks.algebricks.core.algebra.operators.physical.AbstractGroupByPOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.physical.AbstractStableSortPOperator;
+import org.apache.hyracks.algebricks.runtime.operators.std.SplitOperatorDescriptor;
+import org.apache.hyracks.api.dataflow.IConnectorDescriptor;
+import org.apache.hyracks.api.dataflow.IOperatorDescriptor;
+import org.apache.hyracks.api.dataflow.PlanStageTemp;
+import org.apache.hyracks.api.exceptions.HyracksException;
+import org.apache.hyracks.api.job.JobSpecification;
+import org.apache.hyracks.dataflow.std.group.external.ExternalGroupOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.group.sort.SortGroupByOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.join.OptimizedHybridHashJoinOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.misc.ReplicateOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.misc.SortForwardOperatorDescriptor;
 import org.apache.hyracks.util.annotations.NotThreadSafe;
 
 /**
@@ -76,345 +46,68 @@ import org.apache.hyracks.util.annotations.NotThreadSafe;
  * to re-visit the operator again to create the other stage.
  */
 @NotThreadSafe
-public class PlanStagesGenerator implements ILogicalOperatorVisitor<Void, Void> {
+public class PlanStagesGenerator {
 
     private static final int JOIN_NON_BLOCKING_INPUT = 0;
     private static final int JOIN_BLOCKING_INPUT = 1;
-    private static final int JOIN_NUM_INPUTS = 2;
+    //    private static final int JOIN_NUM_INPUTS = 2;
     private static final int FORWARD_NON_BLOCKING_INPUT = 0;
     private static final int FORWARD_BLOCKING_INPUT = 1;
-    private static final int FORWARD_NUM_INPUTS = 2;
-    private final Set<ILogicalOperator> visitedOperators = new HashSet<>();
-    private final LinkedList<ILogicalOperator> pendingMultiStageOperators = new LinkedList<>();
-    private final List<PlanStage> stages = new ArrayList<>();
-    private PlanStage currentStage;
+    //    private static final int FORWARD_NUM_INPUTS = 2;
+    //    private final Set<ILogicalOperator> visitedOperators = new HashSet<>();
+    //    private final LinkedList<ILogicalOperator> pendingMultiStageOperators = new LinkedList<>();
+    private final Set<IOperatorDescriptor> visitedOperators = new HashSet<>();
+    private final LinkedList<IOperatorDescriptor> pendingMultiStageOperators = new LinkedList<>();
+    private final List<PlanStageTemp> stages = new ArrayList<>();
+    private PlanStageTemp currentStage;
     private int stageCounter;
+    private JobSpecification jobSpec;
 
-    public PlanStagesGenerator() {
-        currentStage = new PlanStage(++stageCounter);
+    public PlanStagesGenerator(JobSpecification jobSpec) {
+        this.jobSpec = jobSpec;
+        currentStage = new PlanStageTemp(++stageCounter);
         stages.add(currentStage);
     }
 
-    @Override
-    public Void visitAggregateOperator(AggregateOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitRunningAggregateOperator(RunningAggregateOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitEmptyTupleSourceOperator(EmptyTupleSourceOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitGroupByOperator(GroupByOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitLimitOperator(LimitOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitInnerJoinOperator(InnerJoinOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitLeftOuterJoinOperator(LeftOuterJoinOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitNestedTupleSourceOperator(NestedTupleSourceOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitOrderOperator(OrderOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitAssignOperator(AssignOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitSelectOperator(SelectOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitDelegateOperator(DelegateOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitProjectOperator(ProjectOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitReplicateOperator(ReplicateOperator op, Void arg) throws AlgebricksException {
-        // make sure that the downstream of a replicate operator is visited only once.
-        if (!visitedOperators.contains(op)) {
-            visitedOperators.add(op);
-            visit(op);
-        } else {
-            merge(op);
-        }
-        return null;
-    }
-
-    @Override
-    public Void visitSplitOperator(SplitOperator op, Void arg) throws AlgebricksException {
-        // make sure that the downstream of a split operator is visited only once.
-        if (!visitedOperators.contains(op)) {
-            visitedOperators.add(op);
-            visit(op);
-        } else {
-            merge(op);
-        }
-        return null;
-    }
-
-    @Override
-    public Void visitSwitchOperator(SwitchOperator op, Void arg) throws AlgebricksException {
-        // TODO (GLENN): Implement this logic
-        throw new NotImplementedException();
-    }
-
-    @Override
-    public Void visitMaterializeOperator(MaterializeOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitScriptOperator(ScriptOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitSubplanOperator(SubplanOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitSinkOperator(SinkOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitUnionOperator(UnionAllOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitIntersectOperator(IntersectOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitUnnestOperator(UnnestOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitLeftOuterUnnestOperator(LeftOuterUnnestOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitUnnestMapOperator(UnnestMapOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitLeftOuterUnnestMapOperator(LeftOuterUnnestMapOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitDataScanOperator(DataSourceScanOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitDistinctOperator(DistinctOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitExchangeOperator(ExchangeOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitWriteOperator(WriteOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitDistributeResultOperator(DistributeResultOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitInsertDeleteUpsertOperator(InsertDeleteUpsertOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitIndexInsertDeleteUpsertOperator(IndexInsertDeleteUpsertOperator op, Void arg)
-            throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitTokenizeOperator(TokenizeOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitForwardOperator(ForwardOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    @Override
-    public Void visitWindowOperator(WindowOperator op, Void arg) throws AlgebricksException {
-        visit(op);
-        return null;
-    }
-
-    public List<PlanStage> getStages() {
+    public List<PlanStageTemp> getStages() {
         return stages;
     }
 
-    private void visit(ILogicalOperator op) throws AlgebricksException {
-        addToStage(op);
-        if (!pendingMultiStageOperators.isEmpty()) {
-            final ILogicalOperator firstPending = pendingMultiStageOperators.pop();
-            visitMultiStageOp(firstPending);
-        }
-    }
-
-    private void visitMultiStageOp(ILogicalOperator multiStageOp) throws AlgebricksException {
-        final PlanStage blockingOpStage = new PlanStage(++stageCounter);
-        blockingOpStage.getOperators().add(multiStageOp);
+    private void visitMultiStageOpOD(IOperatorDescriptor multiStageOp) throws AlgebricksException, HyracksException {
+        final PlanStageTemp blockingOpStage = new PlanStageTemp(++stageCounter);
+        blockingOpStage.getOperatorDescriptors().add(multiStageOp);
         stages.add(blockingOpStage);
         currentStage = blockingOpStage;
-        switch (multiStageOp.getOperatorTag()) {
-            case INNERJOIN:
-            case LEFTOUTERJOIN:
-                // visit only the blocking input creating a new stage
-                ILogicalOperator newStageOperator = getInputAt(multiStageOp, JOIN_BLOCKING_INPUT, JOIN_NUM_INPUTS);
-                newStageOperator.accept(this, null);
-                break;
-            case GROUP:
-            case ORDER:
-                visitInputs(multiStageOp);
-                break;
-            case FORWARD:
-                // visit only the blocking input creating a new stage
-                ILogicalOperator newStageOp = getInputAt(multiStageOp, FORWARD_BLOCKING_INPUT, FORWARD_NUM_INPUTS);
-                newStageOp.accept(this, null);
-                break;
-            default:
-                throw new IllegalStateException("Unrecognized blocking operator: " + multiStageOp.getOperatorTag());
+        if (multiStageOp instanceof OptimizedHybridHashJoinOperatorDescriptor) {
+            // visit only the blocking input creating a new stage
+            IConnectorDescriptor connector = jobSpec.getInputConnectorDescriptor(multiStageOp, JOIN_BLOCKING_INPUT);
+            final IOperatorDescriptor joinBlockingInput = jobSpec.getProducer(connector);
+            visit(joinBlockingInput);
+        } else if (multiStageOp instanceof AbstractGroupByPOperator
+                || multiStageOp instanceof AbstractStableSortPOperator) {
+            //Order & GroupBy
+            visitInputs(multiStageOp);
+        } else if (multiStageOp instanceof SortForwardOperatorDescriptor) {
+            IConnectorDescriptor connector = jobSpec.getInputConnectorDescriptor(multiStageOp, FORWARD_BLOCKING_INPUT);
+            final IOperatorDescriptor forwardBlockingInput = jobSpec.getProducer(connector);
+            visit(forwardBlockingInput);
+        } else {
+            throw new IllegalStateException("Unrecognized blocking operator: " + multiStageOp.getDisplayName());
         }
     }
 
-    /**
-     * Adds the op argument to the current stage. If the operator is a multi-stage, it adds the operator to the pending
-     * list and continues on the branch that is non-blocking (i.e., the branch continuing on the same current stage)
-     * @param op to be added to the current stage
-     * @throws AlgebricksException
-     */
-    private void addToStage(ILogicalOperator op) throws AlgebricksException {
-        currentStage.getOperators().add(op);
-        switch (op.getOperatorTag()) {
-            case INNERJOIN:
-            case LEFTOUTERJOIN:
-                pendingMultiStageOperators.add(op);
-                // continue on the same stage
-                final ILogicalOperator joinNonBlockingInput = getInputAt(op, JOIN_NON_BLOCKING_INPUT, JOIN_NUM_INPUTS);
-                joinNonBlockingInput.accept(this, null);
-                break;
-            case GROUP:
-                if (isBlockingGroupBy((GroupByOperator) op)) {
-                    pendingMultiStageOperators.add(op);
-                    return;
-                }
-                // continue on the same stage
-                visitInputs(op);
-                break;
-            case ORDER:
-                pendingMultiStageOperators.add(op);
-                break;
-            case FORWARD:
-                pendingMultiStageOperators.add(op);
-                // continue on the same current stage through the branch that is non-blocking
-                ILogicalOperator nonBlockingInput = getInputAt(op, FORWARD_NON_BLOCKING_INPUT, FORWARD_NUM_INPUTS);
-                nonBlockingInput.accept(this, null);
-                break;
-            default:
-                visitInputs(op);
-                break;
-        }
-    }
-
-    private void visitInputs(ILogicalOperator op) throws AlgebricksException {
-        if (isMaterialized(op)) {
+    private void visitInputs(IOperatorDescriptor op) throws AlgebricksException, HyracksException {
+        if (isMaterializedOD(op)) {
             // don't visit the inputs of this operator since it is supposed to be blocking due to materialization.
             // some other non-blocking operator will visit those inputs when reached.
             return;
         }
-        for (Mutable<ILogicalOperator> inputOpRef : op.getInputs()) {
-            inputOpRef.getValue().accept(this, null);
+        for (int i = 0; i < op.getInputArity(); i++) {
+            IConnectorDescriptor connector = jobSpec.getInputConnectorDescriptor(op, i);
+            if (connector != null) {
+                visit(jobSpec.getProducer(connector));
+            }
         }
-    }
-
-    private boolean isBlockingGroupBy(GroupByOperator op) {
-        return op.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.EXTERNAL_GROUP_BY
-                || op.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.SORT_GROUP_BY;
     }
 
     /**
@@ -424,30 +117,26 @@ public class PlanStagesGenerator implements ILogicalOperatorVisitor<Void, Void> 
      * @param op
      * @return true if the operator will be materialized. Otherwise false
      */
-    private boolean isMaterialized(ILogicalOperator op) {
-        for (Mutable<ILogicalOperator> inputOpRef : op.getInputs()) {
-            final ILogicalOperator inputOp = inputOpRef.getValue();
-            final LogicalOperatorTag inputOpTag = inputOp.getOperatorTag();
-            if (inputOpTag == LogicalOperatorTag.REPLICATE || inputOpTag == LogicalOperatorTag.SPLIT) {
-                final AbstractReplicateOperator replicateOperator = (AbstractReplicateOperator) inputOp;
-                if (replicateOperator.isMaterialized(op)) {
-                    return true;
+    private boolean isMaterializedOD(IOperatorDescriptor op) {
+        int x = op.getInputArity();
+        for (int i = 0; i < op.getInputArity(); i++) {
+            IConnectorDescriptor conn = jobSpec.getInputConnectorDescriptor(op, i);
+            if (conn != null) {
+                IOperatorDescriptor input = jobSpec.getProducer(conn);
+                if (input instanceof ReplicateOperatorDescriptor) {
+                    final ReplicateOperatorDescriptor replOp = (ReplicateOperatorDescriptor) op;
+                    if (replOp.isRequiredMaterialization()) {
+                        return true;
+                    }
+                } else if (input instanceof SplitOperatorDescriptor) {
+                    final SplitOperatorDescriptor splitOp = (SplitOperatorDescriptor) op;
+                    if (splitOp.isRequiredMaterialization()) {
+                        return true;
+                    }
                 }
             }
         }
         return false;
-    }
-
-    private ILogicalOperator getInputAt(ILogicalOperator op, int inputIndex, int numInputs) {
-        final List<Mutable<ILogicalOperator>> inputs = op.getInputs();
-        int inSize = inputs.size();
-        if (inSize != numInputs) {
-            throw new IllegalStateException("Op must have exactly " + numInputs + " inputs. Current inputs: " + inSize);
-        }
-        if (inputIndex >= inSize) {
-            throw new IllegalArgumentException("invalid input index for operator");
-        }
-        return inputs.get(inputIndex).getValue();
     }
 
     /**
@@ -455,15 +144,78 @@ public class PlanStagesGenerator implements ILogicalOperatorVisitor<Void, Void> 
      *
      * @param op
      */
-    private void merge(ILogicalOperator op) {
+    private void merge(IOperatorDescriptor op) {
         // all operators in this stage belong to the stage of the already visited op
-        for (PlanStage stage : stages) {
-            if (stage != currentStage && stage.getOperators().contains(op)) {
-                stage.getOperators().addAll(currentStage.getOperators());
+        for (PlanStageTemp stage : stages) {
+            if (stage != currentStage && stage.getOperatorDescriptors().contains(op)) {
+                stage.getOperatorDescriptors().addAll(currentStage.getOperatorDescriptors());
                 stages.remove(currentStage);
                 currentStage = stage;
                 break;
             }
         }
+    }
+
+    private void addToStageOD(IOperatorDescriptor op) throws AlgebricksException, HyracksException {
+        currentStage.getOperatorDescriptors().add(op);
+        if (op instanceof OptimizedHybridHashJoinOperatorDescriptor) {
+            pendingMultiStageOperators.add(op);
+            // continue on the same stage
+            IConnectorDescriptor connector = jobSpec.getInputConnectorDescriptor(op, JOIN_NON_BLOCKING_INPUT);
+            final IOperatorDescriptor joinNonBlockingInput = jobSpec.getProducer(connector);
+            visit(joinNonBlockingInput);
+        } else if (op instanceof AbstractGroupByPOperator) {
+            if (op instanceof SortGroupByOperatorDescriptor || op instanceof ExternalGroupOperatorDescriptor) {
+                //Blocking GroupBy
+                pendingMultiStageOperators.add(op);
+                return;
+            }
+            // continue on the same stage
+            visitInputs(op);
+        } else if (op instanceof AbstractStableSortPOperator) {
+            //Order
+            pendingMultiStageOperators.add(op);
+        } else if (op instanceof SortForwardOperatorDescriptor) {
+            pendingMultiStageOperators.add(op);
+            // continue on the same current stage through the branch that is non-blocking
+            IConnectorDescriptor connector = jobSpec.getInputConnectorDescriptor(op, FORWARD_NON_BLOCKING_INPUT);
+            final IOperatorDescriptor forwardNonBlockingInput = jobSpec.getProducer(connector);
+            visit(forwardNonBlockingInput);
+        } else {
+            visitInputs(op);
+        }
+    }
+
+    private void visitOp(IOperatorDescriptor op) throws HyracksException {
+        if (op instanceof SplitOperatorDescriptor || op instanceof ReplicateOperatorDescriptor) {
+            if (!visitedOperators.contains(op)) {
+                visitedOperators.add(op);
+                //visit(op);
+            } else {
+                merge(op);
+                return;
+            }
+        }
+        try {
+            addToStageOD(op);
+        } catch (AlgebricksException e) {
+            e.printStackTrace();
+        }
+        if (!pendingMultiStageOperators.isEmpty()) {
+            final IOperatorDescriptor firstPending = pendingMultiStageOperators.pop();
+            try {
+                visitMultiStageOpOD(firstPending);
+            } catch (AlgebricksException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public void visit(IOperatorDescriptor op) throws HyracksException {
+        //root
+
+        visitOp(op);
+        jobSpec.setStages(stages);
+
     }
 }

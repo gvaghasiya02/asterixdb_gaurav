@@ -5423,6 +5423,10 @@ public class QueryTranslator extends AbstractLangTranslator implements IStatemen
                 (org.apache.asterix.translator.ResultMetadata) controllerService.getResultDirectoryService()
                         .getResultMetadata(jobId, rsId);
         stats.setProcessedObjects(resultMetadata.getProcessedObjects());
+        stats.setAddedToQueueTime(resultMetadata.getJobAddedToQueueTime());
+        stats.setAddedToTheMemoryQueueTime(resultMetadata.getJobAddedToMemoryQueueTime());
+        stats.setExecutionStartTime(resultMetadata.getJobExecutionStartTime());
+        stats.setExecutionEndTime(resultMetadata.getJobExecutionEndTime());
         stats.setQueueWaitTime(resultMetadata.getQueueWaitTimeInNanos());
         stats.setBufferCacheHitRatio(resultMetadata.getBufferCacheHitRatio());
         stats.setBufferCachePageReadCount(resultMetadata.getBufferCachePageReadCount());

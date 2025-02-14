@@ -24,7 +24,7 @@
 SET `compiler.parallelism` "1";
 SET `compiler.min.memory.allocation` "false";
 SET `compiler.sortmemory` "320KB";
-SET `compiler.groupmemory` "160KB";
+SET `compiler.groupmemory` "320KB";
 SET `compiler.joinmemory` "256KB";
 SET `compiler.textsearchmemory` "160KB";
 

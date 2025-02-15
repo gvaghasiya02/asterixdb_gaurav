@@ -25,6 +25,7 @@ import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
 import org.apache.hyracks.algebricks.core.algebra.base.IOptimizationContext;
 import org.apache.hyracks.algebricks.core.algebra.base.IPhysicalOperator;
+import org.apache.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractBinaryJoinOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogicalOperator;
@@ -171,6 +172,24 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
 
         @Override
         public Void visitGroupByOperator(GroupByOperator op, Void arg) throws AlgebricksException {
+            if (op.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.SORT_GROUP_BY
+                    || op.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.EXTERNAL_GROUP_BY) {
+                Mutable<ILogicalOperator> r0 = op.getNestedPlans().get(0).getRoots().get(0);
+                if (r0.getValue().getOperatorTag() != LogicalOperatorTag.AGGREGATE) {
+                    setOperatorMemoryBudget(op, physConfig.getMaxFramesForGroupBy());
+                    return null;
+                }
+
+                AggregateOperator aggOp = (AggregateOperator) r0.getValue();
+                if (aggOp.getExpressions().isEmpty()) {
+                    setOperatorMemoryBudget(op, physConfig.getMaxFramesForGroupBy());
+                    return null;
+                }
+
+                // each group by operator gets half of total group memory to accommodate both local and global operators
+                setOperatorMemoryBudget(op, physConfig.getMaxFramesForGroupBy() / 2);
+                return null;
+            }
             setOperatorMemoryBudget(op, physConfig.getMaxFramesForGroupBy());
             return null;
         }

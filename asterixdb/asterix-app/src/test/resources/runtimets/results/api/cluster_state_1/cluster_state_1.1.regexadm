@@ -39,7 +39,7 @@
     "compiler\.external\.field\.pushdown" : true,
     "compiler.forcejoinorder" : false,
     "compiler\.framesize" : 32768,
-    "compiler\.groupmemory" : 163840,
+    "compiler\.groupmemory" : 327680,
     "compiler\.indexonly" : true,
     "compiler\.internal\.sanitycheck" : true,
     "compiler\.joinmemory" : 262144,

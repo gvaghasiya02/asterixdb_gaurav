@@ -203,7 +203,8 @@ public class PlanStagesGeneratorTest {
         ets3.setPhysicalOperator(new EmptyTupleSourcePOperator());
 
         GroupByOperator groupByOperator = new GroupByOperator();
-        groupByOperator.setPhysicalOperator(new ExternalGroupByPOperator(Collections.emptyList()));
+        groupByOperator.setPhysicalOperator(
+                new ExternalGroupByPOperator(Collections.emptyList(), groupByOperator.getDataInputFrames()));
         groupByOperator.setExecutionMode(LOCAL);
         groupByOperator.getInputs().add(new MutableObject<>(ets3));
 

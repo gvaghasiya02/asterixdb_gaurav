@@ -41,6 +41,7 @@ public class GroupbyClause extends AbstractClause {
     private List<Pair<Expression, Identifier>> groupFieldList = new ArrayList<>();
     private boolean hashGroupByHint = false;
     private boolean groupAll = false;
+    private long dataInputInFrames = 0;
 
     public GroupbyClause() {
         // Default constructor.
@@ -65,6 +66,7 @@ public class GroupbyClause extends AbstractClause {
         }
         this.hashGroupByHint = hashGroupByHint;
         this.groupAll = groupAll;
+        this.dataInputInFrames = 0;
     }
 
     public List<List<GbyVariableExpressionPair>> getGbyPairList() {
@@ -123,6 +125,14 @@ public class GroupbyClause extends AbstractClause {
 
     public boolean hasHashGroupByHint() {
         return hashGroupByHint;
+    }
+
+    public void setDataInputInFrames(long dataInputInFrames) {
+        this.dataInputInFrames = dataInputInFrames;
+    }
+
+    public long getDataInputInFrames() {
+        return dataInputInFrames;
     }
 
     public boolean hasDecorList() {

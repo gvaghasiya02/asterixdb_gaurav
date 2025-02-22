@@ -336,19 +336,20 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
      * The maximum number of partitions is limited to Integer.MAX_VALUE.
      */
     private int getNumOfPartitions(long nubmerOfInputFrames, long frameLimit) {
+        int minPart = Math.min(20, (int) frameLimit);
         if (frameLimit >= nubmerOfInputFrames * FUDGE_FACTOR) {
             // all in memory, we will create two big partitions. We set 2 (not 1) to avoid the corner case
             // where the only partition may be spilled to the disk. This may happen since this formula doesn't consider
             // the hash table size. If this is the case, we will have an indefinite loop - keep spilling the same
             // partition again and again.
-            return 2;
+            return minPart;
         }
         long numberOfPartitions =
                 (long) (Math.ceil((nubmerOfInputFrames * FUDGE_FACTOR - frameLimit) / (frameLimit - 1)));
-        numberOfPartitions = Math.max(2, numberOfPartitions);
+        numberOfPartitions = Math.max(minPart, numberOfPartitions);
         if (numberOfPartitions > frameLimit) {
             numberOfPartitions = (long) Math.ceil(Math.sqrt(nubmerOfInputFrames * FUDGE_FACTOR));
-            return (int) Math.min(Math.max(2, Math.min(numberOfPartitions, frameLimit)), Integer.MAX_VALUE);
+            return (int) Math.min(Math.max(minPart, Math.min(numberOfPartitions, frameLimit)), Integer.MAX_VALUE);
         }
         return (int) Math.min(numberOfPartitions, Integer.MAX_VALUE);
     }

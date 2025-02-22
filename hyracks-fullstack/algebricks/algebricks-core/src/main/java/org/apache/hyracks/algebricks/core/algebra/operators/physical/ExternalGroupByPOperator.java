@@ -66,8 +66,11 @@ import org.apache.hyracks.dataflow.std.group.external.ExternalGroupOperatorDescr
 
 public class ExternalGroupByPOperator extends AbstractGroupByPOperator {
 
-    public ExternalGroupByPOperator(List<LogicalVariable> columnList) {
+    private long dataInputFrames;
+
+    public ExternalGroupByPOperator(List<LogicalVariable> columnList, long dataInputFrames) {
         super(columnList);
+        this.dataInputFrames = dataInputFrames;
     }
 
     @Override
@@ -223,7 +226,8 @@ public class ExternalGroupByPOperator extends AbstractGroupByPOperator {
                 allColumns, frameSize);
 
         int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-        long inputSize = framesLimit * (long) frameSize;
+        long inputDataSizeInFrames = Math.max(dataInputFrames, framesLimit);
+        long inputSize = inputDataSizeInFrames * (long) frameSize;
         ExternalGroupOperatorDescriptor gbyOpDesc = new ExternalGroupOperatorDescriptor(spec, hashTableSize, inputSize,
                 gbyColumns, fdColumns, framesLimit, comparatorFactories, normalizedKeyFactory, aggregatorFactory,
                 mergeFactory, recordDescriptor, recordDescriptor, new HashSpillableTableFactory(hashFunctionFactories));

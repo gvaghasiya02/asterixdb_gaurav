@@ -5692,6 +5692,12 @@ GroupbyClause GroupbyClause()throws ParseException :
       Token hintToken = fetchHint(token, SqlppHint.HASH_GROUP_BY_HINT);
       if (hintToken != null) {
         gbc.setHashGroupByHint(true);
+        long dataInput = 0;
+        String[] splitString = hintToken.toString().split("\\+");
+        if (splitString.length > 1) {
+            dataInput = Long.parseLong(splitString[splitString.length - 1].trim());
+        }
+        gbc.setDataInputInFrames(dataInput);
       }
     }
     <BY> groupingElementList = GroupingElementList()

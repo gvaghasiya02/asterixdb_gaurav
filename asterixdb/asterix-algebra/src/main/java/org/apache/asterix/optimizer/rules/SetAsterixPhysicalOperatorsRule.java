@@ -274,7 +274,7 @@ public class SetAsterixPhysicalOperatorsRule extends SetAlgebricksPhysicalOperat
             }
 
             generateMergeAggregationExpressions(gby);
-            return new ExternalGroupByPOperator(gby.getGroupByVarList());
+            return new ExternalGroupByPOperator(gby.getGroupByVarList(), gby.getDataInputFrames());
         }
 
         private void generateMergeAggregationExpressions(GroupByOperator gby) throws AlgebricksException {

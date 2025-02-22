@@ -63,6 +63,7 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
     private ExternalHashGroupBy externalGroupBy;
     private ExternalGroupState state;
     private boolean isFailed = false;
+    private long noOfInputFrames;
 
     public ExternalGroupBuildOperatorNodePushable(IHyracksTaskContext ctx, Object stateId, int tableSize, long fileSize,
             int[] gbyFields, int[] fdFields, int framesLimit, IBinaryComparatorFactory[] comparatorFactories,
@@ -89,6 +90,7 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
         this.outRecordDescriptor = outRecordDescriptor;
         this.tableSize = tableSize;
         this.fileSize = fileSize;
+        this.noOfInputFrames = 0;
     }
 
     @Override
@@ -97,6 +99,7 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
         ISpillableTable table = spillableTableFactory.buildSpillableTable(ctx, tableSize, fileSize, gbyFields, fdFields,
                 comparators, firstNormalizerComputer, aggregatorFactory, inRecordDescriptor, outRecordDescriptor,
                 framesLimit, INIT_SEED);
+        LOGGER.warn(Thread.currentThread().getId() + " BuildHashtable " + table.getHashTableInfo());
         RunFileWriter[] runFileWriters = new RunFileWriter[table.getNumPartitions()];
         this.externalGroupBy = new ExternalHashGroupBy(this, table, runFileWriters, inRecordDescriptor);
 
@@ -107,6 +110,7 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
 
     @Override
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
+        this.noOfInputFrames++;
         externalGroupBy.insert(buffer);
     }
 
@@ -126,17 +130,23 @@ public class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSi
         } else {
             externalGroupBy.flushSpilledPartitions();
             ctx.setStateObject(state);
-            if (LOGGER.isDebugEnabled()) {
-                int numOfPartition = state.getSpillableTable().getNumPartitions();
-                int numOfSpilledPart = 0;
-                for (int i = 0; i < numOfPartition; i++) {
-                    if (state.getSpilledNumTuples()[i] > 0) {
-                        numOfSpilledPart++;
-                    }
+            LOGGER.warn(Thread.currentThread().getId() + " CloseBuildHashtable "
+                    + externalGroupBy.getTable().getHashTableInfo());
+            int numOfPartition = state.getSpillableTable().getNumPartitions();
+            int numOfSpilledPart = 0;
+            int noOfSpilledTuples = 0;
+            for (int i = 0; i < numOfPartition; i++) {
+                if (state.getSpilledNumTuples()[i] > 0) {
+                    numOfSpilledPart++;
+                    noOfSpilledTuples += state.getSpilledNumTuples()[i];
                 }
-                LOGGER.debug("level 0:" + "build with " + numOfPartition + " partitions" + ", spilled "
-                        + numOfSpilledPart + " partitions");
+                LOGGER.warn(Thread.currentThread().getId() + " level 0:" + "build with " + numOfPartition
+                        + " partitions" + ", spilled " + numOfSpilledPart + " partitions with noSpilledTuples "
+                        + state.getSpilledNumTuples()[i]);
             }
+            LOGGER.warn(Thread.currentThread().getId() + " level " + 0 + ":" + " BuildHashtable " + numOfPartition
+                    + " partitions" + ", spilled " + numOfSpilledPart + " partitions with TotalNoSpilledTuples "
+                    + noOfSpilledTuples + " inputFrames " + noOfInputFrames);
         }
         state = null;
         externalGroupBy = null;

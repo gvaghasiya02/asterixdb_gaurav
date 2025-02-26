@@ -25,7 +25,7 @@ distribute result [$$101] [cardinality: 0.0, doc-size: 8.0, op-cost: 0.0, total-
                             nested tuple source [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
                             -- NESTED_TUPLE_SOURCE  |LOCAL|
                        } [cardinality: 0.0, doc-size: 8.0, op-cost: 0.0, total-cost: 6.5]
-                -- SORT_GROUP_BY[$$102]  |PARTITIONED|
+                -- OPTIMIZE_GROUP_BY[$$102]  |PARTITIONED|
                   exchange [cardinality: 0.0, doc-size: 8.0, op-cost: 0.0, total-cost: 6.5]
                   -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                     select ($$92) project: [$$102] [cardinality: 0.0, doc-size: 8.0, op-cost: 0.0, total-cost: 6.5]

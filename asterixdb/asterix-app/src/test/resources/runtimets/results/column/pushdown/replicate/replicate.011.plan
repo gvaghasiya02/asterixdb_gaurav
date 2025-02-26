@@ -45,7 +45,7 @@ distribute result [$$223] [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-
                                                 nested tuple source [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
                                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                                            } [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
-                                    -- SORT_GROUP_BY[$$225]  |PARTITIONED|
+                                    -- OPTIMIZE_GROUP_BY[$$225]  |PARTITIONED|
                                       exchange [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
                                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                         assign [$$225] <- [numeric-mod(numeric-multiply($$228, $$229), 10000)] project: [$$169, $$225] [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
@@ -137,7 +137,7 @@ distribute result [$$223] [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-
                                                           nested tuple source [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
                                                           -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                      } [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
-                                              -- SORT_GROUP_BY[$$249]  |PARTITIONED|
+                                              -- OPTIMIZE_GROUP_BY[$$249]  |PARTITIONED|
                                                 exchange [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
                                                 -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                                   assign [$$249] <- [numeric-mod(numeric-multiply($$250, $$251), 10000)] project: [$$259, $$249] [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]

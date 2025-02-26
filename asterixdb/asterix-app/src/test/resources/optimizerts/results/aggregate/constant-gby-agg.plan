@@ -21,7 +21,7 @@ distribute result [$$45]
                         nested tuple source
                         -- NESTED_TUPLE_SOURCE  |LOCAL|
                    }
-            -- SORT_GROUP_BY[$$46]  |PARTITIONED|
+            -- OPTIMIZE_GROUP_BY[$$46]  |PARTITIONED|
               exchange
               -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                 assign [$$46] <- [$$u.getField("alias")] project: [$$46]

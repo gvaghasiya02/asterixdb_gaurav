@@ -21,7 +21,7 @@ distribute result [$$186] [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-
                         nested tuple source [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
                         -- NESTED_TUPLE_SOURCE  |LOCAL|
                    } [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
-            -- SORT_GROUP_BY[$$191, $$192, $$214]  |PARTITIONED|
+            -- OPTIMIZE_GROUP_BY[$$191, $$192, $$214]  |PARTITIONED|
               exchange [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
               -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                 assign [$$184, $$214] <- [numeric-multiply($$211, numeric-subtract(1, $$212)), get-year(date($$190))] project: [$$184, $$191, $$192, $$214] [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]

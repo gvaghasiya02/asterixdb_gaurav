@@ -21,7 +21,7 @@ distribute result [$$196]
                         nested tuple source
                         -- NESTED_TUPLE_SOURCE  |LOCAL|
                    }
-            -- SORT_GROUP_BY[$$225, $$198]  |PARTITIONED|
+            -- OPTIMIZE_GROUP_BY[$$225, $$198]  |PARTITIONED|
               exchange
               -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                 assign [$$198] <- [get-year(date($$219))] project: [$$218, $$225, $$198]

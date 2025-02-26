@@ -22,5 +22,6 @@
  */
 
 use test;
+set `compiler.optimize.groupby` 'false';
 
 select group_id,min(array_f) from closedDs1 group by group_id order by group_id;

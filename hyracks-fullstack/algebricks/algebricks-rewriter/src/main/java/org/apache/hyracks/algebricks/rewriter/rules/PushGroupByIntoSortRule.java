@@ -31,11 +31,13 @@ import org.apache.hyracks.algebricks.core.algebra.base.IOptimizationContext;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalVariable;
 import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
+import org.apache.hyracks.algebricks.core.algebra.expressions.AggregateFunctionCallExpression;
 import org.apache.hyracks.algebricks.core.algebra.expressions.IMergeAggregationExpressionFactory;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.AbstractStableSortPOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.physical.OptimizeGroupByPOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.SortGroupByPOperator;
 import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
 
@@ -110,6 +112,42 @@ public class PushGroupByIntoSortRule implements IAlgebraicRewriteRule {
                         op.getInputs().clear();
                         op.getInputs().addAll(op2.getInputs());
                         changed = true;
+                    }
+                    AbstractLogicalOperator op3 =
+                            (AbstractLogicalOperator) op2Ref.getValue().getInputs().get(0).getValue();
+                    if (context.getPhysicalOptimizationConfig().isOptimizationGroupBy()
+                            && op3.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.HASH_PARTITION_EXCHANGE
+                            && groupByOperator.isGlobal()) {
+                        AbstractLogicalOperator localOp = (AbstractLogicalOperator) op3.getInputs().get(0).getValue();
+                        if (localOp.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.SORT_GROUP_BY) {
+                            GroupByOperator localGroupbyOperator = (GroupByOperator) localOp;
+                            ILogicalPlan localP0 = localGroupbyOperator.getNestedPlans().get(0);
+                            Mutable<ILogicalOperator> localR0 = localP0.getRoots().get(0);
+                            AggregateOperator localAggregateOp = (AggregateOperator) localR0.getValue();
+
+                            if (localAggregateOp.getExpressions().size() != 1)
+                                continue;
+                            if (!localAggregateOp.getExpressions().get(0).getValue().isFunctional())
+                                continue;
+                            AggregateFunctionCallExpression temp = (AggregateFunctionCallExpression) localAggregateOp
+                                    .getExpressions().get(0).getValue();
+                            if (temp.getArguments().size() != 1)
+                                continue;
+
+                            if (localAggregateOp.getExpressions().get(0).getValue().toString().contains("sql-count")
+                                    || localAggregateOp.getExpressions().get(0).getValue().toString()
+                                            .contains("sql-sum")
+                                    || localAggregateOp.getExpressions().get(0).getValue().toString()
+                                            .contains("sql-max")
+                                    || localAggregateOp.getExpressions().get(0).getValue().toString()
+                                            .contains("sql-min")) {
+                                if (!localGroupbyOperator.isGroupAll()) {
+                                    localOp.setPhysicalOperator(
+                                            new OptimizeGroupByPOperator(localGroupbyOperator.getGroupByVarList(),
+                                                    localGroupbyOperator.isGroupAll()));
+                                }
+                            }
+                        }
                     }
                 }
                 continue;

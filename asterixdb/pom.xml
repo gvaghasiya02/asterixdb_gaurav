@@ -1433,6 +1433,11 @@
       </dependency>
       <dependency>
         <groupId>org.apache.hyracks</groupId>
+        <artifactId>hyracks-unsafe</artifactId>
+        <version>${hyracks.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hyracks</groupId>
         <artifactId>hyracks-storage-am-lsm-btree-column</artifactId>
         <version>${hyracks.version}</version>
       </dependency>

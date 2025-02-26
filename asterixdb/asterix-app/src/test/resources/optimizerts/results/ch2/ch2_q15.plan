@@ -45,7 +45,7 @@ distribute result [$$223]
                                                 nested tuple source
                                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                                            }
-                                    -- SORT_GROUP_BY[$$225]  |PARTITIONED|
+                                    -- OPTIMIZE_GROUP_BY[$$225]  |PARTITIONED|
                                       exchange
                                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                         assign [$$225] <- [numeric-mod(numeric-multiply($$228, $$229), 10000)] project: [$$169, $$225]
@@ -137,7 +137,7 @@ distribute result [$$223]
                                                           nested tuple source
                                                           -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                      }
-                                              -- SORT_GROUP_BY[$$249]  |PARTITIONED|
+                                              -- OPTIMIZE_GROUP_BY[$$249]  |PARTITIONED|
                                                 exchange
                                                 -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                                   assign [$$249] <- [numeric-mod(numeric-multiply($$250, $$251), 10000)] project: [$$259, $$249]

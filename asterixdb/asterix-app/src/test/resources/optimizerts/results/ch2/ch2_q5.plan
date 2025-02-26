@@ -29,7 +29,7 @@ distribute result [$$243]
                                 nested tuple source
                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                            }
-                    -- SORT_GROUP_BY[$$275]  |PARTITIONED|
+                    -- OPTIMIZE_GROUP_BY[$$275]  |PARTITIONED|
                       exchange
                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                         project ([$$280, $$275])

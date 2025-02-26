@@ -295,24 +295,12 @@
                                                 ],
                                                 "operatorId": "1.12",
                                                 "runtime-id": "R{.+}",
-                                                "activity-stats": [
-                                                  {
-                                                    "name": "Sort (Run Generation)",
-                                                    "id": "ANID:0",
-                                                    "min-time": "R{[0-9.]+}",
-                                                    "max-time": "R{[0-9.]+}"
-                                                  },
-                                                  {
-                                                    "name": "Sort (Run Merge)",
-                                                    "id": "ANID:1",
-                                                    "min-time": "R{[0-9.]+}",
-                                                    "max-time": "R{[0-9.]+}",
-                                                    "min-cardinality": 3,
-                                                    "max-cardinality": 3,
-                                                    "total-cardinality": 3
-                                                  }
-                                                ],
-                                                "physical-operator": "SORT_GROUP_BY[$$50]",
+                                                "max-cardinality": 3,
+                                                "max-time": "R{[0-9.]+}",
+                                                "min-cardinality": 3,
+                                                "min-time": "R{[0-9.]+}",
+                                                "total-cardinality": 3,
+                                                "physical-operator": "OPTIMIZE_GROUP_BY[$$50]",
                                                 "execution-mode": "PARTITIONED",
                                                 "optimizer-estimates": {
                                                   "cardinality": "R{[0-9.]+}",
@@ -458,7 +446,7 @@
                                                                                 "execution-mode": "PARTITIONED",
                                                                                 "optimizer-estimates": {
                                                                                   "cardinality": "R{[0-9.]+}",
-  "doc-size": "R{[0-9.]+}",
+                                                                                  "doc-size": "R{[0-9.]+}",
                                                                                   "op-cost": "R{[0-9.]+}",
                                                                                   "total-cost": "R{[0-9.]+}"
                                                                                 }

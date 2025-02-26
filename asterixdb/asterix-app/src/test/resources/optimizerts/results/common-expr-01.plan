@@ -21,7 +21,7 @@ distribute result [$$176]
                         nested tuple source
                         -- NESTED_TUPLE_SOURCE  |LOCAL|
                    }
-            -- SORT_GROUP_BY[$$177, $$178]  |PARTITIONED|
+            -- OPTIMIZE_GROUP_BY[$$177, $$178]  |PARTITIONED|
               exchange
               -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                 assign [$$178] <- [get-hour(duration-from-interval(interval(parse-datetime(print-datetime(current-datetime(), "YYYY-MM-DDThh:mm:ss"), "YYYY-MM-DDThh:mm:ss"), parse-datetime($$183, "YYYY-MM-DDThh:mm:ss"))))] project: [$$174, $$177, $$178]

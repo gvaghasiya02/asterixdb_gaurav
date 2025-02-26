@@ -29,7 +29,7 @@ distribute result [$$339] [cardinality: 9.223372036854776E16, op-cost: 0.0, tota
                                 nested tuple source
                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                            } [cardinality: 0.0, op-cost: 0.0, total-cost: 1.250023E12]
-                    -- SORT_GROUP_BY[$$su_name]  |PARTITIONED|
+                    -- OPTIMIZE_GROUP_BY[$$su_name]  |PARTITIONED|
                       exchange [cardinality: 9.223372036854776E16, op-cost: 0.0, total-cost: 1.250023E12]
                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                         select (eq($$363, 0)) project: [$$su_name]
@@ -53,7 +53,7 @@ distribute result [$$339] [cardinality: 9.223372036854776E16, op-cost: 0.0, tota
                                               nested tuple source
                                               -- NESTED_TUPLE_SOURCE  |LOCAL|
                                          } [cardinality: 0.0, op-cost: 0.0, total-cost: 1.250023E12]
-                                  -- SORT_GROUP_BY[$$352, $$378, $$377, $$354, $$355, $$351, $$350, $$379]  |PARTITIONED|
+                                  -- OPTIMIZE_GROUP_BY[$$352, $$378, $$377, $$354, $$355, $$351, $$350, $$379]  |PARTITIONED|
                                     exchange [cardinality: 9.223372036854776E16, op-cost: 0.0, total-cost: 1.250023E12]
                                     -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                       project ([$$326, $$352, $$378, $$377, $$354, $$355, $$351, $$350, $$379]) [cardinality: 9.223372036854776E16, op-cost: 0.0, total-cost: 1.250023E12]

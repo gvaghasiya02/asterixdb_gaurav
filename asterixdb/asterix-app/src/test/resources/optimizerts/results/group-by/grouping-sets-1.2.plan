@@ -77,7 +77,7 @@ distribute result [$#3]
                                                                                 nested tuple source
                                                                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                                            }
-                                                                    -- SORT_GROUP_BY[$$724, $$725, $$726, $$727]  |PARTITIONED|
+                                                                    -- OPTIMIZE_GROUP_BY[$$724, $$725, $$726, $$727]  |PARTITIONED|
                                                                       exchange
                                                                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                                                         assign [$$727, $$726, $$725, $$724, $$526] <- [$$tenk.getField(5), $$tenk.getField(4), $$tenk.getField(3), $$tenk.getField(2), $$tenk.getField(6)] project: [$$727, $$726, $$725, $$724, $$526]
@@ -121,7 +121,7 @@ distribute result [$#3]
                                                                                 nested tuple source
                                                                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                                            }
-                                                                    -- SORT_GROUP_BY[$$728, $$729, $$730]  |PARTITIONED|
+                                                                    -- OPTIMIZE_GROUP_BY[$$728, $$729, $$730]  |PARTITIONED|
                                                                       exchange
                                                                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                                                         assign [$$700, $$730, $$729, $$728, $$541] <- [null, $$tenk.getField(4), $$tenk.getField(3), $$tenk.getField(2), $$tenk.getField(6)] project: [$$700, $$730, $$729, $$728, $$541]
@@ -163,7 +163,7 @@ distribute result [$#3]
                                                                             nested tuple source
                                                                             -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                                        }
-                                                                -- SORT_GROUP_BY[$$731, $$732, $$733]  |PARTITIONED|
+                                                                -- OPTIMIZE_GROUP_BY[$$731, $$732, $$733]  |PARTITIONED|
                                                                   exchange
                                                                   -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                                                     assign [$$701, $$733, $$732, $$731, $$556] <- [null, $$tenk.getField(5), $$tenk.getField(3), $$tenk.getField(2), $$tenk.getField(6)] project: [$$701, $$733, $$732, $$731, $$556]
@@ -207,7 +207,7 @@ distribute result [$#3]
                                                                         nested tuple source
                                                                         -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                                    }
-                                                            -- SORT_GROUP_BY[$$734, $$735]  |PARTITIONED|
+                                                            -- OPTIMIZE_GROUP_BY[$$734, $$735]  |PARTITIONED|
                                                               exchange
                                                               -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                                                 assign [$$702, $$703, $$735, $$734, $$570] <- [null, null, $$tenk.getField(3), $$tenk.getField(2), $$tenk.getField(6)] project: [$$702, $$703, $$735, $$734, $$570]
@@ -251,7 +251,7 @@ distribute result [$#3]
                                                                     nested tuple source
                                                                     -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                                }
-                                                        -- SORT_GROUP_BY[$$736, $$737, $$738]  |PARTITIONED|
+                                                        -- OPTIMIZE_GROUP_BY[$$736, $$737, $$738]  |PARTITIONED|
                                                           exchange
                                                           -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                                             assign [$$704, $$738, $$737, $$736, $$585] <- [null, $$tenk.getField(5), $$tenk.getField(4), $$tenk.getField(2), $$tenk.getField(6)] project: [$$704, $$738, $$737, $$736, $$585]
@@ -295,7 +295,7 @@ distribute result [$#3]
                                                                 nested tuple source
                                                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                            }
-                                                    -- SORT_GROUP_BY[$$739, $$740]  |PARTITIONED|
+                                                    -- OPTIMIZE_GROUP_BY[$$739, $$740]  |PARTITIONED|
                                                       exchange
                                                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                                         assign [$$705, $$706, $$740, $$739, $$599] <- [null, null, $$tenk.getField(4), $$tenk.getField(2), $$tenk.getField(6)] project: [$$705, $$706, $$740, $$739, $$599]
@@ -339,7 +339,7 @@ distribute result [$#3]
                                                             nested tuple source
                                                             -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                        }
-                                                -- SORT_GROUP_BY[$$741, $$742]  |PARTITIONED|
+                                                -- OPTIMIZE_GROUP_BY[$$741, $$742]  |PARTITIONED|
                                                   exchange
                                                   -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                                     assign [$$707, $$708, $$742, $$741, $$613] <- [null, null, $$tenk.getField(5), $$tenk.getField(2), $$tenk.getField(6)] project: [$$707, $$708, $$742, $$741, $$613]
@@ -383,7 +383,7 @@ distribute result [$#3]
                                                         nested tuple source
                                                         -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                    }
-                                            -- SORT_GROUP_BY[$$743]  |PARTITIONED|
+                                            -- OPTIMIZE_GROUP_BY[$$743]  |PARTITIONED|
                                               exchange
                                               -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                                 assign [$$709, $$710, $$711, $$626, $$743] <- [null, null, null, $$tenk.getField(6), $$tenk.getField(2)] project: [$$709, $$710, $$711, $$626, $$743]
@@ -427,7 +427,7 @@ distribute result [$#3]
                                                 nested tuple source
                                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                                            }
-                                    -- SORT_GROUP_BY[$$744, $$745]  |PARTITIONED|
+                                    -- OPTIMIZE_GROUP_BY[$$744, $$745]  |PARTITIONED|
                                       exchange
                                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                         assign [$$712, $$713, $$745, $$744, $$640] <- [null, null, $$tenk.getField(5), $$tenk.getField(4), $$tenk.getField(6)] project: [$$712, $$713, $$745, $$744, $$640]
@@ -471,7 +471,7 @@ distribute result [$#3]
                                             nested tuple source
                                             -- NESTED_TUPLE_SOURCE  |LOCAL|
                                        }
-                                -- SORT_GROUP_BY[$$746]  |PARTITIONED|
+                                -- OPTIMIZE_GROUP_BY[$$746]  |PARTITIONED|
                                   exchange
                                   -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                     assign [$$714, $$715, $$716, $$653, $$746] <- [null, null, null, $$tenk.getField(6), $$tenk.getField(4)] project: [$$714, $$715, $$716, $$653, $$746]
@@ -515,7 +515,7 @@ distribute result [$#3]
                                         nested tuple source
                                         -- NESTED_TUPLE_SOURCE  |LOCAL|
                                    }
-                            -- SORT_GROUP_BY[$$747]  |PARTITIONED|
+                            -- OPTIMIZE_GROUP_BY[$$747]  |PARTITIONED|
                               exchange
                               -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                 assign [$$717, $$718, $$719, $$666, $$747] <- [null, null, null, $$tenk.getField(6), $$tenk.getField(5)] project: [$$717, $$718, $$719, $$666, $$747]
@@ -561,7 +561,7 @@ distribute result [$#3]
                                       nested tuple source
                                       -- NESTED_TUPLE_SOURCE  |LOCAL|
                                  }
-                          -- SORT_GROUP_BY[$$748]  |PARTITIONED|
+                          -- OPTIMIZE_GROUP_BY[$$748]  |PARTITIONED|
                             exchange
                             -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                               assign [$$748, $$720, $$721, $$722, $$723, $$679] <- [true, null, null, null, null, $$tenk.getField(6)] project: [$$748, $$720, $$721, $$722, $$723, $$679]

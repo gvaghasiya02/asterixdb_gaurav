@@ -29,7 +29,7 @@ distribute result [$$339]
                                 nested tuple source
                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                            }
-                    -- SORT_GROUP_BY[$$su_name]  |PARTITIONED|
+                    -- OPTIMIZE_GROUP_BY[$$su_name]  |PARTITIONED|
                       exchange
                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                         select (eq($$363, 0)) project: [$$su_name]
@@ -53,7 +53,7 @@ distribute result [$$339]
                                               nested tuple source
                                               -- NESTED_TUPLE_SOURCE  |LOCAL|
                                          }
-                                  -- SORT_GROUP_BY[$$352, $$378, $$377, $$354, $$355, $$351, $$350, $$379]  |PARTITIONED|
+                                  -- OPTIMIZE_GROUP_BY[$$352, $$378, $$377, $$354, $$355, $$351, $$350, $$379]  |PARTITIONED|
                                     exchange
                                     -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                       project ([$$326, $$352, $$378, $$377, $$354, $$355, $$351, $$350, $$379])

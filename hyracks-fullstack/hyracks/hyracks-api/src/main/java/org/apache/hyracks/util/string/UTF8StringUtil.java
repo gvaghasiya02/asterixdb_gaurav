@@ -330,6 +330,19 @@ public class UTF8StringUtil {
         return hash(bytes, start, length, true, false, 31, Integer.MAX_VALUE);
     }
 
+    public static boolean rawByteEquals(byte[] a1, int s1, int l1, byte[] a2, int s2, int l2) {
+        if (l1 != l2) {
+            return false;
+        }
+
+        for (int i = 0; i < l1; i++) {
+            if (a1[i + s1] != a2[i + s2]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static String toString(byte[] bytes, int start) {
         StringBuilder builder = new StringBuilder();
         return toString(bytes, start, builder);

@@ -45,7 +45,7 @@ distribute result [$$75]
                                                 nested tuple source
                                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                                            }
-                                    -- SORT_GROUP_BY[$$76]  |PARTITIONED|
+                                    -- OPTIMIZE_GROUP_BY[$$76]  |PARTITIONED|
                                       exchange
                                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                         assign [$$76] <- [$$testdst.getField(1)] project: [$$76]

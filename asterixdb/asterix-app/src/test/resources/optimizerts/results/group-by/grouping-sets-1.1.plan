@@ -45,7 +45,7 @@ distribute result [$#3]
                                                 nested tuple source
                                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                                            }
-                                    -- SORT_GROUP_BY[$$244]  |PARTITIONED|
+                                    -- OPTIMIZE_GROUP_BY[$$244]  |PARTITIONED|
                                       exchange
                                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                         assign [$$237, $$238, $$185, $$244] <- [null, null, $$tenk.getField(5), $$tenk.getField(2)] project: [$$237, $$238, $$185, $$244]
@@ -89,7 +89,7 @@ distribute result [$#3]
                                                 nested tuple source
                                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                                            }
-                                    -- SORT_GROUP_BY[$$245]  |PARTITIONED|
+                                    -- OPTIMIZE_GROUP_BY[$$245]  |PARTITIONED|
                                       exchange
                                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                         assign [$$239, $$240, $$198, $$245] <- [null, null, $$tenk.getField(5), $$tenk.getField(3)] project: [$$239, $$240, $$198, $$245]
@@ -131,7 +131,7 @@ distribute result [$#3]
                                             nested tuple source
                                             -- NESTED_TUPLE_SOURCE  |LOCAL|
                                        }
-                                -- SORT_GROUP_BY[$$246, $$247]  |PARTITIONED|
+                                -- OPTIMIZE_GROUP_BY[$$246, $$247]  |PARTITIONED|
                                   exchange
                                   -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                     assign [$$241, $$247, $$246, $$212] <- [null, $$tenk.getField(3), $$tenk.getField(2), $$tenk.getField(5)] project: [$$241, $$247, $$246, $$212]
@@ -175,7 +175,7 @@ distribute result [$#3]
                                     nested tuple source
                                     -- NESTED_TUPLE_SOURCE  |LOCAL|
                                }
-                        -- SORT_GROUP_BY[$$248]  |PARTITIONED|
+                        -- OPTIMIZE_GROUP_BY[$$248]  |PARTITIONED|
                           exchange
                           -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                             assign [$$242, $$243, $$225, $$248] <- [null, null, $$tenk.getField(5), $$tenk.getField(4)] project: [$$242, $$243, $$225, $$248]

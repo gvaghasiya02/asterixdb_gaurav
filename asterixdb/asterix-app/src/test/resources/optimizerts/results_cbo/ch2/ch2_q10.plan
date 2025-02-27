@@ -31,7 +31,7 @@ distribute result [$$159] [cardinality: 5.0E12, op-cost: 0.0, total-cost: 2.6000
                                   nested tuple source
                                   -- NESTED_TUPLE_SOURCE  |LOCAL|
                              } [cardinality: 0.0, op-cost: 0.0, total-cost: 2.600009E7]
-                      -- SORT_GROUP_BY[$$166, $$161, $$162, $$163, $$164]  |PARTITIONED|
+                      -- OPTIMIZE_GROUP_BY[$$166, $$161, $$162, $$163, $$164]  |PARTITIONED|
                         exchange [cardinality: 5.0E12, op-cost: 0.0, total-cost: 2.600009E7]
                         -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                           project ([$$156, $$166, $$161, $$162, $$163, $$164]) [cardinality: 5.0E12, op-cost: 0.0, total-cost: 2.600009E7]

@@ -31,7 +31,7 @@ distribute result [$$159]
                                   nested tuple source
                                   -- NESTED_TUPLE_SOURCE  |LOCAL|
                              }
-                      -- SORT_GROUP_BY[$$166, $$161, $$162, $$163, $$164]  |PARTITIONED|
+                      -- OPTIMIZE_GROUP_BY[$$166, $$161, $$162, $$163, $$164]  |PARTITIONED|
                         exchange
                         -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                           project ([$$156, $$166, $$161, $$162, $$163, $$164])

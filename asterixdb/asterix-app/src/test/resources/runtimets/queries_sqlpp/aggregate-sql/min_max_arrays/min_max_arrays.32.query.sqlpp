@@ -23,5 +23,6 @@
 
 use test;
 set `compiler.groupmemory` "128KB";
+set `compiler.optimize.groupby` 'false';
 
 select group_id,min(array_f) from openDs3 group by group_id order by group_id;

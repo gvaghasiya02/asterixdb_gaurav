@@ -22,5 +22,6 @@
  */
 
 use test;
+set `compiler.optimize.groupby` 'false';
 
 select group_id,max(distinct array_f) from openDs group by group_id order by group_id;

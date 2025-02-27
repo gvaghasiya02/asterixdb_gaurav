@@ -225,6 +225,12 @@ public final class UTF8StringPointable extends AbstractPointable implements IHas
                 valueB.getStartOffset());
     }
 
+    public static boolean areEqual(IValueReference valueA, IValueReference valueB) {
+        return valueA.getLength() == valueB.getLength()
+                && UTF8StringUtil.rawByteEquals(valueA.getByteArray(), valueA.getStartOffset(), valueA.getLength(),
+                        valueB.getByteArray(), valueB.getStartOffset(), valueB.getLength());
+    }
+
     /**
      * @param src,        the source string.
      * @param pattern,    the pattern string.

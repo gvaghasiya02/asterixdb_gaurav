@@ -92,7 +92,7 @@ distribute result [$$107]
                                                         nested tuple source
                                                         -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                    }
-                                            -- SORT_GROUP_BY[$$117]  |PARTITIONED|
+                                            -- OPTIMIZE_GROUP_BY[$$117]  |PARTITIONED|
                                               exchange
                                               -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                                 select (ge($$118.getField("ts"), 2000)) project: [$$117]

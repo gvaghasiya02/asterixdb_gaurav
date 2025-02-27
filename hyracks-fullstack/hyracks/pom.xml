@@ -101,6 +101,7 @@
     <module>hyracks-hdfs</module>
     <module>hyracks-dist</module>
     <module>hyracks-http</module>
+    <module>hyracks-unsafe</module>
     <module>hyracks-cloud</module>
   </modules>
 </project>

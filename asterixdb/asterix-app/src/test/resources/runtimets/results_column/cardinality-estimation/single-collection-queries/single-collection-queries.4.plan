@@ -23,7 +23,7 @@ distribute result [$$48] [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-c
                           nested tuple source [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
                           -- NESTED_TUPLE_SOURCE  |LOCAL|
                      } [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
-              -- SORT_GROUP_BY[$$49]  |PARTITIONED|
+              -- OPTIMIZE_GROUP_BY[$$49]  |PARTITIONED|
                 exchange [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
                 -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                   assign [$$49] <- [$$o.getField(4)] project: [$$49] [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]

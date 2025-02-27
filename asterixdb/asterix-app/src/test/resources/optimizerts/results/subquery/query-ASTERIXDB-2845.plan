@@ -73,7 +73,7 @@ distribute result [$$291]
                                                           nested tuple source
                                                           -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                      }
-                                              -- SORT_GROUP_BY[$$292, $$293]  |PARTITIONED|
+                                              -- OPTIMIZE_GROUP_BY[$$292, $$293]  |PARTITIONED|
                                                 exchange
                                                 -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                                   assign [$$293, $$292] <- [$$mds.getField("x"), $$mds.getField("jid")] project: [$$292, $$293]
@@ -157,7 +157,7 @@ distribute result [$$291]
                                                                 nested tuple source
                                                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                                                            }
-                                                    -- SORT_GROUP_BY[$$330, $$331]  |PARTITIONED|
+                                                    -- OPTIMIZE_GROUP_BY[$$330, $$331]  |PARTITIONED|
                                                       exchange
                                                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                                         assign [$$330, $$331] <- [$$332.getField("jid"), $$332.getField("x")] project: [$$330, $$331]
@@ -201,7 +201,7 @@ distribute result [$$291]
                                               nested tuple source
                                               -- NESTED_TUPLE_SOURCE  |LOCAL|
                                          }
-                                  -- SORT_GROUP_BY[$$294, $$295]  |PARTITIONED|
+                                  -- OPTIMIZE_GROUP_BY[$$294, $$295]  |PARTITIONED|
                                     exchange
                                     -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                       assign [$$295, $$294] <- [$$mds.getField("y"), $$mds.getField("jid")] project: [$$294, $$295]

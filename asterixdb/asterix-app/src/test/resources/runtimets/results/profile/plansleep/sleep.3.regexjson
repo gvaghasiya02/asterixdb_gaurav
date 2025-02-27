@@ -325,6 +325,7 @@
                                                 ],
                                                 "operatorId": "1.12",
                                                 "runtime-id": "R{.+}",
+<<<<<<< HEAD
                                                 "activity-stats": [
                                                   {
                                                     "name": "Sort (Run Generation)",
@@ -349,6 +350,14 @@
                                                   }
                                                 ],
                                                 "physical-operator": "SORT_GROUP_BY[$$50]",
+=======
+                                                "max-cardinality": 3,
+                                                "max-time": "R{[0-9.]+}",
+                                                "min-cardinality": 3,
+                                                "min-time": "R{[0-9.]+}",
+                                                "total-cardinality": 3,
+                                                "physical-operator": "OPTIMIZE_GROUP_BY[$$50]",
+>>>>>>> 4e1cec93a0 (HYBIRD GBY)
                                                 "execution-mode": "PARTITIONED",
                                                 "optimizer-estimates": {
                                                   "cardinality": "R{[0-9.]+}",
@@ -518,7 +527,7 @@
                                                                                 "execution-mode": "PARTITIONED",
                                                                                 "optimizer-estimates": {
                                                                                   "cardinality": "R{[0-9.]+}",
-  "doc-size": "R{[0-9.]+}",
+                                                                                  "doc-size": "R{[0-9.]+}",
                                                                                   "op-cost": "R{[0-9.]+}",
                                                                                   "total-cost": "R{[0-9.]+}"
                                                                                 }

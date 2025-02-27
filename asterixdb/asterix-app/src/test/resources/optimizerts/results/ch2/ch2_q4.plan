@@ -21,7 +21,7 @@ distribute result [$$72]
                         nested tuple source
                         -- NESTED_TUPLE_SOURCE  |LOCAL|
                    }
-            -- SORT_GROUP_BY[$$73]  |PARTITIONED|
+            -- OPTIMIZE_GROUP_BY[$$73]  |PARTITIONED|
               exchange
               -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                 select (neq($$76, 0)) project: [$$73]

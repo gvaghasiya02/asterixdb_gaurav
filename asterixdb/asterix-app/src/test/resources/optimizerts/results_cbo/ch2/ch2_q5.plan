@@ -29,7 +29,7 @@ distribute result [$$243] [cardinality: 9.223372036854776E16, doc-size: -6.0, op
                                 nested tuple source [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
                            } [cardinality: 9.223372036854776E16, doc-size: -6.0, op-cost: 0.0, total-cost: 9.223372036854776E16]
-                    -- SORT_GROUP_BY[$$275]  |PARTITIONED|
+                    -- OPTIMIZE_GROUP_BY[$$275]  |PARTITIONED|
                       exchange [cardinality: 9.223372036854776E16, doc-size: -6.0, op-cost: 0.0, total-cost: 9.223372036854776E16]
                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                         project ([$$280, $$275]) [cardinality: 9.223372036854776E16, doc-size: -6.0, op-cost: 0.0, total-cost: 9.223372036854776E16]

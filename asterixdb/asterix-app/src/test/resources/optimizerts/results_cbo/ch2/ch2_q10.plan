@@ -30,9 +30,15 @@ distribute result [$$159] [cardinality: 9.223372036854776E16, doc-size: 1.0, op-
                                 -- AGGREGATE  |LOCAL|
                                   nested tuple source [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
                                   -- NESTED_TUPLE_SOURCE  |LOCAL|
+<<<<<<< HEAD
                              } [cardinality: 9.223372036854776E16, doc-size: 1.0, op-cost: 0.0, total-cost: 1.25003000009E12]
                       -- SORT_GROUP_BY[$$166, $$161, $$162, $$163, $$164]  |PARTITIONED|
                         exchange [cardinality: 9.223372036854776E16, doc-size: 1.0, op-cost: 0.0, total-cost: 1.25003000009E12]
+=======
+                             } [cardinality: 0.0, op-cost: 0.0, total-cost: 2.600009E7]
+                      -- OPTIMIZE_GROUP_BY[$$166, $$161, $$162, $$163, $$164]  |PARTITIONED|
+                        exchange [cardinality: 5.0E12, op-cost: 0.0, total-cost: 2.600009E7]
+>>>>>>> 4e1cec93a0 (HYBIRD GBY)
                         -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                           project ([$$156, $$166, $$161, $$162, $$163, $$164]) [cardinality: 9.223372036854776E16, doc-size: 1.0, op-cost: 0.0, total-cost: 1.25003000009E12]
                           -- STREAM_PROJECT  |PARTITIONED|

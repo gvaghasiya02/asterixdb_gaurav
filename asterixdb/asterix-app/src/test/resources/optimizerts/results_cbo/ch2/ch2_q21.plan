@@ -28,9 +28,15 @@ distribute result [$$339] [cardinality: 9.223372036854776E16, doc-size: -5.0, op
                               -- AGGREGATE  |LOCAL|
                                 nested tuple source [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
                                 -- NESTED_TUPLE_SOURCE  |LOCAL|
+<<<<<<< HEAD
                            } [cardinality: 9.223372036854776E16, doc-size: -5.0, op-cost: 0.0, total-cost: 9.223372036854776E16]
                     -- SORT_GROUP_BY[$$su_name]  |PARTITIONED|
                       exchange [cardinality: 9.223372036854776E16, doc-size: -5.0, op-cost: 0.0, total-cost: 9.223372036854776E16]
+=======
+                           } [cardinality: 0.0, op-cost: 0.0, total-cost: 1.250023E12]
+                    -- OPTIMIZE_GROUP_BY[$$su_name]  |PARTITIONED|
+                      exchange [cardinality: 9.223372036854776E16, op-cost: 0.0, total-cost: 1.250023E12]
+>>>>>>> 4e1cec93a0 (HYBIRD GBY)
                       -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                         select (eq($$363, 0)) project: [$$su_name] [cardinality: 9.223372036854776E16, doc-size: -5.0, op-cost: 0.0, total-cost: 9.223372036854776E16]
                         -- STREAM_SELECT  |PARTITIONED|
@@ -52,9 +58,15 @@ distribute result [$$339] [cardinality: 9.223372036854776E16, doc-size: -5.0, op
                                             -- AGGREGATE  |LOCAL|
                                               nested tuple source [cardinality: 0.0, doc-size: 0.0, op-cost: 0.0, total-cost: 0.0]
                                               -- NESTED_TUPLE_SOURCE  |LOCAL|
+<<<<<<< HEAD
                                          } [cardinality: 9.223372036854776E16, doc-size: -5.0, op-cost: 0.0, total-cost: 9.223372036854776E16]
                                   -- SORT_GROUP_BY[$$352, $$378, $$377, $$354, $$355, $$351, $$350, $$379]  |PARTITIONED|
                                     exchange [cardinality: 9.223372036854776E16, doc-size: -5.0, op-cost: 0.0, total-cost: 9.223372036854776E16]
+=======
+                                         } [cardinality: 0.0, op-cost: 0.0, total-cost: 1.250023E12]
+                                  -- OPTIMIZE_GROUP_BY[$$352, $$378, $$377, $$354, $$355, $$351, $$350, $$379]  |PARTITIONED|
+                                    exchange [cardinality: 9.223372036854776E16, op-cost: 0.0, total-cost: 1.250023E12]
+>>>>>>> 4e1cec93a0 (HYBIRD GBY)
                                     -- ONE_TO_ONE_EXCHANGE  |PARTITIONED|
                                       project ([$$326, $$352, $$378, $$377, $$354, $$355, $$351, $$350, $$379]) [cardinality: 9.223372036854776E16, doc-size: -5.0, op-cost: 0.0, total-cost: 9.223372036854776E16]
                                       -- STREAM_PROJECT  |PARTITIONED|

@@ -19,6 +19,7 @@
 
 package org.apache.hyracks.dataflow.std.group;
 
+import java.time.Instant;
 import java.util.BitSet;
 
 import org.apache.hyracks.api.comm.IFrameTupleAccessor;
@@ -131,8 +132,13 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
 
         final int numPartitions = getNumOfPartitions(inputDataBytesSize / ctx.getInitialFrameSize(), memoryBudget);
         final int entriesPerPartition = (int) Math.ceil(1.0 * tableSize / numPartitions);
+<<<<<<< HEAD
         LOGGER.trace("created hashtable, table size:{} file size:{}  #partitions:{}", tableSize, inputDataBytesSize,
                 numPartitions);
+=======
+        LOGGER.warn(Thread.currentThread().getId() + " created hashtable, table size:" + tableSize + " file size:"
+                + inputDataBytesSize + "  #partitions:" + numPartitions);
+>>>>>>> fcae0e0f05 (added stats for Hash and Sort)
 
         final ArrayTupleBuilder outputTupleBuilder = new ArrayTupleBuilder(outRecordDescriptor.getFields().length);
 
@@ -181,10 +187,21 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
 
             private boolean collectGarbageInHashTableForTuplePointer(boolean force) throws HyracksDataException {
                 if (force || hashTableForTuplePointer.isGarbageCollectionNeeded()) {
+                    Instant currentTimestamp = Instant.now();
+                    long stTime = currentTimestamp.getEpochSecond() * 1_000_000_000 + currentTimestamp.getNano();
                     int numberOfFramesReclaimed =
                             hashTableForTuplePointer.collectGarbage(bufferAccessor, tpcIntermediate);
+<<<<<<< HEAD
                     LOGGER.trace("Garbage Collection on Hash table is done. Deallocated frames:{}",
                             numberOfFramesReclaimed);
+=======
+                    currentTimestamp = Instant.now();
+                    long endTime = currentTimestamp.getEpochSecond() * 1_000_000_000 + currentTimestamp.getNano();
+
+                    LOGGER.warn(Thread.currentThread().getId()
+                            + " Garbage Collection on Hash table is done. Deallocated frames:" + numberOfFramesReclaimed
+                            + " in time " + (endTime - stTime));
+>>>>>>> fcae0e0f05 (added stats for Hash and Sort)
                     return numberOfFramesReclaimed != -1;
                 }
                 return false;
@@ -318,6 +335,11 @@ public class HashSpillableTableFactory implements ISpillableTableFactory {
                 int entryInHashTable = tpc.partition(accessor, tIndex, tableSize);
                 int partition = getPartition(entryInHashTable);
                 return spillPolicy.selectVictimPartition(partition);
+            }
+
+            public String getHashTableInfo() {
+                return (String) (hashTableForTuplePointer.printInfo() + "\n AllocatedMemory " + framePool.getAllocated()
+                        + " outOf " + framePool.getMemoryBudgetBytes());
             }
         };
     }

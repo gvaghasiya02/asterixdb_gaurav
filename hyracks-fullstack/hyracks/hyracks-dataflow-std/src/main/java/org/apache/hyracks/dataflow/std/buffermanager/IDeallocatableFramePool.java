@@ -25,4 +25,5 @@ public interface IDeallocatableFramePool extends IFramePool {
 
     void deAllocateBuffer(ByteBuffer buffer);
 
+    int getAllocated();
 }

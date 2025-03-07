@@ -100,4 +100,8 @@ public class ExternalHashGroupBy {
     public int[] getSpilledNumTuples() {
         return spilledNumTuples;
     }
+
+    public ISpillableTable getTable() {
+        return table;
+    }
 }

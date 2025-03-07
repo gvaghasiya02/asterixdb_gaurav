@@ -31,12 +31,15 @@ import org.apache.hyracks.dataflow.std.buffermanager.IFrameBufferManager;
 import org.apache.hyracks.dataflow.std.buffermanager.IFrameFreeSlotPolicy;
 import org.apache.hyracks.dataflow.std.buffermanager.VariableFrameMemoryManager;
 import org.apache.hyracks.dataflow.std.buffermanager.VariableFramePool;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public abstract class AbstractExternalSortRunGenerator extends AbstractSortRunGenerator {
 
     protected final IHyracksTaskContext ctx;
     protected final IFrameSorter frameSorter;
     protected final int maxSortFrames;
+    private static final Logger LOGGER = LogManager.getLogger();
 
     public AbstractExternalSortRunGenerator(IHyracksTaskContext ctx, int[] sortFields,
             INormalizedKeyComputerFactory[] keyNormalizerFactories, IBinaryComparatorFactory[] comparatorFactories,
@@ -76,6 +79,8 @@ public abstract class AbstractExternalSortRunGenerator extends AbstractSortRunGe
     @Override
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         if (!frameSorter.insertFrame(buffer)) {
+            LOGGER.warn(Thread.currentThread().getId()
+                    + " No space Left in Buffer so sorting and flushing frames will start Pre Cluster");
             flushFramesToRun();
             if (!frameSorter.insertFrame(buffer)) {
                 throw new HyracksDataException("The given frame is too big to insert into the sorting memory.");

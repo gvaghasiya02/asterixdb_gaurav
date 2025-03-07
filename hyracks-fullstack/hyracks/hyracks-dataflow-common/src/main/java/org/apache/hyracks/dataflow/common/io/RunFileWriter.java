@@ -25,6 +25,8 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.api.io.IFileHandle;
 import org.apache.hyracks.api.io.IIOManager;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class RunFileWriter implements IFrameWriter {
     private final IIOManager ioManager;
@@ -34,6 +36,7 @@ public class RunFileWriter implements IFrameWriter {
     private IFileHandle handle;
     private long size;
     private int maxOutputFrameSize;
+    private static final Logger LOGGER = LogManager.getLogger();
 
     public RunFileWriter(FileReference file, IIOManager ioManager) {
         this.file = file;
@@ -69,6 +72,7 @@ public class RunFileWriter implements IFrameWriter {
 
     @Override
     public void close() throws HyracksDataException {
+        LOGGER.warn(Thread.currentThread().getId() + " Written {} bytes to {}", size, file);
         if (!failed && handle != null) {
             ioManager.close(handle);
         }

@@ -29,6 +29,7 @@ import org.apache.hyracks.dataflow.std.buffermanager.IFrameBufferManager;
 public class FrameSorterMergeSort extends AbstractFrameSorter {
 
     private int[] tPointersTemp;
+    private long totalcomparision;
 
     public FrameSorterMergeSort(IHyracksTaskContext ctx, IFrameBufferManager bufferManager, int maxSortFrames,
             int[] sortFields, INormalizedKeyComputerFactory[] keyNormalizerFactories,
@@ -51,7 +52,10 @@ public class FrameSorterMergeSort extends AbstractFrameSorter {
         if (tPointersTemp == null || tPointersTemp.length < tPointers.length) {
             tPointersTemp = new int[tPointers.length];
         }
+        this.totalcomparision = 0;
         sort(0, tupleCount);
+        LOGGER.warn(Thread.currentThread().getId() + " Sorting Tuple References " + tupleCount + " Total Comparisions "
+                + totalcomparision);
     }
 
     @Override
@@ -98,6 +102,7 @@ public class FrameSorterMergeSort extends AbstractFrameSorter {
         int end2 = start2 + len2 - 1;
         while (pos1 <= end1 && pos2 <= end2) {
             int cmp = compare(pos1, pos2);
+            this.totalcomparision++;
             if (cmp <= 0) {
                 copy(tPointers, pos1, tPointersTemp, targetPos);
                 pos1++;

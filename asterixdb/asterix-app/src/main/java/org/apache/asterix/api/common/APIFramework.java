@@ -492,8 +492,13 @@ public class APIFramework {
             // Otherwise, we will use all available cores.
             if (parallelismHint == CompilerProperties.COMPILER_PARALLELISM_AS_STORAGE
                     && storageLocations.getLocations().length <= totalNumCores) {
+                LOGGER.warn("ncMapSize " + ncMap.size() + " parallelism " + parallelismHint + " Total no of cores "
+                        + totalNumCores + " locationSize " + storageLocations.getLocations().length);
                 return storageLocations;
             }
+            LOGGER.warn("ncMapSize " + ncMap.size() + " parallelism " + parallelismHint + " Total no of cores "
+                    + totalNumCores + " locationSize "
+                    + getComputationLocations(ncMap, parallelismHint).getLocations().length);
             return getComputationLocations(ncMap, parallelismHint);
         } catch (HyracksException e) {
             throw new AlgebricksException(e);

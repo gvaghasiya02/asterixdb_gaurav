@@ -26,10 +26,14 @@ import org.apache.hyracks.api.comm.IFrameWriter;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.io.GeneratedRunFileReader;
 import org.apache.hyracks.dataflow.common.io.RunFileWriter;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public abstract class AbstractSortRunGenerator implements IRunGenerator {
 
     private final List<GeneratedRunFileReader> generatedRunFileReaders;
+
+    private static final Logger LOGGER = LogManager.getLogger();
 
     public AbstractSortRunGenerator() {
         generatedRunFileReaders = new LinkedList<>();
@@ -43,6 +47,7 @@ public abstract class AbstractSortRunGenerator implements IRunGenerator {
 
     @Override
     public void open() throws HyracksDataException {
+        LOGGER.warn(Thread.currentThread().getId() + " Open to Sort Run Generator " + this.toString());
         generatedRunFileReaders.clear();
     }
 
@@ -56,6 +61,7 @@ public abstract class AbstractSortRunGenerator implements IRunGenerator {
                 flushFramesToRun();
             }
         }
+        LOGGER.warn(Thread.currentThread().getId() + " Close to Sort Run Generator " + this.toString());
     }
 
     abstract protected RunFileWriter getRunFileWriter() throws HyracksDataException;

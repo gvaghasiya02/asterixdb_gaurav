@@ -229,6 +229,8 @@ public abstract class AbstractFrameSorter implements IFrameSorter {
                 io++;
             }
         }
+        LOGGER.warn(Thread.currentThread().getId() + " Flushed records:" + limit + " out of " + tupleCount
+                + "; Flushed through " + (io + 1) + " frames");
         maxFrameSize = Math.max(maxFrameSize, outputFrame.getFrameSize());
         outputAppender.write(writer, true);
         if (LOGGER.isTraceEnabled()) {

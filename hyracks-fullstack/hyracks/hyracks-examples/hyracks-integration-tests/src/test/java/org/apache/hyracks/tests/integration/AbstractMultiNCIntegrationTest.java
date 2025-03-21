@@ -248,6 +248,11 @@ public abstract class AbstractMultiNCIntegrationTest {
                 private long maxRAM = Runtime.getRuntime().maxMemory();
 
                 @Override
+                public double getMemoryRatio(JobSpecification job) {
+                    return (double) job.getRequiredClusterCapacity().getAggregatedMemoryByteSize() / maxRAM;
+                }
+
+                @Override
                 public JobSubmissionStatus allocate(JobSpecification job, JobId jobId, Set<JobFlag> jobFlags)
                         throws HyracksException {
                     return maxRAM > job.getRequiredClusterCapacity().getAggregatedMemoryByteSize()
@@ -257,6 +262,11 @@ public abstract class AbstractMultiNCIntegrationTest {
                 @Override
                 public void release(JobSpecification job) {
 
+                }
+
+                @Override
+                public int getNumberOfAvailableCores() {
+                    return Runtime.getRuntime().availableProcessors();
                 }
 
                 @Override

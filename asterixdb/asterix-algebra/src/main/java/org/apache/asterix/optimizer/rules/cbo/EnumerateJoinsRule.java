@@ -846,7 +846,8 @@ public class EnumerateJoinsRule implements IAlgebraicRewriteRule {
             if (tag == LogicalOperatorTag.EMPTYTUPLESOURCE) {
                 return null; // if this happens, there is nothing we can do in CBO code since there is no datasourcescan
             }
-            if ((tag == LogicalOperatorTag.SELECT) || (tag == LogicalOperatorTag.UNNEST)
+            if ((tag == LogicalOperatorTag.SELECT)
+                    || (tag == LogicalOperatorTag.UNNEST || tag == LogicalOperatorTag.ASSIGN)
                     || (tag == LogicalOperatorTag.DATASOURCESCAN)) {
                 return currentOp;
             }

@@ -1160,6 +1160,10 @@ public class EnumerateJoinsRule implements IAlgebraicRewriteRule {
                     (double) Math.round(plan.getLeftExchangeCost().computeTotalCost() * 100) / 100);
             op.getAnnotations().put(OperatorAnnotations.OP_RIGHT_EXCHANGE_COST,
                     (double) Math.round(plan.getRightExchangeCost().computeTotalCost() * 100) / 100);
+            op.getAnnotations().put(OperatorAnnotations.OP_LEFT_CARD_SIZE_PRODUCT,
+                    (double) Math.round(plan.getLeftCardSizeProduct() * 100) / 100);
+            op.getAnnotations().put(OperatorAnnotations.OP_RIGHT_CARD_SIZE_PRODUCT,
+                    (double) Math.round(plan.getRightCardSizeProduct() * 100) / 100);
             op.getAnnotations().put(OperatorAnnotations.OP_COST_LOCAL,
                     (double) Math.round((plan.computeOpCost()) * 100) / 100);
         }

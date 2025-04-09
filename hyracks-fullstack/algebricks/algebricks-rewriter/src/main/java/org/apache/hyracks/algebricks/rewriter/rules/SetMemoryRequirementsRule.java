@@ -19,12 +19,15 @@
 
 package org.apache.hyracks.algebricks.rewriter.rules;
 
+import java.util.Map;
+
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
 import org.apache.hyracks.algebricks.core.algebra.base.IOptimizationContext;
 import org.apache.hyracks.algebricks.core.algebra.base.IPhysicalOperator;
+import org.apache.hyracks.algebricks.core.algebra.base.OperatorAnnotations;
 import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractBinaryJoinOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogicalOperator;
@@ -149,11 +152,14 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
 
         // helper methods
 
-        protected void setOperatorMemoryBudget(AbstractLogicalOperator op, int memBudgetInFrames)
-                throws AlgebricksException {
+        protected void setOperatorMemoryBudget(AbstractLogicalOperator op, int memBudgetInFrames,
+                int memBudgetInFramesDefault) throws AlgebricksException {
             LocalMemoryRequirements memoryReqs = op.getPhysicalOperator().getLocalMemoryRequirements();
             int minBudgetInFrames = memoryReqs.getMinMemoryBudgetInFrames();
-            if (memBudgetInFrames < minBudgetInFrames) {
+            if (memBudgetInFrames < memBudgetInFramesDefault) {
+                memBudgetInFrames = memBudgetInFramesDefault;
+            }
+            if (memBudgetInFrames < minBudgetInFrames || memBudgetInFramesDefault < minBudgetInFrames) {
                 throw AlgebricksException.create(ErrorCode.ILLEGAL_MEMORY_BUDGET, op.getSourceLocation(),
                         op.getOperatorTag().toString(), memBudgetInFrames * physConfig.getFrameSize(),
                         minBudgetInFrames * physConfig.getFrameSize());
@@ -161,24 +167,82 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
             memoryReqs.setMemoryBudgetInFrames(memBudgetInFrames);
         }
 
+        protected int getCBOMemoryBudgetInFrames(AbstractLogicalOperator op) {
+            Double inputCardinality = null, outputCardinality = null, inputSize = null, outputSize = null;
+            for (Map.Entry<String, Object> anno : op.getAnnotations().entrySet()) {
+                if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_INPUT_CARDINALITY)) {
+                    inputCardinality = (Double) anno.getValue();
+                } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_OUTPUT_CARDINALITY)) {
+                    outputCardinality = (Double) anno.getValue();
+                } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_INPUT_DOCSIZE)) {
+                    inputSize = (Double) anno.getValue();
+                } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_OUTPUT_DOCSIZE)) {
+                    outputSize = (Double) anno.getValue();
+                }
+            }
+            int memBudgetInFrames = 0;
+            if (inputCardinality != null && outputCardinality != null && inputSize != null && outputSize != null) {
+                // use the cardinality and size to compute the memory budget
+                double opCard = Math.max(inputCardinality, outputCardinality);
+                double opSize = Math.max(inputSize, outputSize);
+                memBudgetInFrames = (int) Math.ceil(opCard * opSize / physConfig.getFrameSize());
+                return memBudgetInFrames;
+            }
+            return 0;
+        }
+
         // variable memory operators
 
         @Override
         public Void visitOrderOperator(OrderOperator op, Void arg) throws AlgebricksException {
-            setOperatorMemoryBudget(op, physConfig.getMaxFramesExternalSort());
+            Double inputCardinality = null, inputSize = null;
+            for (Map.Entry<String, Object> anno : op.getAnnotations().entrySet()) {
+                if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_INPUT_CARDINALITY)) {
+                    inputCardinality = (Double) anno.getValue();
+                } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_INPUT_DOCSIZE)) {
+                    inputSize = (Double) anno.getValue();
+                }
+            }
+            int memBudgetInFrames = 0;
+            if (inputCardinality != null && inputSize != null) {
+                // use the cardinality and size to compute the memory budget
+                double opCard = inputCardinality;
+                double opSize = inputSize;
+                memBudgetInFrames = (int) Math.ceil(opCard * opSize / physConfig.getFrameSize());
+            }
+            setOperatorMemoryBudget(op, memBudgetInFrames, physConfig.getMaxFramesExternalSort());
             return null;
         }
 
         @Override
         public Void visitGroupByOperator(GroupByOperator op, Void arg) throws AlgebricksException {
-            setOperatorMemoryBudget(op, physConfig.getMaxFramesForGroupBy());
+            Double inputCardinality = null, outputCardinality = null, inputSize = null, outputSize = null;
+            for (Map.Entry<String, Object> anno : op.getAnnotations().entrySet()) {
+                if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_INPUT_CARDINALITY)) {
+                    inputCardinality = (Double) anno.getValue();
+                } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_OUTPUT_CARDINALITY)) {
+                    outputCardinality = (Double) anno.getValue();
+                } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_INPUT_DOCSIZE)) {
+                    inputSize = (Double) anno.getValue();
+                } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_OUTPUT_DOCSIZE)) {
+                    outputSize = (Double) anno.getValue();
+                }
+            }
+            int memBudgetInFrames = 0;
+            if (inputCardinality != null && outputCardinality != null && inputSize != null && outputSize != null) {
+                // use the cardinality and size to compute the memory budget
+                double opCard = inputCardinality;
+                double opSize = inputSize;
+                memBudgetInFrames = (int) Math.ceil(opCard * opSize / physConfig.getFrameSize());
+            }
+            setOperatorMemoryBudget(op, memBudgetInFrames, physConfig.getMaxFramesForGroupBy());
             return null;
         }
 
         @Override
         public Void visitWindowOperator(WindowOperator op, Void arg) throws AlgebricksException {
             if (op.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.WINDOW) {
-                setOperatorMemoryBudget(op, physConfig.getMaxFramesForWindow());
+                setOperatorMemoryBudget(op, getCBOMemoryBudgetInFrames(op), physConfig.getMaxFramesForWindow());
             }
             return null;
         }
@@ -194,7 +258,23 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
         }
 
         protected Void visitJoinOperator(AbstractBinaryJoinOperator op, Void arg) throws AlgebricksException {
-            setOperatorMemoryBudget(op, physConfig.getMaxFramesForJoin());
+            Double leftCardSizeProduct = null, rightCardSizeProduct = null;
+            Double fudgeFactor = 1.3;
+            for (Map.Entry<String, Object> anno : op.getAnnotations().entrySet()) {
+                if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_LEFT_CARD_SIZE_PRODUCT)) {
+                    leftCardSizeProduct = (Double) anno.getValue();
+                } else if (anno.getValue() != null
+                        && anno.getKey().equals(OperatorAnnotations.OP_RIGHT_CARD_SIZE_PRODUCT)) {
+                    rightCardSizeProduct = (Double) anno.getValue();
+                }
+            }
+            int memBudgetInFrames = 0;
+            if (leftCardSizeProduct != null && rightCardSizeProduct != null) {
+                // use the cardinality and size to compute the memory budget
+                memBudgetInFrames = (int) Math.ceil(
+                        Math.min(leftCardSizeProduct, rightCardSizeProduct) * fudgeFactor / physConfig.getFrameSize());
+            }
+            setOperatorMemoryBudget(op, memBudgetInFrames, physConfig.getMaxFramesForGroupBy());
             return null;
         }
 
@@ -214,7 +294,7 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
             IPhysicalOperator physOp = op.getPhysicalOperator();
             if (physOp.getOperatorTag() == PhysicalOperatorTag.LENGTH_PARTITIONED_INVERTED_INDEX_SEARCH
                     || physOp.getOperatorTag() == PhysicalOperatorTag.SINGLE_PARTITION_INVERTED_INDEX_SEARCH) {
-                setOperatorMemoryBudget(op, physConfig.getMaxFramesForTextSearch());
+                setOperatorMemoryBudget(op, getCBOMemoryBudgetInFrames(op), physConfig.getMaxFramesForTextSearch());
             }
             return null;
         }

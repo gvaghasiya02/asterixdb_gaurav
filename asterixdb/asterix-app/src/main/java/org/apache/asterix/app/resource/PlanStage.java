@@ -46,11 +46,15 @@ public class PlanStage {
     }
 
     public long getCBOBasedMaxRequiredMemory(OperatorResourcesComputer resourcesComputer) {
-        return operators.stream().mapToLong(resourcesComputer::getOperatorCBOMaxRequiredMemory).sum();
+        return operators.stream().mapToLong(resourcesComputer::getOperatorCBOMaxRequiredMemory)
+                .anyMatch(value -> value < 0) ? -1L
+                        : operators.stream().mapToLong(resourcesComputer::getOperatorCBOMaxRequiredMemory).sum();
     }
 
     public long getCBOBasedOptimalRequiredMemory(OperatorResourcesComputer resourcesComputer) {
-        return operators.stream().mapToLong(resourcesComputer::getOperatorCBOOptimalRequiredMemory).sum();
+        return operators.stream().mapToLong(resourcesComputer::getOperatorCBOOptimalRequiredMemory)
+                .anyMatch(value -> value < 0) ? -1L
+                        : operators.stream().mapToLong(resourcesComputer::getOperatorCBOOptimalRequiredMemory).sum();
     }
 
     public int getRequiredCores(OperatorResourcesComputer resourcesComputer) {

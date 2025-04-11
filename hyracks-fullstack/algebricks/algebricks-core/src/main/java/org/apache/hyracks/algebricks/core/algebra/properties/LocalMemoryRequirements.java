@@ -39,11 +39,11 @@ public abstract class LocalMemoryRequirements {
         return frameSize * getMemoryBudgetInFrames();
     }
 
-    public final long getCBOOptimalMemoryBudgetInFrames(long frameSize) {
+    public final long getCBOOptimalMemoryBudgetInBytes(long frameSize) {
         return frameSize * getCBOOptimalMemoryBudgetInFrames();
     }
 
-    public final long getCBOMaxMemoryBudgetInFrames(long frameSize) {
+    public final long getCBOMaxMemoryBudgetInBytes(long frameSize) {
         return frameSize * getCBOMaxMemoryBudgetInFrames();
     }
 
@@ -117,13 +117,12 @@ public abstract class LocalMemoryRequirements {
 
         private int memBudgetInFrames;
 
-        private int CBOOptimalMemBudgetInFrames;
+        private int CBOOptimalMemBudgetInFrames = -1;
 
-        private int CBOMaxMemBudgetInFrames;
+        private int CBOMaxMemBudgetInFrames = -1;
 
         private VariableMemoryBudget(int minMemBudgetInFrames) {
-            this.CBOOptimalMemBudgetInFrames = this.CBOMaxMemBudgetInFrames =
-                    this.memBudgetInFrames = this.minMemBudgetInFrames = minMemBudgetInFrames;
+            this.memBudgetInFrames = this.minMemBudgetInFrames = minMemBudgetInFrames;
         }
 
         @Override
@@ -151,7 +150,7 @@ public abstract class LocalMemoryRequirements {
 
         @Override
         public void setCBOMaxMemoryBudgetInFrames(int value) {
-            if (value < minMemBudgetInFrames) {
+            if (value != -1 && value < minMemBudgetInFrames) {
                 throw new IllegalArgumentException("Got " + value + ", expected " + minMemBudgetInFrames + " or more");
             }
             this.CBOMaxMemBudgetInFrames = value;
@@ -164,7 +163,7 @@ public abstract class LocalMemoryRequirements {
 
         @Override
         public void setCBOOptimalMemoryBudgetInFrames(int value) {
-            if (value < minMemBudgetInFrames) {
+            if (value != -1 && value < minMemBudgetInFrames) {
                 throw new IllegalArgumentException("Got " + value + ", expected " + minMemBudgetInFrames + " or more");
             }
             this.CBOOptimalMemBudgetInFrames = value;

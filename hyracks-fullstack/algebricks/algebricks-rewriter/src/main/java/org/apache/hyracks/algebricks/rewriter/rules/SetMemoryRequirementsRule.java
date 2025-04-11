@@ -163,11 +163,13 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                         op.getOperatorTag().toString(), memBudgetInFrames * physConfig.getFrameSize(),
                         minBudgetInFrames * physConfig.getFrameSize());
             }
-            CBOBasedMaxMemBudgetInFrames = Math.max(CBOBasedMaxMemBudgetInFrames, minBudgetInFrames);
-            CBOBasedOptimalMemBudgetInFrames = Math.max(CBOBasedOptimalMemBudgetInFrames, minBudgetInFrames);
+            //            CBOBasedMaxMemBudgetInFrames = Math.max(CBOBasedMaxMemBudgetInFrames, minBudgetInFrames);
+            //            CBOBasedOptimalMemBudgetInFrames = Math.max(CBOBasedOptimalMemBudgetInFrames, minBudgetInFrames);
             memoryReqs.setMemoryBudgetInFrames(memBudgetInFrames);
-            memoryReqs.setCBOMaxMemoryBudgetInFrames(CBOBasedMaxMemBudgetInFrames);
-            memoryReqs.setCBOOptimalMemoryBudgetInFrames(CBOBasedOptimalMemBudgetInFrames);
+            if (physConfig.getCBOMode()) {
+                memoryReqs.setCBOMaxMemoryBudgetInFrames(CBOBasedMaxMemBudgetInFrames);
+                memoryReqs.setCBOOptimalMemoryBudgetInFrames(CBOBasedOptimalMemBudgetInFrames);
+            }
         }
 
         protected int getCBOMaxMemoryBudgetInFrames(AbstractLogicalOperator op) {
@@ -183,7 +185,7 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                     outputSize = (Double) anno.getValue();
                 }
             }
-            int CBOBasedMaxMemBudgetInFrames = 0;
+            int CBOBasedMaxMemBudgetInFrames = -1;
             if (inputCardinality != null && outputCardinality != null && inputSize != null && outputSize != null) {
                 // use the cardinality and size to compute the memory budget
                 double opCard = Math.max(inputCardinality, outputCardinality);
@@ -191,7 +193,7 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                 CBOBasedMaxMemBudgetInFrames = (int) ceil(opCard * opSize / physConfig.getFrameSize());
                 return CBOBasedMaxMemBudgetInFrames;
             }
-            return 0;
+            return -1;
         }
 
         // variable memory operators
@@ -206,8 +208,8 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                     inputSize = (Double) anno.getValue();
                 }
             }
-            int CBOBasedMaxMemBudgetInFrames = 0;
-            int CBOBasedOptimalMemBudgetInFrames = 0;
+            int CBOBasedMaxMemBudgetInFrames = -1;
+            int CBOBasedOptimalMemBudgetInFrames = -1;
             if (inputCardinality != null && inputSize != null) {
                 // use the cardinality and size to compute the memory budget
                 double opCard = inputCardinality;
@@ -235,8 +237,8 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                     outputSize = (Double) anno.getValue();
                 }
             }
-            int CBOBasedMaxMemBudgetInFrames = 0;
-            int CBOBasedOptimalMemBudgetInFrames = 0;
+            int CBOBasedMaxMemBudgetInFrames = -1;
+            int CBOBasedOptimalMemBudgetInFrames = -1;
             if (inputCardinality != null && outputCardinality != null && inputSize != null && outputSize != null) {
                 // use the cardinality and size to compute the memory budget
                 CBOBasedMaxMemBudgetInFrames =
@@ -266,8 +268,8 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                         outputSize = (Double) anno.getValue();
                     }
                 }
-                int CBOBasedMaxMemBudgetInFrames = 0;
-                int CBOBasedOptimalMemBudgetInFrames = 0;
+                int CBOBasedMaxMemBudgetInFrames = -1;
+                int CBOBasedOptimalMemBudgetInFrames = -1;
                 if (inputCardinality != null && outputCardinality != null && inputSize != null && outputSize != null) {
                     // use the cardinality and size to compute the memory budget
                     double inputTotalSize = inputCardinality * inputSize;
@@ -303,15 +305,16 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                     rightCardSizeProduct = (Double) anno.getValue();
                 }
             }
-            int CBOBasedMaxMemBudgetInFrames = 0;
+            int CBOBasedMaxMemBudgetInFrames = -1;
+            int CBOBasedOptimalMemBudgetInFrames = -1;
             if (leftCardSizeProduct != null && rightCardSizeProduct != null) {
                 // use the cardinality and size to compute the memory budget
                 CBOBasedMaxMemBudgetInFrames = (int) ceil(
                         Math.min(leftCardSizeProduct, rightCardSizeProduct) * fudgeFactor / physConfig.getFrameSize());
+                CBOBasedOptimalMemBudgetInFrames = (int) ceil(Math.sqrt(CBOBasedMaxMemBudgetInFrames));
             }
-            int CBOBasedOptimalMemBudgetInFrames = (int) ceil(Math.sqrt(CBOBasedMaxMemBudgetInFrames));
             setOperatorMemoryBudget(op, CBOBasedMaxMemBudgetInFrames, CBOBasedOptimalMemBudgetInFrames,
-                    physConfig.getMaxFramesForGroupBy());
+                    physConfig.getMaxFramesForJoin());
             return null;
         }
 

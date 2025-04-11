@@ -62,11 +62,13 @@ public class JobCapacityController implements IJobCapacityController {
         int reqAggregatedNumCores = requiredCapacity.getAggregatedCores();
         IReadOnlyClusterCapacity maximumCapacity = resourceManager.getMaximumCapacity();
         // NEED TO BE WRITTEN IN BETTER MANNER AFTER DECIDING THE FINAL DESIGN
-        if (reqAggregatedCBOMaxMemoryByteSize <= maximumCapacity.getAggregatedMemoryByteSize()
+        if (reqAggregatedCBOMaxMemoryByteSize > 0
+                && reqAggregatedCBOMaxMemoryByteSize <= maximumCapacity.getAggregatedMemoryByteSize()
                 && reqAggregatedNumCores <= maximumCapacity.getAggregatedCores()) {
             requiredCapacity.setAggregatedMemoryByteSize(reqAggregatedCBOMaxMemoryByteSize);
             jobFlags.add(JobFlag.USE_CBO_MAX_MEMORY);
-        } else if (reqAggregatedCBOOptimalMemoryByteSize <= maximumCapacity.getAggregatedMemoryByteSize()
+        } else if (reqAggregatedCBOOptimalMemoryByteSize > 0
+                && reqAggregatedCBOOptimalMemoryByteSize <= maximumCapacity.getAggregatedMemoryByteSize()
                 && reqAggregatedNumCores <= maximumCapacity.getAggregatedCores()) {
             requiredCapacity.setAggregatedMemoryByteSize(reqAggregatedCBOOptimalMemoryByteSize);
             jobFlags.add(JobFlag.USE_CBO_OPTIMAL_MEMORY);

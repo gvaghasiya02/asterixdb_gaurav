@@ -82,6 +82,14 @@ public class ResourceUtils {
         final int maxRequireCores = stages.stream().mapToInt(stage -> stage.getRequiredCores(computer)).max()
                 .orElseThrow(IllegalStateException::new);
         clusterCapacity.setAggregatedCores(maxRequireCores);
+        final long maxCBOBasedRequiredMemory =
+                stages.stream().mapToLong(stage -> stage.getCBOBasedMaxRequiredMemory(computer)).max()
+                        .orElseThrow(IllegalStateException::new);
+        clusterCapacity.setAggregatedCBOMaxMemoryByteSize(maxCBOBasedRequiredMemory);
+        final long optimalCBOBasedRequiredMemory =
+                stages.stream().mapToLong(stage -> stage.getCBOBasedOptimalRequiredMemory(computer)).max()
+                        .orElseThrow(IllegalStateException::new);
+        clusterCapacity.setAggregatedCBOOptimalMemoryByteSize(optimalCBOBasedRequiredMemory);
         return clusterCapacity;
     }
 }

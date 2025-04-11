@@ -74,6 +74,26 @@ public class OperatorResourcesComputer {
         }
     }
 
+    public long getOperatorCBOMaxRequiredMemory(ILogicalOperator operator) {
+        if (operator.getOperatorTag() == LogicalOperatorTag.EXCHANGE) {
+            return getExchangeRequiredMemory((ExchangeOperator) operator);
+        } else {
+            IPhysicalOperator physOp = ((AbstractLogicalOperator) operator).getPhysicalOperator();
+            return getOperatorCBOMaxRequiredMemory(operator.getExecutionMode(), physOp.getLocalMemoryRequirements())
+                    + getOperatorExpressionsRequiredMemory(operator);
+        }
+    }
+
+    public long getOperatorCBOOptimalRequiredMemory(ILogicalOperator operator) {
+        if (operator.getOperatorTag() == LogicalOperatorTag.EXCHANGE) {
+            return getExchangeRequiredMemory((ExchangeOperator) operator);
+        } else {
+            IPhysicalOperator physOp = ((AbstractLogicalOperator) operator).getPhysicalOperator();
+            return getOperatorCBOOptimalRequiredMemory(operator.getExecutionMode(), physOp.getLocalMemoryRequirements())
+                    + getOperatorExpressionsRequiredMemory(operator);
+        }
+    }
+
     private long getOperatorExpressionsRequiredMemory(ILogicalOperator operator) {
         exprMemoryComputer.reset(operator);
         try {
@@ -96,6 +116,16 @@ public class OperatorResourcesComputer {
     private long getOperatorRequiredMemory(AbstractLogicalOperator.ExecutionMode opExecMode,
             LocalMemoryRequirements memoryReqs) {
         return getOperatorRequiredMemory(opExecMode, memoryReqs.getMemoryBudgetInBytes(frameSize));
+    }
+
+    private long getOperatorCBOMaxRequiredMemory(AbstractLogicalOperator.ExecutionMode opExecMode,
+            LocalMemoryRequirements memoryReqs) {
+        return getOperatorRequiredMemory(opExecMode, memoryReqs.getCBOMaxMemoryBudgetInFrames(frameSize));
+    }
+
+    private long getOperatorCBOOptimalRequiredMemory(AbstractLogicalOperator.ExecutionMode opExecMode,
+            LocalMemoryRequirements memoryReqs) {
+        return getOperatorRequiredMemory(opExecMode, memoryReqs.getCBOOptimalMemoryBudgetInFrames(frameSize));
     }
 
     private long getExchangeRequiredMemory(ExchangeOperator op) {

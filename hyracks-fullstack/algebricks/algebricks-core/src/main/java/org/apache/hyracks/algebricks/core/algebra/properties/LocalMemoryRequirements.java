@@ -27,8 +27,24 @@ public abstract class LocalMemoryRequirements {
 
     public abstract void setMemoryBudgetInFrames(int value);
 
+    public abstract int getCBOMaxMemoryBudgetInFrames();
+
+    public abstract void setCBOMaxMemoryBudgetInFrames(int value);
+
+    public abstract int getCBOOptimalMemoryBudgetInFrames();
+
+    public abstract void setCBOOptimalMemoryBudgetInFrames(int value);
+
     public final long getMemoryBudgetInBytes(long frameSize) {
         return frameSize * getMemoryBudgetInFrames();
+    }
+
+    public final long getCBOOptimalMemoryBudgetInFrames(long frameSize) {
+        return frameSize * getCBOOptimalMemoryBudgetInFrames();
+    }
+
+    public final long getCBOMaxMemoryBudgetInFrames(long frameSize) {
+        return frameSize * getCBOMaxMemoryBudgetInFrames();
     }
 
     public static LocalMemoryRequirements fixedMemoryBudget(int memBudgetInFrames) {
@@ -65,6 +81,30 @@ public abstract class LocalMemoryRequirements {
                 throw new IllegalArgumentException("Got " + value + ", expected " + memBudgetInFrames);
             }
         }
+
+        @Override
+        public int getCBOMaxMemoryBudgetInFrames() {
+            return memBudgetInFrames;
+        }
+
+        @Override
+        public void setCBOMaxMemoryBudgetInFrames(int value) {
+            if (value != memBudgetInFrames) {
+                throw new IllegalArgumentException("Got " + value + ", expected " + memBudgetInFrames);
+            }
+        }
+
+        @Override
+        public int getCBOOptimalMemoryBudgetInFrames() {
+            return memBudgetInFrames;
+        }
+
+        @Override
+        public void setCBOOptimalMemoryBudgetInFrames(int value) {
+            if (value != memBudgetInFrames) {
+                throw new IllegalArgumentException("Got " + value + ", expected " + memBudgetInFrames);
+            }
+        }
     }
 
     public static LocalMemoryRequirements variableMemoryBudget(int minMemBudgetInFrames) {
@@ -77,8 +117,13 @@ public abstract class LocalMemoryRequirements {
 
         private int memBudgetInFrames;
 
+        private int CBOOptimalMemBudgetInFrames;
+
+        private int CBOMaxMemBudgetInFrames;
+
         private VariableMemoryBudget(int minMemBudgetInFrames) {
-            this.memBudgetInFrames = this.minMemBudgetInFrames = minMemBudgetInFrames;
+            this.CBOOptimalMemBudgetInFrames = this.CBOMaxMemBudgetInFrames =
+                    this.memBudgetInFrames = this.minMemBudgetInFrames = minMemBudgetInFrames;
         }
 
         @Override
@@ -97,6 +142,32 @@ public abstract class LocalMemoryRequirements {
                 throw new IllegalArgumentException("Got " + value + ", expected " + minMemBudgetInFrames + " or more");
             }
             memBudgetInFrames = value;
+        }
+
+        @Override
+        public int getCBOMaxMemoryBudgetInFrames() {
+            return CBOMaxMemBudgetInFrames;
+        }
+
+        @Override
+        public void setCBOMaxMemoryBudgetInFrames(int value) {
+            if (value < minMemBudgetInFrames) {
+                throw new IllegalArgumentException("Got " + value + ", expected " + minMemBudgetInFrames + " or more");
+            }
+            this.CBOMaxMemBudgetInFrames = value;
+        }
+
+        @Override
+        public int getCBOOptimalMemoryBudgetInFrames() {
+            return CBOOptimalMemBudgetInFrames;
+        }
+
+        @Override
+        public void setCBOOptimalMemoryBudgetInFrames(int value) {
+            if (value < minMemBudgetInFrames) {
+                throw new IllegalArgumentException("Got " + value + ", expected " + minMemBudgetInFrames + " or more");
+            }
+            this.CBOOptimalMemBudgetInFrames = value;
         }
     }
 }

@@ -47,6 +47,7 @@ import org.apache.hyracks.dataflow.common.data.marshalling.IntegerSerializerDese
 import org.apache.hyracks.dataflow.common.data.marshalling.UTF8StringSerializerDeserializer;
 import org.apache.hyracks.dataflow.common.data.normalizers.UTF8StringNormalizedKeyComputerFactory;
 import org.apache.hyracks.dataflow.common.data.partition.FieldHashPartitionComputerFactory;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.connectors.MToNPartitioningConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.file.ConstantFileSplitProvider;
@@ -188,8 +189,8 @@ public class Join {
                     Common.custOrderJoinDesc, tableSize, memSize * frameSize);
 
         } else if ("hybrid".equalsIgnoreCase(algo)) {
-            join = new OptimizedHybridHashJoinOperatorDescriptor(spec, memSize, graceInputSize, graceFactor,
-                    new int[] { 0 }, new int[] { 1 },
+            join = new OptimizedHybridHashJoinOperatorDescriptor(spec, new CBOMemoryBudget(memSize, -1, -1),
+                    graceInputSize, graceFactor, new int[] { 0 }, new int[] { 1 },
                     new IBinaryHashFunctionFamily[] { UTF8StringBinaryHashFunctionFamily.INSTANCE },
                     new IBinaryHashFunctionFamily[] { UTF8StringBinaryHashFunctionFamily.INSTANCE },
                     Common.custOrderJoinDesc,

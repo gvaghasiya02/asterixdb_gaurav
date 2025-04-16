@@ -177,7 +177,7 @@ public class Join {
         if ("nestedloop".equalsIgnoreCase(algo)) {
             join = new NestedLoopJoinOperatorDescriptor(spec,
                     new JoinComparatorFactory(UTF8StringBinaryComparatorFactory.INSTANCE, 0, 1),
-                    Common.custOrderJoinDesc, memSize, false, null);
+                    Common.custOrderJoinDesc, new CBOMemoryBudget(memSize, -1, -1), false, null);
 
         } else if ("inmem".equalsIgnoreCase(algo)) {
             join = new InMemoryHashJoinOperatorDescriptor(spec, new int[] { 0 }, new int[] { 1 },
@@ -186,7 +186,7 @@ public class Join {
                     new IBinaryHashFunctionFactory[] {
                             PointableBinaryHashFunctionFactory.of(UTF8StringPointable.FACTORY) },
                     new JoinComparatorFactory(UTF8StringBinaryComparatorFactory.INSTANCE, 0, 1),
-                    Common.custOrderJoinDesc, tableSize, memSize * frameSize);
+                    Common.custOrderJoinDesc, tableSize, new CBOMemoryBudget(memSize, -1, -1));
 
         } else if ("hybrid".equalsIgnoreCase(algo)) {
             join = new OptimizedHybridHashJoinOperatorDescriptor(spec, new CBOMemoryBudget(memSize, -1, -1),

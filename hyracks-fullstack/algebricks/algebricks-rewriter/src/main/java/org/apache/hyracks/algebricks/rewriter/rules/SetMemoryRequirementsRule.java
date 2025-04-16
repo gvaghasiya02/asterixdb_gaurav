@@ -163,13 +163,21 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                         op.getOperatorTag().toString(), memBudgetInFrames * physConfig.getFrameSize(),
                         minBudgetInFrames * physConfig.getFrameSize());
             }
-            //            CBOBasedMaxMemBudgetInFrames = Math.max(CBOBasedMaxMemBudgetInFrames, minBudgetInFrames);
-            //            CBOBasedOptimalMemBudgetInFrames = Math.max(CBOBasedOptimalMemBudgetInFrames, minBudgetInFrames);
             memoryReqs.setMemoryBudgetInFrames(memBudgetInFrames);
             if (physConfig.getCBOMode()) {
-                memoryReqs.setCBOMaxMemoryBudgetInFrames(CBOBasedMaxMemBudgetInFrames);
-                memoryReqs.setCBOOptimalMemoryBudgetInFrames(CBOBasedOptimalMemBudgetInFrames);
+                if (CBOBasedMaxMemBudgetInFrames != -1 && CBOBasedOptimalMemBudgetInFrames != -1) {
+                    CBOBasedMaxMemBudgetInFrames = Math.max(CBOBasedMaxMemBudgetInFrames, minBudgetInFrames);
+                    CBOBasedOptimalMemBudgetInFrames = Math.max(CBOBasedOptimalMemBudgetInFrames, minBudgetInFrames);
+                } else {
+                    CBOBasedMaxMemBudgetInFrames = memBudgetInFrames;
+                    CBOBasedOptimalMemBudgetInFrames = memBudgetInFrames;
+                }
+            } else {
+                CBOBasedMaxMemBudgetInFrames = -1;
+                CBOBasedOptimalMemBudgetInFrames = -1;
             }
+            memoryReqs.setCBOMaxMemoryBudgetInFrames(CBOBasedMaxMemBudgetInFrames);
+            memoryReqs.setCBOOptimalMemoryBudgetInFrames(CBOBasedOptimalMemBudgetInFrames);
         }
 
         protected int getCBOMaxMemoryBudgetInFrames(AbstractLogicalOperator op) {
@@ -335,7 +343,7 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
             if (physOp.getOperatorTag() == PhysicalOperatorTag.LENGTH_PARTITIONED_INVERTED_INDEX_SEARCH
                     || physOp.getOperatorTag() == PhysicalOperatorTag.SINGLE_PARTITION_INVERTED_INDEX_SEARCH) {
                 int CBOBasedMaxMemBudgetInFrames = getCBOMaxMemoryBudgetInFrames(op);
-                int CBOBasedOptimalMemBudgetInFrames = (int) ceil(Math.sqrt(CBOBasedMaxMemBudgetInFrames));
+                int CBOBasedOptimalMemBudgetInFrames = CBOBasedMaxMemBudgetInFrames;
                 setOperatorMemoryBudget(op, CBOBasedMaxMemBudgetInFrames, CBOBasedOptimalMemBudgetInFrames,
                         physConfig.getMaxFramesForTextSearch());
             }

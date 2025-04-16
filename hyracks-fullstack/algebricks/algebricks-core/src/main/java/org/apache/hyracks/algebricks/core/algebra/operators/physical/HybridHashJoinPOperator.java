@@ -149,18 +149,18 @@ public class HybridHashJoinPOperator extends AbstractHashJoinPOperator {
             ITuplePairComparatorFactory comparatorFactory, ITuplePairComparatorFactory reverseComparatorFactory,
             IPredicateEvaluatorFactory leftPredEvalFactory, IPredicateEvaluatorFactory rightPredEvalFactory,
             RecordDescriptor recDescriptor, IOperatorDescriptorRegistry spec) throws AlgebricksException {
-        CBOMemoryBudget memBudget = new CBOMemoryBudget(localMemoryRequirements.getMemoryBudgetInFrames(),
+        CBOMemoryBudget cboMemoryBudget = new CBOMemoryBudget(localMemoryRequirements.getMemoryBudgetInFrames(),
                 localMemoryRequirements.getCBOOptimalMemoryBudgetInFrames(),
                 localMemoryRequirements.getCBOMaxMemoryBudgetInFrames());
         switch (kind) {
             case INNER:
-                return new OptimizedHybridHashJoinOperatorDescriptor(spec, memBudget, maxInputBuildSizeInFrames,
+                return new OptimizedHybridHashJoinOperatorDescriptor(spec, cboMemoryBudget, maxInputBuildSizeInFrames,
                         getFudgeFactor(), keysLeft, keysRight, leftHashFunFamilies, rightHashFunFamilies, recDescriptor,
                         comparatorFactory, reverseComparatorFactory, leftPredEvalFactory, rightPredEvalFactory);
             case LEFT_OUTER:
                 IMissingWriterFactory[] nonMatchWriterFactories = JobGenHelper.createMissingWriterFactories(context,
                         ((LeftOuterJoinOperator) joinOp).getMissingValue(), inputSchemas[1].getSize());
-                return new OptimizedHybridHashJoinOperatorDescriptor(spec, memBudget, maxInputBuildSizeInFrames,
+                return new OptimizedHybridHashJoinOperatorDescriptor(spec, cboMemoryBudget, maxInputBuildSizeInFrames,
                         getFudgeFactor(), keysLeft, keysRight, leftHashFunFamilies, rightHashFunFamilies, recDescriptor,
                         comparatorFactory, reverseComparatorFactory, leftPredEvalFactory, rightPredEvalFactory, true,
                         nonMatchWriterFactories);

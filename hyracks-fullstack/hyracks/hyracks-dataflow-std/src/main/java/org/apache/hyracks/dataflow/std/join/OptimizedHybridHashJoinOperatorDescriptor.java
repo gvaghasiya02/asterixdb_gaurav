@@ -276,10 +276,11 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
         public IOperatorNodePushable createPushRuntime(final IHyracksTaskContext ctx,
                 IRecordDescriptorProvider recordDescProvider, final int partition, final int nPartitions)
                 throws HyracksDataException {
-            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY)) {
+            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY) && cboMemoryBudget.cboMaxSizeInFrames() > 0) {
                 memSizeInFrames = cboMemoryBudget.cboMaxSizeInFrames();
             }
-            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)) {
+            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)
+                    && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
                 memSizeInFrames = cboMemoryBudget.cboOptimalSizeInFrames();
             }
 

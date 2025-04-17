@@ -46,6 +46,7 @@ import org.apache.hyracks.dataflow.common.data.parsers.IntegerParserFactory;
 import org.apache.hyracks.dataflow.common.data.parsers.UTF8StringParserFactory;
 import org.apache.hyracks.dataflow.common.data.partition.FieldHashPartitionComputerFactory;
 import org.apache.hyracks.dataflow.std.base.AbstractSingleActivityOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.connectors.MToNPartitioningConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.file.ConstantFileSplitProvider;
@@ -125,7 +126,7 @@ public class AggregationTest extends AbstractIntegrationTest {
                 new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {
                         new IntSumFieldAggregatorFactory(1, true), new IntSumFieldAggregatorFactory(3, true),
                         new FloatSumFieldAggregatorFactory(5, true) }),
-                outputRec, false, -1);
+                outputRec, false, new CBOMemoryBudget(-1, -1, -1));
 
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, grouper, NC2_ID, NC1_ID);
 
@@ -215,7 +216,7 @@ public class AggregationTest extends AbstractIntegrationTest {
                         new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {
                                 new IntSumFieldAggregatorFactory(1, true), new CountFieldAggregatorFactory(true),
                                 new AvgFieldGroupAggregatorFactory(1, true) }),
-                        outputRec, false, -1);
+                        outputRec, false, new CBOMemoryBudget(-1, -1, -1));
 
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, grouper, NC2_ID, NC1_ID);
 
@@ -304,7 +305,7 @@ public class AggregationTest extends AbstractIntegrationTest {
                 new MultiFieldsAggregatorFactory(
                         new IFieldAggregateDescriptorFactory[] { new IntSumFieldAggregatorFactory(1, true),
                                 new MinMaxStringFieldAggregatorFactory(15, true, false) }),
-                outputRec, false, -1);
+                outputRec, false, new CBOMemoryBudget(-1, -1, -1));
 
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, grouper, NC2_ID, NC1_ID);
 
@@ -393,7 +394,7 @@ public class AggregationTest extends AbstractIntegrationTest {
                         UTF8StringBinaryComparatorFactory.INSTANCE },
                 new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {
                         new IntSumFieldAggregatorFactory(1, true), new IntSumFieldAggregatorFactory(3, true) }),
-                outputRec, false, -1);
+                outputRec, false, new CBOMemoryBudget(-1, -1, -1));
 
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, grouper, NC2_ID, NC1_ID);
 
@@ -487,7 +488,7 @@ public class AggregationTest extends AbstractIntegrationTest {
                 new MultiFieldsAggregatorFactory(
                         new IFieldAggregateDescriptorFactory[] { new IntSumFieldAggregatorFactory(1, true),
                                 new CountFieldAggregatorFactory(true), new AvgFieldGroupAggregatorFactory(1, true) }),
-                outputRec, false, -1);
+                outputRec, false, new CBOMemoryBudget(-1, -1, -1));
 
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, grouper, NC2_ID, NC1_ID);
 
@@ -585,7 +586,7 @@ public class AggregationTest extends AbstractIntegrationTest {
                 new MultiFieldsAggregatorFactory(
                         new IFieldAggregateDescriptorFactory[] { new IntSumFieldAggregatorFactory(1, true),
                                 new MinMaxStringFieldAggregatorFactory(15, true, false) }),
-                outputRec, false, -1);
+                outputRec, false, new CBOMemoryBudget(-1, -1, -1));
 
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, grouper, NC2_ID, NC1_ID);
 

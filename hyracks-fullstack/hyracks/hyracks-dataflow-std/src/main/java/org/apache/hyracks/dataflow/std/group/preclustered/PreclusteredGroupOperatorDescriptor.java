@@ -25,7 +25,9 @@ import org.apache.hyracks.api.dataflow.value.IRecordDescriptorProvider;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.dataflow.std.base.AbstractSingleActivityOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 
 public class PreclusteredGroupOperatorDescriptor extends AbstractSingleActivityOperatorDescriptor {
@@ -35,24 +37,33 @@ public class PreclusteredGroupOperatorDescriptor extends AbstractSingleActivityO
     private final IBinaryComparatorFactory[] comparatorFactories;
     private final IAggregatorDescriptorFactory aggregatorFactory;
     private final boolean groupAll;
-    private final int framesLimit;
+    private int framesLimit;
+    private final CBOMemoryBudget cboMemoryBudget;
 
     public PreclusteredGroupOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] groupFields,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory aggregatorFactory,
-            RecordDescriptor recordDescriptor, boolean groupAll, int framesLimit) {
+            RecordDescriptor recordDescriptor, boolean groupAll, CBOMemoryBudget cboMemoryBudget) {
         super(spec, 1, 1);
         this.groupFields = groupFields;
         this.comparatorFactories = comparatorFactories;
         this.aggregatorFactory = aggregatorFactory;
         outRecDescs[0] = recordDescriptor;
         this.groupAll = groupAll;
-        this.framesLimit = framesLimit;
+        this.framesLimit = cboMemoryBudget.sizeInFrames();
+        this.cboMemoryBudget = cboMemoryBudget;
     }
 
     @Override
     public IOperatorNodePushable createPushRuntime(final IHyracksTaskContext ctx,
             final IRecordDescriptorProvider recordDescProvider, int partition, int nPartitions)
             throws HyracksDataException {
+        if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY) && cboMemoryBudget.cboMaxSizeInFrames() > 0) {
+            framesLimit = cboMemoryBudget.cboMaxSizeInFrames();
+        }
+        if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)
+                && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
+            framesLimit = cboMemoryBudget.cboOptimalSizeInFrames();
+        }
         return new PreclusteredGroupOperatorNodePushable(ctx, groupFields, comparatorFactories, aggregatorFactory,
                 recordDescProvider.getInputRecordDescriptor(getActivityId(), 0), outRecDescs[0], groupAll, framesLimit);
     }

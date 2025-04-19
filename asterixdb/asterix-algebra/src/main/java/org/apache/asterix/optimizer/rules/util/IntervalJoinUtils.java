@@ -61,9 +61,11 @@ import org.apache.hyracks.algebricks.core.algebra.operators.physical.AbstractJoi
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.AssignPOperator;
 import org.apache.hyracks.algebricks.core.algebra.properties.IPartitioningProperty.PartitioningType;
 import org.apache.hyracks.algebricks.core.algebra.properties.IntervalColumn;
+import org.apache.hyracks.algebricks.core.algebra.properties.LocalMemoryRequirements;
 import org.apache.hyracks.api.exceptions.IWarningCollector;
 import org.apache.hyracks.api.exceptions.Warning;
 import org.apache.hyracks.dataflow.common.data.partition.range.RangeMap;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 public class IntervalJoinUtils {
 
@@ -125,9 +127,13 @@ public class IntervalJoinUtils {
             List<LogicalVariable> sideLeft, List<LogicalVariable> sideRight, IOptimizationContext context,
             IntervalPartitions intervalPartitions) throws CompilationException {
         IIntervalJoinUtilFactory mjcf = createIntervalJoinCheckerFactory(fi, intervalPartitions.getRangeMap());
-        op.setPhysicalOperator(new IntervalMergeJoinPOperator(op.getJoinKind(),
-                AbstractJoinPOperator.JoinPartitioningType.BROADCAST, sideLeft, sideRight,
-                context.getPhysicalOptimizationConfig().getMaxFramesForJoin(), mjcf, intervalPartitions));
+        LocalMemoryRequirements localMemoryRequirements = op.getPhysicalOperator().getLocalMemoryRequirements();
+        CBOMemoryBudget cboMemoryBudget = new CBOMemoryBudget(localMemoryRequirements.getMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOOptimalMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOMaxMemoryBudgetInFrames());
+        op.setPhysicalOperator(
+                new IntervalMergeJoinPOperator(op.getJoinKind(), AbstractJoinPOperator.JoinPartitioningType.BROADCAST,
+                        sideLeft, sideRight, cboMemoryBudget, mjcf, intervalPartitions));
     }
 
     /**

@@ -52,6 +52,7 @@ import org.apache.hyracks.api.dataflow.IOperatorDescriptor;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
 import org.apache.hyracks.dataflow.common.data.partition.range.RangeMap;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 public class IntervalMergeJoinPOperator extends AbstractJoinPOperator {
 
@@ -59,18 +60,17 @@ public class IntervalMergeJoinPOperator extends AbstractJoinPOperator {
     private final List<LogicalVariable> keysRightBranch;
     protected final IIntervalJoinUtilFactory mjcf;
     protected final IntervalPartitions intervalPartitions;
-
-    private final int memSizeInFrames;
+    private final CBOMemoryBudget cboMemoryBudget;
 
     public IntervalMergeJoinPOperator(JoinKind kind, JoinPartitioningType partitioningType,
             List<LogicalVariable> sideLeftOfEqualities, List<LogicalVariable> sideRightOfEqualities,
-            int memSizeInFrames, IIntervalJoinUtilFactory mjcf, IntervalPartitions intervalPartitions) {
+            CBOMemoryBudget cboMemoryBudget, IIntervalJoinUtilFactory mjcf, IntervalPartitions intervalPartitions) {
         super(kind, partitioningType);
         this.keysLeftBranch = sideLeftOfEqualities;
         this.keysRightBranch = sideRightOfEqualities;
         this.mjcf = mjcf;
         this.intervalPartitions = intervalPartitions;
-        this.memSizeInFrames = memSizeInFrames;
+        this.cboMemoryBudget = cboMemoryBudget;
     }
 
     public IIntervalJoinUtilFactory getIntervalMergeJoinCheckerFactory() {
@@ -189,7 +189,7 @@ public class IntervalMergeJoinPOperator extends AbstractJoinPOperator {
 
     IOperatorDescriptor getIntervalOperatorDescriptor(int[] keysBuild, int[] keysProbe,
             IOperatorDescriptorRegistry spec, RecordDescriptor recordDescriptor, IIntervalJoinUtilFactory mjcf) {
-        return new IntervalMergeJoinOperatorDescriptor(spec, memSizeInFrames, keysBuild, keysProbe, recordDescriptor,
+        return new IntervalMergeJoinOperatorDescriptor(spec, cboMemoryBudget, keysBuild, keysProbe, recordDescriptor,
                 mjcf);
     }
 }

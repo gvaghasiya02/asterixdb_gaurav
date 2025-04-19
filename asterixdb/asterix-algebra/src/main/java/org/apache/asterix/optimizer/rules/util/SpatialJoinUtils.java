@@ -75,8 +75,10 @@ import org.apache.hyracks.algebricks.core.algebra.operators.physical.RandomParti
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.ReplicatePOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.StreamProjectPOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.UnnestPOperator;
+import org.apache.hyracks.algebricks.core.algebra.properties.LocalMemoryRequirements;
 import org.apache.hyracks.algebricks.core.algebra.util.OperatorManipulationUtil;
 import org.apache.hyracks.api.exceptions.SourceLocation;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 public class SpatialJoinUtils {
 
@@ -129,9 +131,13 @@ public class SpatialJoinUtils {
     private static void setSpatialJoinOp(AbstractBinaryJoinOperator op, List<LogicalVariable> keysLeftBranch,
             List<LogicalVariable> keysRightBranch, IOptimizationContext context) throws AlgebricksException {
         ISpatialJoinUtilFactory isjuf = new IntersectSpatialJoinUtilFactory();
-        op.setPhysicalOperator(new SpatialJoinPOperator(op.getJoinKind(),
-                AbstractJoinPOperator.JoinPartitioningType.PAIRWISE, keysLeftBranch, keysRightBranch,
-                context.getPhysicalOptimizationConfig().getMaxFramesForJoin(), isjuf));
+        LocalMemoryRequirements localMemoryRequirements = op.getPhysicalOperator().getLocalMemoryRequirements();
+        CBOMemoryBudget cboMemoryBudget = new CBOMemoryBudget(localMemoryRequirements.getMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOOptimalMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOMaxMemoryBudgetInFrames());
+        op.setPhysicalOperator(
+                new SpatialJoinPOperator(op.getJoinKind(), AbstractJoinPOperator.JoinPartitioningType.PAIRWISE,
+                        keysLeftBranch, keysRightBranch, cboMemoryBudget, isjuf));
         op.recomputeSchema();
         context.computeAndSetTypeEnvironmentForOperator(op);
     }

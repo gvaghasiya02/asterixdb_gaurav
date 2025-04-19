@@ -50,6 +50,7 @@ import org.apache.hyracks.algebricks.core.jobgen.impl.JobGenHelper;
 import org.apache.hyracks.api.dataflow.IOperatorDescriptor;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 /**
  * The right input is broadcast and the left input can be partitioned in any way.
@@ -60,16 +61,16 @@ public class SpatialJoinPOperator extends AbstractJoinPOperator {
     private final List<LogicalVariable> keysRightBranch;
 
     protected final ISpatialJoinUtilFactory mjcf;
-    private final int memSizeInFrames;
+    private final CBOMemoryBudget cboMemoryBudget;
 
     public SpatialJoinPOperator(JoinKind kind, JoinPartitioningType partitioningType,
-            List<LogicalVariable> keysLeftBranch, List<LogicalVariable> keysRightBranch, int memSizeInFrames,
-            ISpatialJoinUtilFactory mjcf) {
+            List<LogicalVariable> keysLeftBranch, List<LogicalVariable> keysRightBranch,
+            CBOMemoryBudget cboMemoryBudget, ISpatialJoinUtilFactory mjcf) {
         super(kind, partitioningType);
         this.keysLeftBranch = keysLeftBranch;
         this.keysRightBranch = keysRightBranch;
         this.mjcf = mjcf;
-        this.memSizeInFrames = memSizeInFrames;
+        this.cboMemoryBudget = cboMemoryBudget;
     }
 
     public List<LogicalVariable> getKeysLeftBranch() {
@@ -156,7 +157,7 @@ public class SpatialJoinPOperator extends AbstractJoinPOperator {
         RecordDescriptor recordDescriptor =
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), propagatedSchema, context);
 
-        IOperatorDescriptor opDesc = new PlaneSweepJoinOperatorDescriptor(spec, memSizeInFrames, keysBuild, keysProbe,
+        IOperatorDescriptor opDesc = new PlaneSweepJoinOperatorDescriptor(spec, cboMemoryBudget, keysBuild, keysProbe,
                 recordDescriptor, mjcf);
         contributeOpDesc(builder, (AbstractLogicalOperator) op, opDesc);
 

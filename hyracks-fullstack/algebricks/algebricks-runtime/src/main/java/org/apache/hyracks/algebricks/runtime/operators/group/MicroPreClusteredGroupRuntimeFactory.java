@@ -28,6 +28,8 @@ import org.apache.hyracks.api.dataflow.value.IBinaryComparator;
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.api.job.JobFlag;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupWriter;
 
@@ -39,11 +41,12 @@ public class MicroPreClusteredGroupRuntimeFactory extends AbstractOneInputOneOut
     private final IAggregatorDescriptorFactory aggregatorFactory;
     private final RecordDescriptor inRecordDesc;
     private final RecordDescriptor outRecordDesc;
-    private final int framesLimit;
+    private final CBOMemoryBudget cboMemoryBudget;
+    private int framesLimit;
 
     public MicroPreClusteredGroupRuntimeFactory(int[] groupFields, IBinaryComparatorFactory[] comparatorFactories,
             IAggregatorDescriptorFactory aggregatorFactory, RecordDescriptor inRecordDesc,
-            RecordDescriptor outRecordDesc, int[] projectionList, int framesLimit) {
+            RecordDescriptor outRecordDesc, int[] projectionList, CBOMemoryBudget cboMemoryBudget) {
         super(projectionList);
         // Obs: the projection list is currently ignored.
         if (projectionList != null) {
@@ -54,12 +57,20 @@ public class MicroPreClusteredGroupRuntimeFactory extends AbstractOneInputOneOut
         this.aggregatorFactory = aggregatorFactory;
         this.inRecordDesc = inRecordDesc;
         this.outRecordDesc = outRecordDesc;
-        this.framesLimit = framesLimit;
+        this.cboMemoryBudget = cboMemoryBudget;
+        this.framesLimit = cboMemoryBudget.sizeInFrames();
     }
 
     @Override
     public AbstractOneInputOneOutputPushRuntime createOneOutputPushRuntime(final IHyracksTaskContext ctx)
             throws HyracksDataException {
+        if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY) && cboMemoryBudget.cboMaxSizeInFrames() > 0) {
+            framesLimit = cboMemoryBudget.cboMaxSizeInFrames();
+        }
+        if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)
+                && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
+            framesLimit = cboMemoryBudget.cboOptimalSizeInFrames();
+        }
         final IBinaryComparator[] comparators = new IBinaryComparator[comparatorFactories.length];
         for (int i = 0; i < comparatorFactories.length; ++i) {
             comparators[i] = comparatorFactories[i].createBinaryComparator();

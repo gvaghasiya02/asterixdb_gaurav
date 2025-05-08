@@ -38,6 +38,7 @@ import org.apache.hyracks.algebricks.runtime.operators.win.WindowNestedPlansRunn
 import org.apache.hyracks.algebricks.runtime.operators.win.WindowNestedPlansRuntimeFactory;
 import org.apache.hyracks.algebricks.runtime.operators.win.WindowNestedPlansUnboundedRuntimeFactory;
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 public final class WindowPOperator extends AbstractWindowPOperator {
 
@@ -87,13 +88,15 @@ public final class WindowPOperator extends AbstractWindowPOperator {
             IRunningAggregateEvaluatorFactory[] runningAggFactories, int nestedAggOutSchemaSize,
             WindowAggregatorDescriptorFactory nestedAggFactory, JobGenContext context) {
 
-        int memSizeInFrames = localMemoryRequirements.getMemoryBudgetInFrames();
+        CBOMemoryBudget cboMemoryBudget = new CBOMemoryBudget(localMemoryRequirements.getMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOOptimalMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOMaxMemoryBudgetInFrames());
 
         // special cases
         if (!winOp.hasNestedPlans()) {
             return new WindowMaterializingRuntimeFactory(partitionColumnsList, partitionComparatorFactories,
                     orderComparatorFactories, projectionColumnsExcludingSubplans, runningAggOutColumns,
-                    runningAggFactories, memSizeInFrames);
+                    runningAggFactories, cboMemoryBudget);
         }
 
         boolean hasFrameStart = frameStartExprEvals != null && frameStartExprEvals.length > 0;
@@ -107,7 +110,7 @@ public final class WindowPOperator extends AbstractWindowPOperator {
                 return new WindowNestedPlansUnboundedRuntimeFactory(partitionColumnsList, partitionComparatorFactories,
                         orderComparatorFactories, winOp.getFrameMaxObjects(), projectionColumnsExcludingSubplans,
                         runningAggOutColumns, runningAggFactories, nestedAggOutSchemaSize, nestedAggFactory,
-                        memSizeInFrames);
+                        cboMemoryBudget);
             } else if (frameEndIsMonotonic && nestedTrivialAggregates) {
                 // special case #2: accumulating frame from beginning of the partition, no exclusions, no offset,
                 //                  trivial aggregate subplan ( aggregate + nts )
@@ -117,7 +120,7 @@ public final class WindowPOperator extends AbstractWindowPOperator {
                         frameEndValidationExprEvals, winOp.getFrameMaxObjects(),
                         context.getBinaryBooleanInspectorFactory(), projectionColumnsExcludingSubplans,
                         runningAggOutColumns, runningAggFactories, nestedAggOutSchemaSize, nestedAggFactory,
-                        memSizeInFrames);
+                        cboMemoryBudget);
             }
         }
 
@@ -129,6 +132,6 @@ public final class WindowPOperator extends AbstractWindowPOperator {
                 frameExcludeUnaryExprEval, frameOffsetExprEval, winOp.getFrameMaxObjects(),
                 context.getBinaryBooleanInspectorFactory(), context.getBinaryIntegerInspectorFactory(),
                 projectionColumnsExcludingSubplans, runningAggOutColumns, runningAggFactories, nestedAggOutSchemaSize,
-                nestedAggFactory, memSizeInFrames);
+                nestedAggFactory, cboMemoryBudget);
     }
 }

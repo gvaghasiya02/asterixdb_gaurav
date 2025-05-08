@@ -1111,7 +1111,8 @@ public class JoinNode {
                 pn = new PlanNode(allPlans.size(), joinEnum, this, leftPlan, rightPlan, outerJoin);
                 pn.setJoinAndHintInfo(PlanNode.JoinMethod.HYBRID_HASH_JOIN, hashJoinExpr, null,
                         HashJoinExpressionAnnotation.BuildSide.RIGHT, hintHashJoin);
-                pn.setJoinCosts(hjCost, totalCost, leftExchangeCost, rightExchangeCost);
+                pn.setJoinCosts(hjCost, totalCost, leftExchangeCost, rightExchangeCost,
+                        leftJn.cardinality * leftJn.sizeVarsAfterScan, rightJn.cardinality * rightJn.sizeVarsAfterScan);
                 planIndexesArray.add(pn.allPlansIndex);
                 allPlans.add(pn);
                 setCheapestPlan(pn, forceEnum);
@@ -1155,7 +1156,8 @@ public class JoinNode {
                 pn = new PlanNode(allPlans.size(), joinEnum, this, leftPlan, rightPlan, outerJoin);
                 pn.setJoinAndHintInfo(PlanNode.JoinMethod.BROADCAST_HASH_JOIN, hashJoinExpr, null,
                         HashJoinExpressionAnnotation.BuildSide.RIGHT, hintBroadcastHashJoin);
-                pn.setJoinCosts(bcastHjCost, totalCost, leftExchangeCost, rightExchangeCost);
+                pn.setJoinCosts(bcastHjCost, totalCost, leftExchangeCost, rightExchangeCost,
+                        leftJn.cardinality * leftJn.sizeVarsAfterScan, rightJn.cardinality * rightJn.sizeVarsAfterScan);
                 planIndexesArray.add(pn.allPlansIndex);
                 allPlans.add(pn);
                 setCheapestPlan(pn, forceEnum);
@@ -1226,7 +1228,8 @@ public class JoinNode {
             pn = new PlanNode(allPlans.size(), joinEnum, this, leftPlan, rightPlan, outerJoin);
             pn.setJoinAndHintInfo(PlanNode.JoinMethod.INDEX_NESTED_LOOP_JOIN, nestedLoopJoinExpr, exprAndHint, null,
                     hintNLJoin);
-            pn.setJoinCosts(nljCost, totalCost, leftExchangeCost, rightExchangeCost);
+            pn.setJoinCosts(nljCost, totalCost, leftExchangeCost, rightExchangeCost,
+                    leftJn.cardinality * leftJn.sizeVarsAfterScan, rightJn.cardinality * rightJn.sizeVarsAfterScan);
             planIndexesArray.add(pn.allPlansIndex);
             allPlans.add(pn);
             setCheapestPlan(pn, forceEnum);
@@ -1285,7 +1288,8 @@ public class JoinNode {
             pn = new PlanNode(allPlans.size(), joinEnum, this, leftPlan, rightPlan, outerJoin);
             pn.setJoinAndHintInfo(PlanNode.JoinMethod.CARTESIAN_PRODUCT_JOIN,
                     Objects.requireNonNullElse(cpJoinExpr, ConstantExpression.TRUE), null, null, null);
-            pn.setJoinCosts(cpCost, totalCost, leftExchangeCost, rightExchangeCost);
+            pn.setJoinCosts(cpCost, totalCost, leftExchangeCost, rightExchangeCost,
+                    leftJn.cardinality * leftJn.sizeVarsAfterScan, rightJn.cardinality * rightJn.sizeVarsAfterScan);
             planIndexesArray.add(pn.allPlansIndex);
             allPlans.add(pn);
             setCheapestPlan(pn, forceEnum);

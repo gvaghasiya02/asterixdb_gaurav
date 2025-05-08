@@ -19,12 +19,18 @@
 
 package org.apache.hyracks.algebricks.rewriter.rules;
 
+import static java.lang.Math.ceil;
+
+import java.util.Map;
+
+import org.apache.asterix.common.config.CompilerProperties;
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
 import org.apache.hyracks.algebricks.core.algebra.base.IOptimizationContext;
 import org.apache.hyracks.algebricks.core.algebra.base.IPhysicalOperator;
+import org.apache.hyracks.algebricks.core.algebra.base.OperatorAnnotations;
 import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractBinaryJoinOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogicalOperator;
@@ -66,6 +72,8 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.UnnestMapOpe
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.UnnestOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.WindowOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.WriteOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.physical.AbstractStableSortPOperator;
+import org.apache.hyracks.algebricks.core.algebra.properties.INodeDomain;
 import org.apache.hyracks.algebricks.core.algebra.properties.LocalMemoryRequirements;
 import org.apache.hyracks.algebricks.core.algebra.visitors.ILogicalOperatorVisitor;
 import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
@@ -142,15 +150,24 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
 
         protected final PhysicalOptimizationConfig physConfig;
 
+        protected int computationLocationsLength;
+
+        protected Map<String, Object> config;
+
         protected MemoryRequirementsConfigurator(IOptimizationContext context) {
             this.context = context;
             this.physConfig = context.getPhysicalOptimizationConfig();
+            //computation Location based on that memory gets divided.
+            INodeDomain nodeDomain = context.getComputationNodeDomain();
+            this.computationLocationsLength = nodeDomain != null ? nodeDomain.cardinality() : 1;
+            //Check if user has set any memory budget for the operator
+            this.config = context.getMetadataProvider().getConfig();
         }
 
         // helper methods
 
-        protected void setOperatorMemoryBudget(AbstractLogicalOperator op, int memBudgetInFrames)
-                throws AlgebricksException {
+        protected void setOperatorMemoryBudget(AbstractLogicalOperator op, int CBOBasedMaxMemBudgetInFrames,
+                int CBOBasedOptimalMemBudgetInFrames, int memBudgetInFrames) throws AlgebricksException {
             LocalMemoryRequirements memoryReqs = op.getPhysicalOperator().getLocalMemoryRequirements();
             int minBudgetInFrames = memoryReqs.getMinMemoryBudgetInFrames();
             if (memBudgetInFrames < minBudgetInFrames) {
@@ -159,26 +176,144 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                         minBudgetInFrames * physConfig.getFrameSize());
             }
             memoryReqs.setMemoryBudgetInFrames(memBudgetInFrames);
+            if (physConfig.getCBOMode()) {
+                if (CBOBasedMaxMemBudgetInFrames != -1 && CBOBasedOptimalMemBudgetInFrames != -1) {
+                    CBOBasedMaxMemBudgetInFrames = Math.max(CBOBasedMaxMemBudgetInFrames, minBudgetInFrames);
+                    CBOBasedOptimalMemBudgetInFrames = Math.max(CBOBasedOptimalMemBudgetInFrames, minBudgetInFrames);
+                } else {
+                    CBOBasedMaxMemBudgetInFrames = memBudgetInFrames;
+                    CBOBasedOptimalMemBudgetInFrames = memBudgetInFrames;
+                }
+            } else {
+                CBOBasedMaxMemBudgetInFrames = -1;
+                CBOBasedOptimalMemBudgetInFrames = -1;
+            }
+            memoryReqs.setCBOMaxMemoryBudgetInFrames(CBOBasedMaxMemBudgetInFrames);
+            memoryReqs.setCBOOptimalMemoryBudgetInFrames(CBOBasedOptimalMemBudgetInFrames);
         }
 
         // variable memory operators
 
         @Override
         public Void visitOrderOperator(OrderOperator op, Void arg) throws AlgebricksException {
-            setOperatorMemoryBudget(op, physConfig.getMaxFramesExternalSort());
+            Double inputCardinality = null, inputSize = null, fudgeFactor = 1.3;
+            for (Map.Entry<String, Object> anno : op.getAnnotations().entrySet()) {
+                if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_INPUT_CARDINALITY)) {
+                    inputCardinality = (Double) anno.getValue();
+                } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_INPUT_DOCSIZE)) {
+                    inputSize = (Double) anno.getValue();
+                }
+            }
+            int sizeOfSortColumns = 0;
+            if (op.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.STABLE_SORT
+                    || op.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.MICRO_STABLE_SORT) {
+                AbstractStableSortPOperator sortop = (AbstractStableSortPOperator) op.getPhysicalOperator();
+                sizeOfSortColumns = sortop.getSortColumns() != null ? sortop.getSortColumns().length : 0;
+
+            }
+            int normalizeKeySize = (4 + sizeOfSortColumns) * 8;
+            int CBOBasedMaxMemBudgetInFrames = -1;
+            int CBOBasedOptimalMemBudgetInFrames = -1;
+            if (!config.containsKey(CompilerProperties.COMPILER_SORTMEMORY_KEY) && inputCardinality != null
+                    && inputSize != null && inputCardinality > 0 && inputSize > 0) {
+                // use the cardinality and size to compute the memory budget
+                double opCard = inputCardinality;
+                double opSize = inputSize;
+                if (op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.LOCAL
+                        || op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.PARTITIONED) {
+                    opCard /= computationLocationsLength;
+                }
+                CBOBasedMaxMemBudgetInFrames = (int) ceil(opCard * (opSize) * fudgeFactor / physConfig.getFrameSize());
+                CBOBasedMaxMemBudgetInFrames +=
+                        (int) ceil(normalizeKeySize * opCard * fudgeFactor / physConfig.getFrameSize());
+                CBOBasedOptimalMemBudgetInFrames = (int) ceil(Math.sqrt(CBOBasedMaxMemBudgetInFrames));
+                // Added Extra Frames to the budget to account for the sort operator usually generator minus 1 frame from actual data.
+                CBOBasedMaxMemBudgetInFrames += 2;
+                CBOBasedOptimalMemBudgetInFrames += 2;
+            }
+            setOperatorMemoryBudget(op, CBOBasedMaxMemBudgetInFrames, CBOBasedOptimalMemBudgetInFrames,
+                    physConfig.getMaxFramesExternalSort());
             return null;
         }
 
         @Override
         public Void visitGroupByOperator(GroupByOperator op, Void arg) throws AlgebricksException {
-            setOperatorMemoryBudget(op, physConfig.getMaxFramesForGroupBy());
+            Double inputCardinality = null, outputCardinality = null, inputSize = null, outputSize = null,
+                    fudgeFactor = 1.3;
+            for (Map.Entry<String, Object> anno : op.getAnnotations().entrySet()) {
+                if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_INPUT_CARDINALITY)) {
+                    inputCardinality = (Double) anno.getValue();
+                } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_OUTPUT_CARDINALITY)) {
+                    outputCardinality = (Double) anno.getValue();
+                } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_INPUT_DOCSIZE)) {
+                    inputSize = (Double) anno.getValue();
+                } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_OUTPUT_DOCSIZE)) {
+                    outputSize = (Double) anno.getValue();
+                }
+            }
+            int CBOBasedMaxMemBudgetInFrames = -1;
+            int CBOBasedOptimalMemBudgetInFrames = -1;
+            if (!config.containsKey(CompilerProperties.COMPILER_GROUPMEMORY_KEY) && inputCardinality != null
+                    && outputCardinality != null && inputSize != null && outputSize != null && inputCardinality > 0
+                    && inputSize > 0 && outputCardinality > 0 && outputSize > 0) {
+                // use the cardinality and size to compute the memory budget
+                if (op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.LOCAL
+                        || op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.PARTITIONED) {
+                    inputCardinality /= computationLocationsLength;
+                }
+                CBOBasedMaxMemBudgetInFrames =
+                        (int) ceil(inputCardinality * inputSize * fudgeFactor / physConfig.getFrameSize());
+                CBOBasedOptimalMemBudgetInFrames =
+                        (int) ceil(outputCardinality * outputSize * fudgeFactor / physConfig.getFrameSize());
+                // added extra frames to the budget to account for the group by operator (Hash based has minimum 1 input + 1 output + 2 hash table frames)
+                CBOBasedMaxMemBudgetInFrames += 3;
+                CBOBasedOptimalMemBudgetInFrames += 3;
+            }
+            setOperatorMemoryBudget(op, CBOBasedMaxMemBudgetInFrames, CBOBasedOptimalMemBudgetInFrames,
+                    physConfig.getMaxFramesForGroupBy());
             return null;
         }
 
         @Override
         public Void visitWindowOperator(WindowOperator op, Void arg) throws AlgebricksException {
             if (op.getPhysicalOperator().getOperatorTag() == PhysicalOperatorTag.WINDOW) {
-                setOperatorMemoryBudget(op, physConfig.getMaxFramesForWindow());
+                Double inputCardinality = null, outputCardinality = null, inputSize = null, outputSize = null,
+                        fudgeFactor = 1.3;
+                for (Map.Entry<String, Object> anno : op.getAnnotations().entrySet()) {
+                    if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_INPUT_CARDINALITY)) {
+                        inputCardinality = (Double) anno.getValue();
+                    } else if (anno.getValue() != null
+                            && anno.getKey().equals(OperatorAnnotations.OP_OUTPUT_CARDINALITY)) {
+                        outputCardinality = (Double) anno.getValue();
+                    } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_INPUT_DOCSIZE)) {
+                        inputSize = (Double) anno.getValue();
+                    } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_OUTPUT_DOCSIZE)) {
+                        outputSize = (Double) anno.getValue();
+                    }
+                }
+                int CBOBasedMaxMemBudgetInFrames = -1;
+                int CBOBasedOptimalMemBudgetInFrames = -1;
+                if (!config.containsKey(CompilerProperties.COMPILER_WINDOWMEMORY_KEY) && inputCardinality != null
+                        && outputCardinality != null && inputSize != null && outputSize != null && inputCardinality > 0
+                        && inputSize > 0 && outputCardinality > 0 && outputSize > 0) {
+                    // use the cardinality and size to compute the memory budget
+                    double inputTotalSize = inputCardinality * inputSize;
+                    double outputTotalSize = outputCardinality * outputSize;
+                    if (op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.LOCAL
+                            || op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.PARTITIONED) {
+                        inputTotalSize /= computationLocationsLength;
+                        outputTotalSize /= computationLocationsLength;
+                    }
+                    CBOBasedMaxMemBudgetInFrames = (int) ceil(
+                            Math.max(inputTotalSize, outputTotalSize) * fudgeFactor / physConfig.getFrameSize());
+                    CBOBasedOptimalMemBudgetInFrames = (int) ceil(
+                            Math.min(inputTotalSize, outputTotalSize) * fudgeFactor / physConfig.getFrameSize());
+                    // added extra frames to the budget to account for the window operator (Minn frame requires are 5 frames)
+                    CBOBasedMaxMemBudgetInFrames += 4;
+                    CBOBasedOptimalMemBudgetInFrames += 4;
+                }
+                setOperatorMemoryBudget(op, CBOBasedMaxMemBudgetInFrames, CBOBasedOptimalMemBudgetInFrames,
+                        physConfig.getMaxFramesForWindow());
             }
             return null;
         }
@@ -194,7 +329,33 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
         }
 
         protected Void visitJoinOperator(AbstractBinaryJoinOperator op, Void arg) throws AlgebricksException {
-            setOperatorMemoryBudget(op, physConfig.getMaxFramesForJoin());
+            Double leftCardSizeProduct = null, rightCardSizeProduct = null, fudgeFactor = 1.3;
+            for (Map.Entry<String, Object> anno : op.getAnnotations().entrySet()) {
+                if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_LEFT_CARD_SIZE_PRODUCT)) {
+                    leftCardSizeProduct = (Double) anno.getValue();
+                } else if (anno.getValue() != null
+                        && anno.getKey().equals(OperatorAnnotations.OP_RIGHT_CARD_SIZE_PRODUCT)) {
+                    rightCardSizeProduct = (Double) anno.getValue();
+                }
+            }
+            int CBOBasedMaxMemBudgetInFrames = -1;
+            int CBOBasedOptimalMemBudgetInFrames = -1;
+            if (!config.containsKey(CompilerProperties.COMPILER_JOINMEMORY_KEY) && leftCardSizeProduct != null
+                    && rightCardSizeProduct != null && leftCardSizeProduct > 0 && rightCardSizeProduct > 0) {
+                // use the cardinality and size to compute the memory budget
+                if (op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.LOCAL
+                        || op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.PARTITIONED) {
+                    leftCardSizeProduct /= computationLocationsLength;
+                    rightCardSizeProduct /= computationLocationsLength;
+                }
+                CBOBasedMaxMemBudgetInFrames = (int) ceil(
+                        Math.min(leftCardSizeProduct, rightCardSizeProduct) * fudgeFactor / physConfig.getFrameSize());
+                CBOBasedOptimalMemBudgetInFrames = (int) ceil(Math.sqrt(CBOBasedMaxMemBudgetInFrames));
+                CBOBasedMaxMemBudgetInFrames += 4;
+                CBOBasedOptimalMemBudgetInFrames += 4;
+            }
+            setOperatorMemoryBudget(op, CBOBasedMaxMemBudgetInFrames, CBOBasedOptimalMemBudgetInFrames,
+                    physConfig.getMaxFramesForJoin());
             return null;
         }
 
@@ -214,7 +375,31 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
             IPhysicalOperator physOp = op.getPhysicalOperator();
             if (physOp.getOperatorTag() == PhysicalOperatorTag.LENGTH_PARTITIONED_INVERTED_INDEX_SEARCH
                     || physOp.getOperatorTag() == PhysicalOperatorTag.SINGLE_PARTITION_INVERTED_INDEX_SEARCH) {
-                setOperatorMemoryBudget(op, physConfig.getMaxFramesForTextSearch());
+                Double inputCardinality = null, inputSize = null, fudgeFactor = 1.3;
+                for (Map.Entry<String, Object> anno : op.getAnnotations().entrySet()) {
+                    if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_INPUT_CARDINALITY)) {
+                        inputCardinality = (Double) anno.getValue();
+                    } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_INPUT_DOCSIZE)) {
+                        inputSize = (Double) anno.getValue();
+                    }
+                }
+                int CBOBasedMaxMemBudgetInFrames = -1, CBOBasedOptimalMemBudgetInFrames = -1;
+                if (!config.containsKey(CompilerProperties.COMPILER_TEXTSEARCHMEMORY_KEY) && inputCardinality != null
+                        && inputSize != null && inputCardinality > 0 && inputSize > 0) {
+                    // use the cardinality and size to compute the memory budget
+                    double opCard = inputCardinality;
+                    double opSize = inputSize;
+                    if (op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.LOCAL
+                            || op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.PARTITIONED) {
+                        opCard /= computationLocationsLength;
+                    }
+                    CBOBasedMaxMemBudgetInFrames =
+                            (int) ceil(opCard * opSize * fudgeFactor / physConfig.getFrameSize());
+                    CBOBasedMaxMemBudgetInFrames += 4;
+                    CBOBasedOptimalMemBudgetInFrames = CBOBasedMaxMemBudgetInFrames;
+                }
+                setOperatorMemoryBudget(op, CBOBasedMaxMemBudgetInFrames, CBOBasedOptimalMemBudgetInFrames,
+                        physConfig.getMaxFramesForTextSearch());
             }
             return null;
         }

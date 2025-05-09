@@ -66,6 +66,12 @@ public class PhysicalOptimizationConfig {
 
     private static final String ORDER_FIELDS = "ORDERED_FIELDS";
 
+    private static final String QUERY_COMPILER_SORTMEMORY_KEY = "QUERY_COMPILER_SORTMEMORY_KEY";
+    private static final String QUERY_COMPILER_GROUPMEMORY_KEY = "QUERY_COMPILER_GROUPMEMORY_KEY";
+    private static final String QUERY_COMPILER_WINDOWMEMORY_KEY = "QUERY_COMPILER_WINDOWMEMORY_KEY";
+    private static final String QUERY_COMPILER_JOINMEMORY_KEY = "QUERY_COMPILER_JOINMEMORY_KEY";
+    private static final String COMPILER_TEXTSEARCHMEMORY_KEY = "COMPILER_TEXTSEARCHMEMORY_KEY";
+
     private final Properties properties = new Properties();
 
     public PhysicalOptimizationConfig() {
@@ -164,6 +170,46 @@ public class PhysicalOptimizationConfig {
 
     public void setOrderFields(boolean orderFields) {
         setBoolean(ORDER_FIELDS, orderFields);
+    }
+
+    public void setQueryCompilerSortMemoryKey(boolean queryCompilerSortMemoryKey) {
+        setBoolean(QUERY_COMPILER_SORTMEMORY_KEY, queryCompilerSortMemoryKey);
+    }
+
+    public boolean getQueryCompilerSortMemoryKey() {
+        return getBoolean(QUERY_COMPILER_SORTMEMORY_KEY, false);
+    }
+
+    public void setQueryCompilerGroupMemoryKey(boolean queryCompilerGroupMemoryKey) {
+        setBoolean(QUERY_COMPILER_GROUPMEMORY_KEY, queryCompilerGroupMemoryKey);
+    }
+
+    public boolean getQueryCompilerGroupMemoryKey() {
+        return getBoolean(QUERY_COMPILER_GROUPMEMORY_KEY, false);
+    }
+
+    public void setQueryCompilerWindowMemoryKey(boolean queryCompilerWindowMemoryKey) {
+        setBoolean(QUERY_COMPILER_WINDOWMEMORY_KEY, queryCompilerWindowMemoryKey);
+    }
+
+    public boolean getQueryCompilerWindowMemoryKey() {
+        return getBoolean(QUERY_COMPILER_WINDOWMEMORY_KEY, false);
+    }
+
+    public void setQueryCompilerJoinMemoryKey(boolean queryCompilerJoinMemoryKey) {
+        setBoolean(QUERY_COMPILER_JOINMEMORY_KEY, queryCompilerJoinMemoryKey);
+    }
+
+    public boolean getQueryCompilerJoinMemoryKey() {
+        return getBoolean(QUERY_COMPILER_JOINMEMORY_KEY, false);
+    }
+
+    public void setQueryCompilerTextSearchMemoryKey(boolean compilerTextSearchMemoryKey) {
+        setBoolean(COMPILER_TEXTSEARCHMEMORY_KEY, compilerTextSearchMemoryKey);
+    }
+
+    public boolean getQueryCompilerTextSearchMemoryKey() {
+        return getBoolean(COMPILER_TEXTSEARCHMEMORY_KEY, false);
     }
 
     public int getHashGroupByTableSize() {

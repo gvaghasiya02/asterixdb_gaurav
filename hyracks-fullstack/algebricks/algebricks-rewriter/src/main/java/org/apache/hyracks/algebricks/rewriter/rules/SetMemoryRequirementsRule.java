@@ -23,7 +23,6 @@ import static java.lang.Math.ceil;
 
 import java.util.Map;
 
-import org.apache.asterix.common.config.CompilerProperties;
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
@@ -152,16 +151,12 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
 
         protected int computationLocationsLength;
 
-        protected Map<String, Object> config;
-
         protected MemoryRequirementsConfigurator(IOptimizationContext context) {
             this.context = context;
             this.physConfig = context.getPhysicalOptimizationConfig();
             //computation Location based on that memory gets divided.
             INodeDomain nodeDomain = context.getComputationNodeDomain();
             this.computationLocationsLength = nodeDomain != null ? nodeDomain.cardinality() : 1;
-            //Check if user has set any memory budget for the operator
-            this.config = context.getMetadataProvider().getConfig();
         }
 
         // helper methods
@@ -214,8 +209,8 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
             int normalizeKeySize = (4 + sizeOfSortColumns) * 8;
             int CBOBasedMaxMemBudgetInFrames = -1;
             int CBOBasedOptimalMemBudgetInFrames = -1;
-            if (!config.containsKey(CompilerProperties.COMPILER_SORTMEMORY_KEY) && inputCardinality != null
-                    && inputSize != null && inputCardinality > 0 && inputSize > 0) {
+            if (!physConfig.getQueryCompilerSortMemoryKey() && inputCardinality != null && inputSize != null
+                    && inputCardinality > 0 && inputSize > 0) {
                 // use the cardinality and size to compute the memory budget
                 double opCard = inputCardinality;
                 double opSize = inputSize;
@@ -253,9 +248,9 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
             }
             int CBOBasedMaxMemBudgetInFrames = -1;
             int CBOBasedOptimalMemBudgetInFrames = -1;
-            if (!config.containsKey(CompilerProperties.COMPILER_GROUPMEMORY_KEY) && inputCardinality != null
-                    && outputCardinality != null && inputSize != null && outputSize != null && inputCardinality > 0
-                    && inputSize > 0 && outputCardinality > 0 && outputSize > 0) {
+            if (!physConfig.getQueryCompilerGroupMemoryKey() && inputCardinality != null && outputCardinality != null
+                    && inputSize != null && outputSize != null && inputCardinality > 0 && inputSize > 0
+                    && outputCardinality > 0 && outputSize > 0) {
                 // use the cardinality and size to compute the memory budget
                 if (op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.LOCAL
                         || op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.PARTITIONED) {
@@ -293,7 +288,7 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                 }
                 int CBOBasedMaxMemBudgetInFrames = -1;
                 int CBOBasedOptimalMemBudgetInFrames = -1;
-                if (!config.containsKey(CompilerProperties.COMPILER_WINDOWMEMORY_KEY) && inputCardinality != null
+                if (!physConfig.getQueryCompilerWindowMemoryKey() && inputCardinality != null
                         && outputCardinality != null && inputSize != null && outputSize != null && inputCardinality > 0
                         && inputSize > 0 && outputCardinality > 0 && outputSize > 0) {
                     // use the cardinality and size to compute the memory budget
@@ -340,7 +335,7 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
             }
             int CBOBasedMaxMemBudgetInFrames = -1;
             int CBOBasedOptimalMemBudgetInFrames = -1;
-            if (!config.containsKey(CompilerProperties.COMPILER_JOINMEMORY_KEY) && leftCardSizeProduct != null
+            if (!physConfig.getQueryCompilerJoinMemoryKey() && leftCardSizeProduct != null
                     && rightCardSizeProduct != null && leftCardSizeProduct > 0 && rightCardSizeProduct > 0) {
                 // use the cardinality and size to compute the memory budget
                 if (op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.LOCAL
@@ -384,8 +379,12 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                     }
                 }
                 int CBOBasedMaxMemBudgetInFrames = -1, CBOBasedOptimalMemBudgetInFrames = -1;
-                if (!config.containsKey(CompilerProperties.COMPILER_TEXTSEARCHMEMORY_KEY) && inputCardinality != null
-                        && inputSize != null && inputCardinality > 0 && inputSize > 0) {
+                if (!physConfig.getQueryCompilerTextSearchMemoryKey() && inputCardinality != null && inputSize != null
+                        && inputCardinality > 0 && inputSize > 0) {
+                    if (op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.LOCAL
+                            || op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.PARTITIONED) {
+                        inputCardinality /= computationLocationsLength;
+                    }
                     // use the cardinality and size to compute the memory budget
                     double opCard = inputCardinality;
                     double opSize = inputSize;

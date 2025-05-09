@@ -99,6 +99,12 @@ public class OptimizationConfUtil {
                 getMaxVariableOccurrencesForInlining(compilerProperties, querySpecificConfig, sourceLoc);
         boolean orderFields = getBoolean(querySpecificConfig, CompilerProperties.COMPILER_ORDERED_FIELDS_KEY,
                 compilerProperties.isOrderedFields());
+        boolean querySortMemory = doesExist(querySpecificConfig, CompilerProperties.COMPILER_SORTMEMORY_KEY);
+        boolean queryGroupMemory = doesExist(querySpecificConfig, CompilerProperties.COMPILER_GROUPMEMORY_KEY);
+        boolean queryWindowMemory = doesExist(querySpecificConfig, CompilerProperties.COMPILER_WINDOWMEMORY_KEY);
+        boolean queryJoinMemory = doesExist(querySpecificConfig, CompilerProperties.COMPILER_JOINMEMORY_KEY);
+        boolean queryTextSearchMemory =
+                doesExist(querySpecificConfig, CompilerProperties.COMPILER_TEXTSEARCHMEMORY_KEY);
 
         PhysicalOptimizationConfig physOptConf = new PhysicalOptimizationConfig();
         physOptConf.setFrameSize(frameSize);
@@ -129,6 +135,11 @@ public class OptimizationConfUtil {
         physOptConf.setMinWindowFrames(compilerProperties.getMinWindowMemoryFrames());
         physOptConf.setMaxVariableOccurrencesForInlining(maxVariableOccurrencesForInlining);
         physOptConf.setOrderFields(orderFields);
+        physOptConf.setQueryCompilerSortMemoryKey(querySortMemory);
+        physOptConf.setQueryCompilerGroupMemoryKey(queryGroupMemory);
+        physOptConf.setQueryCompilerWindowMemoryKey(queryWindowMemory);
+        physOptConf.setQueryCompilerJoinMemoryKey(queryJoinMemory);
+        physOptConf.setQueryCompilerTextSearchMemoryKey(queryTextSearchMemory);
 
         // We should have already validated the parameter names at this point...
         Set<String> filteredParameterNames = new HashSet<>(parameterNames);
@@ -216,6 +227,14 @@ public class OptimizationConfUtil {
             return OptionTypes.BOOLEAN.parse(valueInQuery);
         }
         return defaultValue;
+    }
+
+    private static boolean doesExist(Map<String, Object> queryConfig, String queryConfigKey) {
+        String valueInQuery = (String) queryConfig.get(queryConfigKey);
+        if (valueInQuery != null) {
+            return Boolean.TRUE;
+        }
+        return Boolean.FALSE;
     }
 
     private static String getString(Map<String, Object> queryConfig, String queryConfigKey, String defaultValue) {

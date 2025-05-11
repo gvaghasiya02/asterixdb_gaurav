@@ -46,7 +46,7 @@ import org.apache.logging.log4j.Logger;
  */
 @NotThreadSafe
 @GuardedBy("JobManager")
-public class GraefesQueue implements IJobQueue {
+public class Colorado_V1 implements IJobQueue {
 
     private final Logger LOGGER = LogManager.getLogger();
 
@@ -59,7 +59,7 @@ public class GraefesQueue implements IJobQueue {
     private int numberOfQueues = 10;
     private BitSet queueHasAnyJob = new BitSet(numberOfQueues);
 
-    public GraefesQueue(IJobManager jobManager, IJobCapacityController jobCapacityController) {
+    public Colorado_V1(IJobManager jobManager, IJobCapacityController jobCapacityController) {
         this.jobManager = jobManager;
         this.jobCapacityController = jobCapacityController;
         this.jobQueueCapacity = jobManager.getJobQueueCapacity();

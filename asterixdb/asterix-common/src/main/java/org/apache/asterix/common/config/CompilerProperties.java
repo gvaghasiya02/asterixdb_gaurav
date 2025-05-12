@@ -62,6 +62,26 @@ public class CompilerProperties extends AbstractProperties {
                 LONG_BYTE_UNIT,
                 StorageUtil.getLongSizeInBytes(32L, MEGABYTE),
                 "The memory budget (in bytes) for an inverted-index-search operator instance in a partition"),
+        COMPILER_CBO_SORTMEMORY(
+                LONG_BYTE_UNIT,
+                StorageUtil.getLongSizeInBytes(32L, MEGABYTE),
+                "The cbo max memory budget (in bytes) for a sort operator instance in a partition"),
+        COMPILER_CBO_GROUPMEMORY(
+                LONG_BYTE_UNIT,
+                StorageUtil.getLongSizeInBytes(32L, MEGABYTE),
+                "The cbo max memory budget (in bytes) for a group by operator instance in a partition"),
+        COMPILER_CBO_WINDOWMEMORY(
+                LONG_BYTE_UNIT,
+                StorageUtil.getLongSizeInBytes(32L, MEGABYTE),
+                "The cbo max memory budget (in bytes) for a window operator instance in a partition"),
+        COMPILER_CBO_JOINMEMORY(
+                LONG_BYTE_UNIT,
+                StorageUtil.getLongSizeInBytes(32L, MEGABYTE),
+                "The cbo max memory budget (in bytes) for a join operator instance in a partition"),
+        COMPILER_CBO_TEXTSEARCHMEMORY(
+                LONG_BYTE_UNIT,
+                StorageUtil.getLongSizeInBytes(32L, MEGABYTE),
+                "The cbo max memory budget (in bytes) for an inverted-index-search operator instance in a partition"),
         COMPILER_EXTERNALSCANMEMORY(
                 INTEGER_BYTE_UNIT,
                 StorageUtil.getIntSizeInBytes(8, KILOBYTE),
@@ -205,6 +225,16 @@ public class CompilerProperties extends AbstractProperties {
 
     public static final String COMPILER_TEXTSEARCHMEMORY_KEY = Option.COMPILER_TEXTSEARCHMEMORY.ini();
 
+    public static final String COMPILER_CBO_SORTMEMORY_KEY = Option.COMPILER_CBO_SORTMEMORY.ini();
+
+    public static final String COMPILER_CBO_GROUPMEMORY_KEY = Option.COMPILER_CBO_GROUPMEMORY.ini();
+
+    public static final String COMPILER_CBO_WINDOWMEMORY_KEY = Option.COMPILER_CBO_WINDOWMEMORY.ini();
+
+    public static final String COMPILER_CBO_JOINMEMORY_KEY = Option.COMPILER_CBO_JOINMEMORY.ini();
+
+    public static final String COMPILER_CBO_TEXTSEARCHMEMORY_KEY = Option.COMPILER_CBO_TEXTSEARCHMEMORY.ini();
+
     public static final String COMPILER_PARALLELISM_KEY = Option.COMPILER_PARALLELISM.ini();
 
     public static final String COMPILER_SORT_PARALLEL_KEY = Option.COMPILER_SORT_PARALLEL.ini();
@@ -268,6 +298,26 @@ public class CompilerProperties extends AbstractProperties {
 
     public long getTextSearchMemorySize() {
         return accessor.getLong(Option.COMPILER_TEXTSEARCHMEMORY);
+    }
+
+    public long getCBOSortMemorySize() {
+        return accessor.getLong(Option.COMPILER_CBO_SORTMEMORY);
+    }
+
+    public long getCBOGroupMemorySize() {
+        return accessor.getLong(Option.COMPILER_CBO_GROUPMEMORY);
+    }
+
+    public long getCBOWindowMemorySize() {
+        return accessor.getLong(Option.COMPILER_CBO_WINDOWMEMORY);
+    }
+
+    public long getCBOJoinMemorySize() {
+        return accessor.getLong(Option.COMPILER_CBO_JOINMEMORY);
+    }
+
+    public long getCBOTextSearchMemorySize() {
+        return accessor.getLong(Option.COMPILER_CBO_TEXTSEARCHMEMORY);
     }
 
     public int getMinSortMemoryFrames() {

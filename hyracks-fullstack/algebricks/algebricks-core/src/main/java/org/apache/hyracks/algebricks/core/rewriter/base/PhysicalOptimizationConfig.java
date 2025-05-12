@@ -70,7 +70,13 @@ public class PhysicalOptimizationConfig {
     private static final String QUERY_COMPILER_GROUPMEMORY_KEY = "QUERY_COMPILER_GROUPMEMORY_KEY";
     private static final String QUERY_COMPILER_WINDOWMEMORY_KEY = "QUERY_COMPILER_WINDOWMEMORY_KEY";
     private static final String QUERY_COMPILER_JOINMEMORY_KEY = "QUERY_COMPILER_JOINMEMORY_KEY";
-    private static final String COMPILER_TEXTSEARCHMEMORY_KEY = "COMPILER_TEXTSEARCHMEMORY_KEY";
+    private static final String QUERY_COMPILER_TEXTSEARCHMEMORY_KEY = "QUERY_COMPILER_TEXTSEARCHMEMORY_KEY";
+
+    private static final String MAX_CBO_SORT_FRAMES = "MAX_CBO_SORT_FRAMES";
+    private static final String MAX_CBO_GROUP_FRAMES = "MAX_CBO_GROUP_FRAMES";
+    private static final String MAX_CBO_WINDOW_FRAMES = "MAX_CBO_WINDOW_FRAMES";
+    private static final String MAX_CBO_JOIN_FRAMES = "MAX_CBO_JOIN_FRAMES";
+    private static final String MAX_CBO_TEXTSEARCH_FRAMES = "MAX_CBO_TEXTSEARCH_FRAMES";
 
     private final Properties properties = new Properties();
 
@@ -168,6 +174,51 @@ public class PhysicalOptimizationConfig {
         setInt(MAX_FRAMES_FOR_TEXTSEARCH, frameLimit);
     }
 
+    public int getMaxCBOSortFrames() {
+        int frameSize = getFrameSize();
+        return getInt(MAX_CBO_SORT_FRAMES, (int) (((long) 32 * MB) / frameSize));
+    }
+
+    public void setMaxCBOSortFrames(int frameLimit) {
+        setInt(MAX_CBO_SORT_FRAMES, frameLimit);
+    }
+
+    public int getMaxCBOGroupFrames() {
+        int frameSize = getFrameSize();
+        return getInt(MAX_CBO_GROUP_FRAMES, (int) (((long) 32 * MB) / frameSize));
+    }
+
+    public void setMaxCBOGroupFrames(int frameLimit) {
+        setInt(MAX_CBO_GROUP_FRAMES, frameLimit);
+    }
+
+    public int getMaxCBOWindowFrames() {
+        int frameSize = getFrameSize();
+        return getInt(MAX_CBO_WINDOW_FRAMES, (int) (((long) 32 * MB) / frameSize));
+    }
+
+    public void setMaxCBOWindowFrames(int frameLimit) {
+        setInt(MAX_CBO_WINDOW_FRAMES, frameLimit);
+    }
+
+    public int getMaxCBOJoinFrames() {
+        int frameSize = getFrameSize();
+        return getInt(MAX_CBO_JOIN_FRAMES, (int) (((long) 32 * MB) / frameSize));
+    }
+
+    public void setMaxCBOJoinFrames(int frameLimit) {
+        setInt(MAX_CBO_JOIN_FRAMES, frameLimit);
+    }
+
+    public int getMaxCBOTextSearchFrames() {
+        int frameSize = getFrameSize();
+        return getInt(MAX_CBO_TEXTSEARCH_FRAMES, (int) (((long) 32 * MB) / frameSize));
+    }
+
+    public void setMaxCBOTextSearchFrames(int frameLimit) {
+        setInt(MAX_CBO_TEXTSEARCH_FRAMES, frameLimit);
+    }
+
     public void setOrderFields(boolean orderFields) {
         setBoolean(ORDER_FIELDS, orderFields);
     }
@@ -205,11 +256,11 @@ public class PhysicalOptimizationConfig {
     }
 
     public void setQueryCompilerTextSearchMemoryKey(boolean compilerTextSearchMemoryKey) {
-        setBoolean(COMPILER_TEXTSEARCHMEMORY_KEY, compilerTextSearchMemoryKey);
+        setBoolean(QUERY_COMPILER_TEXTSEARCHMEMORY_KEY, compilerTextSearchMemoryKey);
     }
 
     public boolean getQueryCompilerTextSearchMemoryKey() {
-        return getBoolean(COMPILER_TEXTSEARCHMEMORY_KEY, false);
+        return getBoolean(QUERY_COMPILER_TEXTSEARCHMEMORY_KEY, false);
     }
 
     public int getHashGroupByTableSize() {

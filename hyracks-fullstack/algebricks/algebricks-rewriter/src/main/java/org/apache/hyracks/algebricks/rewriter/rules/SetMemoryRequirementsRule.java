@@ -225,6 +225,9 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                 // Added Extra Frames to the budget to account for the sort operator usually generator minus 1 frame from actual data.
                 CBOBasedMaxMemBudgetInFrames += 2;
                 CBOBasedOptimalMemBudgetInFrames += 2;
+                CBOBasedOptimalMemBudgetInFrames =
+                        Math.min(CBOBasedOptimalMemBudgetInFrames, physConfig.getMaxCBOSortFrames());
+                CBOBasedMaxMemBudgetInFrames = Math.min(CBOBasedMaxMemBudgetInFrames, physConfig.getMaxCBOSortFrames());
             }
             setOperatorMemoryBudget(op, CBOBasedMaxMemBudgetInFrames, CBOBasedOptimalMemBudgetInFrames,
                     physConfig.getMaxFramesExternalSort());
@@ -263,6 +266,10 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                 // added extra frames to the budget to account for the group by operator (Hash based has minimum 1 input + 1 output + 2 hash table frames)
                 CBOBasedMaxMemBudgetInFrames += 3;
                 CBOBasedOptimalMemBudgetInFrames += 3;
+                CBOBasedOptimalMemBudgetInFrames =
+                        Math.min(CBOBasedOptimalMemBudgetInFrames, physConfig.getMaxCBOGroupFrames());
+                CBOBasedMaxMemBudgetInFrames =
+                        Math.min(CBOBasedMaxMemBudgetInFrames, physConfig.getMaxCBOGroupFrames());
             }
             setOperatorMemoryBudget(op, CBOBasedMaxMemBudgetInFrames, CBOBasedOptimalMemBudgetInFrames,
                     physConfig.getMaxFramesForGroupBy());
@@ -306,6 +313,10 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                     // added extra frames to the budget to account for the window operator (Minn frame requires are 5 frames)
                     CBOBasedMaxMemBudgetInFrames += 4;
                     CBOBasedOptimalMemBudgetInFrames += 4;
+                    CBOBasedOptimalMemBudgetInFrames =
+                            Math.min(CBOBasedOptimalMemBudgetInFrames, physConfig.getMaxCBOWindowFrames());
+                    CBOBasedMaxMemBudgetInFrames =
+                            Math.min(CBOBasedMaxMemBudgetInFrames, physConfig.getMaxCBOWindowFrames());
                 }
                 setOperatorMemoryBudget(op, CBOBasedMaxMemBudgetInFrames, CBOBasedOptimalMemBudgetInFrames,
                         physConfig.getMaxFramesForWindow());
@@ -348,6 +359,9 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                 CBOBasedOptimalMemBudgetInFrames = (int) ceil(Math.sqrt(CBOBasedMaxMemBudgetInFrames));
                 CBOBasedMaxMemBudgetInFrames += 4;
                 CBOBasedOptimalMemBudgetInFrames += 4;
+                CBOBasedOptimalMemBudgetInFrames =
+                        Math.min(CBOBasedOptimalMemBudgetInFrames, physConfig.getMaxCBOJoinFrames());
+                CBOBasedMaxMemBudgetInFrames = Math.min(CBOBasedMaxMemBudgetInFrames, physConfig.getMaxCBOJoinFrames());
             }
             setOperatorMemoryBudget(op, CBOBasedMaxMemBudgetInFrames, CBOBasedOptimalMemBudgetInFrames,
                     physConfig.getMaxFramesForJoin());
@@ -396,6 +410,10 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                             (int) ceil(opCard * opSize * fudgeFactor / physConfig.getFrameSize());
                     CBOBasedMaxMemBudgetInFrames += 4;
                     CBOBasedOptimalMemBudgetInFrames = CBOBasedMaxMemBudgetInFrames;
+                    CBOBasedOptimalMemBudgetInFrames =
+                            Math.min(CBOBasedOptimalMemBudgetInFrames, physConfig.getMaxCBOTextSearchFrames());
+                    CBOBasedMaxMemBudgetInFrames =
+                            Math.min(CBOBasedMaxMemBudgetInFrames, physConfig.getMaxCBOTextSearchFrames());
                 }
                 setOperatorMemoryBudget(op, CBOBasedMaxMemBudgetInFrames, CBOBasedOptimalMemBudgetInFrames,
                         physConfig.getMaxFramesForTextSearch());

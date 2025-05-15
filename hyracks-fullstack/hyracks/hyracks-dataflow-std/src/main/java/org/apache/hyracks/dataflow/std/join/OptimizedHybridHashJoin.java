@@ -147,6 +147,9 @@ public class OptimizedHybridHashJoin {
         int tupleCount = accessorBuild.getTupleCount();
         for (int i = 0; i < tupleCount; ++i) {
             if (buildPredEval == null || buildPredEval.evaluate(accessorBuild, i)) {
+                if (i == 0)
+                    LOGGER.warn("build tuple count: {} and first length: {}", tupleCount,
+                            accessorBuild.getTupleLength(0));
                 int pid = buildHpc.partition(accessorBuild, i, numOfPartitions);
                 processTupleBuildPhase(i, pid);
                 buildPSizeInTups[pid]++;
@@ -305,12 +308,19 @@ public class OptimizedHybridHashJoin {
         long freeSpace = (long) (memSizeInFrames - spilledStatus.cardinality()) * frameSize;
 
         int inMemTupCount = 0;
+        long spaceOccupiedByPartition = 0;
         for (int p = spilledStatus.nextClearBit(0); p >= 0 && p < numOfPartitions; p =
                 spilledStatus.nextClearBit(p + 1)) {
             freeSpace -= bufferManager.getPhysicalSize(p);
+            spaceOccupiedByPartition += bufferManager.getPhysicalSize(p);
             inMemTupCount += buildPSizeInTups[p];
         }
         freeSpace -= SerializableHashTable.getExpectedTableByteSize(inMemTupCount, frameSize);
+
+        LOGGER.warn(
+                "spilledStatusCardinality: {}, frameSize: {}, memSizeInFrames: {}, freeSpaceAfter: {}, inMemoryTotalTuples: {}, spaceOccupiedByPartition: {}",
+                spilledStatus.cardinality(), frameSize, memSizeInFrames, freeSpace, inMemTupCount,
+                spaceOccupiedByPartition);
 
         return spillAndReloadPartitions(frameSize, freeSpace, inMemTupCount);
     }

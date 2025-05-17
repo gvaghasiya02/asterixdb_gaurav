@@ -66,6 +66,9 @@ public class PlanNode {
     protected ICost leftExchangeCost;
     protected ICost rightExchangeCost;
 
+    protected double leftCardSizeProduct;
+    protected double rightCardSizeProduct;
+
     public enum ScanMethod {
         INDEX_SCAN,
         TABLE_SCAN
@@ -209,6 +212,14 @@ public class PlanNode {
         return rightExchangeCost;
     }
 
+    public double getLeftCardSizeProduct() {
+        return leftCardSizeProduct;
+    }
+
+    public double getRightCardSizeProduct() {
+        return rightCardSizeProduct;
+    }
+
     protected double computeTotalCost() {
         return totalCost.computeTotalCost();
     }
@@ -325,10 +336,13 @@ public class PlanNode {
         }
     }
 
-    protected void setJoinCosts(ICost opCost, ICost totalCost, ICost leftExchangeCost, ICost rightExchangeCost) {
+    protected void setJoinCosts(ICost opCost, ICost totalCost, ICost leftExchangeCost, ICost rightExchangeCost,
+            double leftCardSizeProduct, double rightCardSizeProduct) {
         this.opCost = opCost;
         this.totalCost = totalCost;
         this.leftExchangeCost = leftExchangeCost;
         this.rightExchangeCost = rightExchangeCost;
+        this.rightCardSizeProduct = rightCardSizeProduct;
+        this.leftCardSizeProduct = leftCardSizeProduct;
     }
 }

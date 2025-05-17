@@ -54,6 +54,7 @@ import org.apache.hyracks.data.std.primitive.BooleanPointable;
 import org.apache.hyracks.data.std.primitive.IntegerPointable;
 import org.apache.hyracks.dataflow.common.data.marshalling.BooleanSerializerDeserializer;
 import org.apache.hyracks.dataflow.common.data.marshalling.IntegerSerializerDeserializer;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.sort.ExternalSortOperatorDescriptor;
 import org.apache.hyracks.storage.am.common.api.ISearchOperationCallbackFactory;
 import org.apache.hyracks.storage.am.common.dataflow.IndexDataflowHelperFactory;
@@ -267,8 +268,9 @@ public abstract class SecondaryCorrelatedTreeIndexOperationsHelper extends Secon
         for (int i = 1; i < taggedSortFields.length; i++) {
             taggedSortFields[i] = i + 1;
         }
-        ExternalSortOperatorDescriptor sortOp = new ExternalSortOperatorDescriptor(spec, sortNumFrames,
-                taggedSortFields, taggedSecondaryComparatorFactories, taggedSecondaryRecDesc);
+        ExternalSortOperatorDescriptor sortOp =
+                new ExternalSortOperatorDescriptor(spec, new CBOMemoryBudget(sortNumFrames, -1, -1), taggedSortFields,
+                        taggedSecondaryComparatorFactories, taggedSecondaryRecDesc);
         sortOp.setSourceLocation(sourceLoc);
         AlgebricksPartitionConstraintHelper.setPartitionConstraintInJobSpec(spec, sortOp, primaryPartitionConstraint);
         return sortOp;

@@ -74,6 +74,12 @@ public interface IJobQueue {
      */
     void clear();
 
+    void notifyJobFinished(JobRun run);
+
+    String printQueueInfo();
+
+    void cancel(JobId jobId);
+
     /**
      * Returns the number of queued jobs.
      *

@@ -20,6 +20,7 @@
 package org.apache.hyracks.algebricks.rewriter.rules;
 
 import static java.lang.Math.ceil;
+import static java.lang.Math.max;
 
 import java.util.Map;
 
@@ -78,6 +79,8 @@ import org.apache.hyracks.algebricks.core.algebra.visitors.ILogicalOperatorVisit
 import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
 import org.apache.hyracks.algebricks.core.rewriter.base.PhysicalOptimizationConfig;
 import org.apache.hyracks.api.exceptions.ErrorCode;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Set memory requirements for all operators as follows:
@@ -89,6 +92,8 @@ import org.apache.hyracks.api.exceptions.ErrorCode;
  * </ol>
  */
 public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
+
+    private static final Logger LOGGER = LogManager.getLogger();
 
     @Override
     public boolean rewritePost(Mutable<ILogicalOperator> opRef, IOptimizationContext context)
@@ -335,34 +340,46 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
         }
 
         protected Void visitJoinOperator(AbstractBinaryJoinOperator op, Void arg) throws AlgebricksException {
-            Double leftCardSizeProduct = null, rightCardSizeProduct = null, fudgeFactor = 1.3;
+            Double buildCardinality = null, buildDocSize = null, outputCardinality = null, outputSize = null,
+                    fudgeFactor = 1.3;
             for (Map.Entry<String, Object> anno : op.getAnnotations().entrySet()) {
-                if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_LEFT_CARD_SIZE_PRODUCT)) {
-                    leftCardSizeProduct = (Double) anno.getValue();
-                } else if (anno.getValue() != null
-                        && anno.getKey().equals(OperatorAnnotations.OP_RIGHT_CARD_SIZE_PRODUCT)) {
-                    rightCardSizeProduct = (Double) anno.getValue();
+                if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_BUILD_CARDINALITY)) {
+                    buildCardinality = (Double) anno.getValue();
+                } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_BUILD_DOCSIZE)) {
+                    buildDocSize = (Double) anno.getValue();
+                } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_OUTPUT_CARDINALITY)) {
+                    outputCardinality = (Double) anno.getValue();
+                } else if (anno.getValue() != null && anno.getKey().equals(OperatorAnnotations.OP_OUTPUT_DOCSIZE)) {
+                    outputSize = (Double) anno.getValue();
                 }
             }
+            LOGGER.warn("buildCardinality: " + buildCardinality + " buildDocSize: " + buildDocSize);
             int CBOBasedMaxMemBudgetInFrames = -1;
             int CBOBasedOptimalMemBudgetInFrames = -1;
-            if (!physConfig.getQueryCompilerJoinMemoryKey() && leftCardSizeProduct != null
-                    && rightCardSizeProduct != null && leftCardSizeProduct > 0 && rightCardSizeProduct > 0) {
+            if (!physConfig.getQueryCompilerJoinMemoryKey() && buildCardinality != null && buildDocSize != null
+                    && outputSize != null && outputCardinality != null && outputCardinality > 0 && outputSize > 0
+                    && buildCardinality > 0 && buildDocSize > 0) {
                 // use the cardinality and size to compute the memory budget
                 if (op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.LOCAL
                         || op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.PARTITIONED) {
-                    leftCardSizeProduct /= computationLocationsLength;
-                    rightCardSizeProduct /= computationLocationsLength;
+                    buildCardinality /= computationLocationsLength;
                 }
-                CBOBasedMaxMemBudgetInFrames = (int) ceil(
-                        Math.min(leftCardSizeProduct, rightCardSizeProduct) * fudgeFactor / physConfig.getFrameSize());
+                // use the cardinality and size to compute the memory budget 40 bytes are for hash table size check simpleSerializableHashTable
+                CBOBasedMaxMemBudgetInFrames =
+                        (int) ceil((buildCardinality * (buildDocSize) * fudgeFactor) / physConfig.getFrameSize());
+                CBOBasedMaxMemBudgetInFrames = max(CBOBasedMaxMemBudgetInFrames, 2);
+                CBOBasedMaxMemBudgetInFrames += (int) ceil((buildCardinality * (8)) / physConfig.getFrameSize());
+                CBOBasedMaxMemBudgetInFrames += (int) ceil((buildCardinality * (32)) / physConfig.getFrameSize());
                 CBOBasedOptimalMemBudgetInFrames = (int) ceil(Math.sqrt(CBOBasedMaxMemBudgetInFrames));
-                CBOBasedMaxMemBudgetInFrames += 4;
-                CBOBasedOptimalMemBudgetInFrames += 4;
+                // added extra frames to the budget to account for the join operator (Hash based has minimum 1 input + 1 output)
+                CBOBasedMaxMemBudgetInFrames += 2;
+                CBOBasedOptimalMemBudgetInFrames += 2;
                 CBOBasedOptimalMemBudgetInFrames =
                         Math.min(CBOBasedOptimalMemBudgetInFrames, physConfig.getMaxCBOJoinFrames());
                 CBOBasedMaxMemBudgetInFrames = Math.min(CBOBasedMaxMemBudgetInFrames, physConfig.getMaxCBOJoinFrames());
             }
+            LOGGER.warn("CBOMemoryBudgetJoinOperator: " + CBOBasedMaxMemBudgetInFrames + " "
+                    + CBOBasedOptimalMemBudgetInFrames + " ConmputationLocationsLength: " + computationLocationsLength);
             setOperatorMemoryBudget(op, CBOBasedMaxMemBudgetInFrames, CBOBasedOptimalMemBudgetInFrames,
                     physConfig.getMaxFramesForJoin());
             return null;

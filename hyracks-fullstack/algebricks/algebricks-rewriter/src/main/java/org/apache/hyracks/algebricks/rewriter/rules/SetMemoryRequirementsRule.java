@@ -25,6 +25,7 @@ import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
 import org.apache.hyracks.algebricks.core.algebra.base.IOptimizationContext;
 import org.apache.hyracks.algebricks.core.algebra.base.IPhysicalOperator;
+import org.apache.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractBinaryJoinOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogicalOperator;
@@ -71,6 +72,8 @@ import org.apache.hyracks.algebricks.core.algebra.visitors.ILogicalOperatorVisit
 import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
 import org.apache.hyracks.algebricks.core.rewriter.base.PhysicalOptimizationConfig;
 import org.apache.hyracks.api.exceptions.ErrorCode;
+import org.apache.hyracks.api.exceptions.IWarningCollector;
+import org.apache.hyracks.api.exceptions.Warning;
 
 /**
  * Set memory requirements for all operators as follows:
@@ -171,6 +174,30 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
 
         @Override
         public Void visitGroupByOperator(GroupByOperator op, Void arg) throws AlgebricksException {
+            /*  External Group by and Sort Group by operator with aggregates uses twice the configured group memory
+                to accommodate both local and global operators in the same stage.
+            */
+            PhysicalOperatorTag tag = op.getPhysicalOperator().getOperatorTag();
+
+            if (tag == PhysicalOperatorTag.SORT_GROUP_BY || tag == PhysicalOperatorTag.EXTERNAL_GROUP_BY) {
+                if (op.getNestedPlans().size() == 1) {
+                    ILogicalPlan p0 = op.getNestedPlans().get(0);
+                    if (p0.getRoots().size() == 1) {
+                        ILogicalOperator rootOp = p0.getRoots().get(0).getValue();
+                        if (rootOp.getOperatorTag() == LogicalOperatorTag.AGGREGATE) {
+                            AggregateOperator aggOp = (AggregateOperator) rootOp;
+                            if (!aggOp.getExpressions().isEmpty()) {
+                                IWarningCollector warningCollector = context.getWarningCollector();
+                                if (warningCollector.shouldWarn()) {
+                                    warningCollector.warn(Warning.of(op.getSourceLocation(),
+                                            ErrorCode.GROUP_BY_MEMORY_BUDGET_EXCEEDED_IN_STAGE,
+                                            2 * physConfig.getMaxFramesForGroupBy()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             setOperatorMemoryBudget(op, physConfig.getMaxFramesForGroupBy());
             return null;
         }

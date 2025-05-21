@@ -174,7 +174,8 @@ public enum ErrorCode implements IError {
     INAPPLICABLE_HINT(10006),
     CROSS_PRODUCT_JOIN(10007),
     GROUP_ALL_DECOR(10008),
-    EXPRESSION_CANNOT_BE_CONSTANT(10009);
+    EXPRESSION_CANNOT_BE_CONSTANT(10009),
+    GROUP_BY_MEMORY_BUDGET_EXCEEDED_IN_STAGE(10010);
 
     private static final String RESOURCE_PATH = "errormsg/en.properties";
     public static final String HYRACKS = "HYR";

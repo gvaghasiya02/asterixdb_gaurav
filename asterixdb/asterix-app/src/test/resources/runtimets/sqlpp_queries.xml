@@ -386,6 +386,12 @@
         <expected-warn>Unsupported type: agg-avg cannot process input type string (in line 29, at column 39)</expected-warn>
       </compilation-unit>
     </test-case>
+    <test-case FilePath="aggregate" check-warnings="true">
+      <compilation-unit name="serial_avg_mixed">
+        <output-dir compare="Text">serial_avg_mixed</output-dir>
+        <expected-warn>HYR10010: GROUP BY operations might use 4096 frames per data partition (twice the configured limit) (in line 32, at column 1)</expected-warn>
+      </compilation-unit>
+    </test-case>
     <test-case FilePath="aggregate">
       <compilation-unit name="group_only">
         <output-dir compare="Text">group_only</output-dir>

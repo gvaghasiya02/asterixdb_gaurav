@@ -71,6 +71,7 @@ import org.apache.hyracks.api.dataflow.value.ITypeTraits;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.SourceLocation;
 import org.apache.hyracks.api.job.JobSpecification;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.group.AbstractAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupOperatorDescriptor;
@@ -380,8 +381,9 @@ public class SecondaryArrayIndexBTreeOperationsHelper extends SecondaryTreeIndex
                 new SimpleAlgebricksAccumulatingAggregatorFactory(aggFactories, distinctFields);
         aggregatorFactory.setSourceLocation(sourceLoc);
 
-        PreclusteredGroupOperatorDescriptor distinctOp = new PreclusteredGroupOperatorDescriptor(spec, distinctFields,
-                secondaryComparatorFactories, aggregatorFactory, secondaryRecDesc, false, -1);
+        PreclusteredGroupOperatorDescriptor distinctOp =
+                new PreclusteredGroupOperatorDescriptor(spec, distinctFields, secondaryComparatorFactories,
+                        aggregatorFactory, secondaryRecDesc, false, new CBOMemoryBudget(-1, -1, -1));
         distinctOp.setSourceLocation(sourceLoc);
 
         return distinctOp;

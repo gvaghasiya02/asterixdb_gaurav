@@ -34,6 +34,7 @@ import org.apache.hyracks.algebricks.runtime.operators.aggreg.SimpleAlgebricksAc
 import org.apache.hyracks.algebricks.runtime.operators.group.MicroPreClusteredGroupRuntimeFactory;
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.group.AbstractAggregatorDescriptorFactory;
 
 public class MicroPreSortedDistinctByPOperator extends AbstractPreSortedDistinctByPOperator {
@@ -72,8 +73,9 @@ public class MicroPreSortedDistinctByPOperator extends AbstractPreSortedDistinct
                 context.getTypeEnvironment(op.getInputs().get(0).getValue()), inputSchemas[0], context);
 
         /* make fd columns part of the key but the comparator only compares the distinct key columns */
-        MicroPreClusteredGroupRuntimeFactory runtime = new MicroPreClusteredGroupRuntimeFactory(keysAndDecs,
-                comparatorFactories, aggregatorFactory, inputRecordDesc, recordDescriptor, null, -1);
+        MicroPreClusteredGroupRuntimeFactory runtime =
+                new MicroPreClusteredGroupRuntimeFactory(keysAndDecs, comparatorFactories, aggregatorFactory,
+                        inputRecordDesc, recordDescriptor, null, new CBOMemoryBudget(-1, -1, -1));
         runtime.setSourceLocation(op.getSourceLocation());
         builder.contributeMicroOperator(op, runtime, recordDescriptor);
         ILogicalOperator src = op.getInputs().get(0).getValue();

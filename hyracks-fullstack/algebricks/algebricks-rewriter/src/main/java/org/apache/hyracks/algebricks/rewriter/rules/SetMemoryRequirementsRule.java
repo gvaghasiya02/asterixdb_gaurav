@@ -20,6 +20,7 @@
 package org.apache.hyracks.algebricks.rewriter.rules;
 
 import static java.lang.Math.ceil;
+import static java.lang.Math.max;
 
 import java.util.Map;
 
@@ -78,6 +79,8 @@ import org.apache.hyracks.algebricks.core.algebra.visitors.ILogicalOperatorVisit
 import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
 import org.apache.hyracks.algebricks.core.rewriter.base.PhysicalOptimizationConfig;
 import org.apache.hyracks.api.exceptions.ErrorCode;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Set memory requirements for all operators as follows:
@@ -89,6 +92,8 @@ import org.apache.hyracks.api.exceptions.ErrorCode;
  * </ol>
  */
 public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
+
+    private static final Logger LOGGER = LogManager.getLogger();
 
     @Override
     public boolean rewritePost(Mutable<ILogicalOperator> opRef, IOptimizationContext context)
@@ -348,6 +353,7 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                     outputSize = (Double) anno.getValue();
                 }
             }
+            LOGGER.warn("buildCardinality: " + buildCardinality + " buildDocSize: " + buildDocSize);
             int CBOBasedMaxMemBudgetInFrames = -1;
             int CBOBasedOptimalMemBudgetInFrames = -1;
             if (!physConfig.getQueryCompilerJoinMemoryKey() && buildCardinality != null && buildDocSize != null
@@ -357,7 +363,6 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                 if (op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.LOCAL
                         || op.getExecutionMode() == AbstractLogicalOperator.ExecutionMode.PARTITIONED) {
                     buildCardinality /= computationLocationsLength;
-
                 }
                 // use the cardinality and size to compute the memory budget 40 bytes are for hash table size check simpleSerializableHashTable
                 CBOBasedMaxMemBudgetInFrames =
@@ -373,6 +378,8 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                         Math.min(CBOBasedOptimalMemBudgetInFrames, physConfig.getMaxCBOJoinFrames());
                 CBOBasedMaxMemBudgetInFrames = Math.min(CBOBasedMaxMemBudgetInFrames, physConfig.getMaxCBOJoinFrames());
             }
+            LOGGER.warn("CBOMemoryBudgetJoinOperator: " + CBOBasedMaxMemBudgetInFrames + " "
+                    + CBOBasedOptimalMemBudgetInFrames + " ConmputationLocationsLength: " + computationLocationsLength);
             setOperatorMemoryBudget(op, CBOBasedMaxMemBudgetInFrames, CBOBasedOptimalMemBudgetInFrames,
                     physConfig.getMaxFramesForJoin());
             return null;

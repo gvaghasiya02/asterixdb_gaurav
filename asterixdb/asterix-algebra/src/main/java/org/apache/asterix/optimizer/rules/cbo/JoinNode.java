@@ -371,7 +371,6 @@ public class JoinNode {
 
         // There are predicates here. So skip the predicates and get the original dataset card.
         // Now apply all the predicates and get the card after all predicates are applied.
-        // We call the sampling query even if a selectivity hint was provided because we have to get the lengths of the variables.
         result = joinEnum.getStatsHandle().runSamplingQueryProjection(joinEnum.optCtx, leafInput, jnArrayIndex,
                 primaryKey);
         double predicateCardinalityFromSample = joinEnum.getStatsHandle().findPredicateCardinality(result, true);
@@ -1100,7 +1099,8 @@ public class JoinNode {
         boolean forceEnum = hintHashJoin != null || joinEnum.forceJoinOrderMode
                 || !joinEnum.queryPlanShape.equals(AlgebricksConfig.QUERY_PLAN_SHAPE_ZIGZAG) || outerJoin
                 || level <= joinEnum.cboFullEnumLevel;
-        if (rightJn.cardinality * rightJn.size <= leftJn.cardinality * leftJn.size || forceEnum) {
+        if (rightJn.cardinality * rightJn.sizeVarsAfterScan <= leftJn.cardinality * leftJn.sizeVarsAfterScan
+                || forceEnum) {
             // We want to build with the smaller side.
             hjCost = joinEnum.getCostMethodsHandle().costHashJoin(this);
             leftExchangeCost = joinEnum.getCostMethodsHandle().computeHJProbeExchangeCost(this);
@@ -1145,7 +1145,8 @@ public class JoinNode {
         boolean forceEnum = hintBroadcastHashJoin != null || joinEnum.forceJoinOrderMode
                 || !joinEnum.queryPlanShape.equals(AlgebricksConfig.QUERY_PLAN_SHAPE_ZIGZAG) || outerJoin
                 || level <= joinEnum.cboFullEnumLevel;
-        if (rightJn.cardinality * rightJn.size <= leftJn.cardinality * leftJn.size || forceEnum) {
+        if (rightJn.cardinality * rightJn.sizeVarsAfterScan <= leftJn.cardinality * leftJn.sizeVarsAfterScan
+                || forceEnum) {
             // We want to broadcast and build with the smaller side.
             bcastHjCost = joinEnum.getCostMethodsHandle().costBroadcastHashJoin(this);
             leftExchangeCost = joinEnum.getCostHandle().zeroCost();
@@ -1229,8 +1230,8 @@ public class JoinNode {
             pn = new PlanNode(allPlans.size(), joinEnum, this, leftPlan, rightPlan, outerJoin);
             pn.setJoinAndHintInfo(PlanNode.JoinMethod.INDEX_NESTED_LOOP_JOIN, nestedLoopJoinExpr, exprAndHint, null,
                     hintNLJoin);
-            pn.setJoinCosts(nljCost, totalCost, leftExchangeCost, rightExchangeCost,
-                    leftJn.cardinality * leftJn.sizeVarsAfterScan, rightJn.cardinality * rightJn.sizeVarsAfterScan);
+            pn.setJoinCosts(nljCost, totalCost, leftExchangeCost, rightExchangeCost, rightJn.cardinality,
+                    rightJn.sizeVarsAfterScan);
             planIndexesArray.add(pn.allPlansIndex);
             allPlans.add(pn);
             setCheapestPlan(pn, forceEnum);
@@ -1289,8 +1290,8 @@ public class JoinNode {
             pn = new PlanNode(allPlans.size(), joinEnum, this, leftPlan, rightPlan, outerJoin);
             pn.setJoinAndHintInfo(PlanNode.JoinMethod.CARTESIAN_PRODUCT_JOIN,
                     Objects.requireNonNullElse(cpJoinExpr, ConstantExpression.TRUE), null, null, null);
-            pn.setJoinCosts(cpCost, totalCost, leftExchangeCost, rightExchangeCost,
-                    leftJn.cardinality * leftJn.sizeVarsAfterScan, rightJn.cardinality * rightJn.sizeVarsAfterScan);
+            pn.setJoinCosts(cpCost, totalCost, leftExchangeCost, rightExchangeCost, rightJn.cardinality,
+                    rightJn.sizeVarsAfterScan);
             planIndexesArray.add(pn.allPlansIndex);
             allPlans.add(pn);
             setCheapestPlan(pn, forceEnum);

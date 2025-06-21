@@ -166,8 +166,7 @@ public class InMemoryHashJoinOperatorDescriptor extends AbstractOperatorDescript
                     && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
                 memSizeInFrames = cboMemoryBudget.cboOptimalSizeInFrames();
             }
-
-            final int memSizeInBytes = memSizeInFrames * jobletCtx.getInitialFrameSize();
+            final long memSizeInBytes = (long) memSizeInFrames * (long) jobletCtx.getInitialFrameSize();
             final IDeallocatableFramePool framePool = new DeallocatableFramePool(jobletCtx, memSizeInBytes);
             final ISimpleFrameBufferManager bufferManager = new FramePoolBackedFrameBufferManager(framePool);
 

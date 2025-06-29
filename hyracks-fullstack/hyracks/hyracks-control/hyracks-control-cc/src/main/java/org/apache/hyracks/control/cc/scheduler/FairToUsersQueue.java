@@ -16,18 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.hyracks.control.cc.scheduler;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.PriorityBlockingQueue;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hyracks.api.exceptions.ErrorCode;
 import org.apache.hyracks.api.exceptions.HyracksException;
 import org.apache.hyracks.api.job.JobId;
@@ -36,60 +35,69 @@ import org.apache.hyracks.api.job.JobStatus;
 import org.apache.hyracks.api.job.resource.IJobCapacityController;
 import org.apache.hyracks.control.cc.job.IJobManager;
 import org.apache.hyracks.control.cc.job.JobRun;
-import org.apache.hyracks.util.annotations.GuardedBy;
-import org.apache.hyracks.util.annotations.NotThreadSafe;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-/**
- * An implementation of IJobQueue that gives more priority to jobs that are submitted earlier.
- */
-@NotThreadSafe
-@GuardedBy("JobManager")
-public class FIFOJobQueue implements IJobQueue {
-
+public class FairToUsersQueue implements IJobQueue {
     private static final Logger LOGGER = LogManager.getLogger();
 
-    private final Map<JobId, JobRun> jobListMap = new LinkedHashMap<>();
+    private final PriorityBlockingQueue<JobRun> jobQueue;
     private final IJobManager jobManager;
     private final IJobCapacityController jobCapacityController;
     private final int jobQueueCapacity;
+    private final HashMap<String, Double> userToUsage;
+    private Double totalUsage;
+    private final HashMap<JobId, JobRun> jobIDToJobRun;
 
-    public FIFOJobQueue(IJobManager jobManager, IJobCapacityController jobCapacityController) {
+    public FairToUsersQueue(IJobManager jobManager, IJobCapacityController jobCapacityController) {
         this.jobManager = jobManager;
+        this.totalUsage = 0D;
         this.jobCapacityController = jobCapacityController;
         this.jobQueueCapacity = jobManager.getJobQueueCapacity();
+        this.userToUsage = new HashMap<>();
+        this.jobIDToJobRun = new HashMap<>();
+        this.jobQueue = new PriorityBlockingQueue<>(jobQueueCapacity, new Comparator<JobRun>() {
+            @Override
+            public int compare(JobRun o1, JobRun o2) {
+                ////                //String o1User = o1.getJobSpecification().getUsername();
+                ////                Double o1Usage = userToUsage.containsKey(o1User) ? userToUsage.get(o1User) : 0;
+                ////                String o2User = o2.getJobSpecification().getUsername();
+                //                Double o2Usage = userToUsage.containsKey(o2User) ? userToUsage.get(o2User) : 0;
+                //                return Double.compare(o1Usage / totalUsage, o2Usage / totalUsage);
+                return 0;
+            }
+        });
     }
 
     @Override
     public void add(JobRun run) throws HyracksException {
-        int size = jobListMap.size();
-        if (size >= jobQueueCapacity) {
+        run.setAddedToQueueTime(System.nanoTime());
+        if (!jobQueue.add(run)) {
             throw HyracksException.create(ErrorCode.JOB_QUEUE_FULL, jobQueueCapacity);
         }
-        run.setAddedToQueueTime(System.nanoTime());
-        jobListMap.put(run.getJobId(), run);
-        LOGGER.warn("Added jobid " + run.getJobId() + "to the queue." + run.toJSON());
+        jobIDToJobRun.put(run.getJobId(), run);
     }
 
     @Override
     public JobRun remove(JobId jobId) {
-        return jobListMap.remove(jobId);
+        JobRun jr = jobIDToJobRun.get(jobId);
+        jobQueue.remove(jr);
+        jobIDToJobRun.remove(jobId);
+        return jr;
     }
 
     @Override
     public JobRun get(JobId jobId) {
-        return jobListMap.get(jobId);
+        return jobIDToJobRun.get(jobId);
     }
 
     @Override
     public synchronized List<JobRun> pull() {
-        List<JobRun> jobRuns = new ArrayList<>();
-        Iterator<JobRun> runIterator = jobListMap.values().iterator();
-        List<Pair<JobRun, List<Exception>>> failingJobs = null;
-        while (runIterator.hasNext()) {
-            JobRun run = runIterator.next();
+        List<JobRun> jobRuns = new LinkedList<>();
+        int i = 0;
+        while (i < jobQueue.size()) {
+            JobRun run = jobQueue.peek();
             JobSpecification job = run.getJobSpecification();
             // Cluster maximum capacity can change over time, thus we have to re-check if the job should be rejected
             // or not.
@@ -99,69 +107,55 @@ public class FIFOJobQueue implements IJobQueue {
                 // Checks if the job can be executed immediately.
                 if (status == IJobCapacityController.JobSubmissionStatus.EXECUTE) {
                     jobRuns.add(run);
-                    runIterator.remove(); // Removes the selected job.
+                    jobQueue.remove(run);
+                    jobIDToJobRun.remove(run.getJobId());
                 }
             } catch (HyracksException exception) {
-                if (failingJobs == null) {
-                    failingJobs = new ArrayList<>();
-                }
-                // The required capacity exceeds maximum capacity or the job cannot be run at this time.
-                List<Exception> exceptions = new ArrayList<>(1);
+                // The required capacity exceeds maximum capacity.
+                List<Exception> exceptions = new ArrayList<>();
                 exceptions.add(exception);
-                failingJobs.add(Pair.of(run, exceptions));
-                runIterator.remove(); // Removes the job from the queue.
-            }
-        }
-        if (failingJobs != null) {
-            for (int i = 0; i < failingJobs.size(); i++) {
                 try {
-                    Pair<JobRun, List<Exception>> job = failingJobs.get(i);
-                    jobManager.prepareComplete(job.getLeft(), JobStatus.FAILURE_BEFORE_EXECUTION, job.getRight());
+                    // Fails the job.
+                    jobManager.prepareComplete(run, JobStatus.FAILURE_BEFORE_EXECUTION, exceptions);
                 } catch (HyracksException e) {
                     LOGGER.log(Level.ERROR, e.getMessage(), e);
                 }
             }
-        }
-        for (JobRun run : jobRuns) {
-            LOGGER.warn("Pulled " + run.toJSON() + "to the queue.");
         }
         return jobRuns;
     }
 
     @Override
     public Collection<JobRun> jobs() {
-        return Collections.unmodifiableCollection(jobListMap.values());
+        List<JobRun> jobs = new ArrayList<>();
+        JobRun[] arr = (JobRun[]) jobQueue.toArray();
+        Collections.addAll(jobs, arr);
+        return jobs;
     }
 
     @Override
     public void clear() {
-        jobListMap.clear();
-    }
-
-    @Override
-    public int size() {
-        return jobListMap.size();
+        jobQueue.clear();
     }
 
     @Override
     public void notifyJobFinished(JobRun run) {
-        LOGGER.warn("Job Finished: " + run.toJSON_Shortened());
-        LOGGER.warn("Job Finished-short:" + run.toJSON());
+
     }
 
     @Override
     public String printQueueInfo() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Jobs:{ ");
-        for (JobRun job : jobs()) {
-            sb.append(job.getJobId() + ",");
-        }
-        sb.append("}");
-        return sb.toString();
+        return null;
     }
 
     @Override
     public void cancel(JobId jobId) {
 
     }
+
+    @Override
+    public int size() {
+        return jobQueue.size();
+    }
+
 }

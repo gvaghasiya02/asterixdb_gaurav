@@ -40,6 +40,7 @@ import org.apache.hyracks.data.std.accessors.UTF8StringBinaryComparatorFactory;
 import org.apache.hyracks.data.std.primitive.UTF8StringPointable;
 import org.apache.hyracks.dataflow.common.data.normalizers.UTF8StringNormalizedKeyComputerFactory;
 import org.apache.hyracks.dataflow.common.data.partition.FieldHashPartitionComputerFactory;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.buffermanager.EnumFreeSlotPolicy;
 import org.apache.hyracks.dataflow.std.connectors.MToNPartitioningMergingConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
@@ -131,21 +132,21 @@ public class Sort {
         createPartitionConstraint(spec, ordScanner, ordersSplits);
         AbstractSorterOperatorDescriptor sorter;
         if (usingHeapSorter && limit < Integer.MAX_VALUE) {
-            sorter = new TopKSorterOperatorDescriptor(spec, frameLimit, limit, SortFields,
+            sorter = new TopKSorterOperatorDescriptor(spec, new CBOMemoryBudget(frameLimit, -1, -1), limit, SortFields,
                     (INormalizedKeyComputerFactory) null, SortFieldsComparatorFactories, ordersDesc);
         } else {
             if (memBufferAlg.equalsIgnoreCase("bestfit")) {
-                sorter = new ExternalSortOperatorDescriptor(spec, frameLimit, SortFields, null,
-                        SortFieldsComparatorFactories, ordersDesc, Algorithm.MERGE_SORT,
+                sorter = new ExternalSortOperatorDescriptor(spec, new CBOMemoryBudget(frameLimit, -1, -1), SortFields,
+                        null, SortFieldsComparatorFactories, ordersDesc, Algorithm.MERGE_SORT,
                         EnumFreeSlotPolicy.SMALLEST_FIT, limit);
             } else if (memBufferAlg.equalsIgnoreCase("biggestfit")) {
-                sorter = new ExternalSortOperatorDescriptor(spec, frameLimit, SortFields, null,
-                        SortFieldsComparatorFactories, ordersDesc, Algorithm.MERGE_SORT, EnumFreeSlotPolicy.BIGGEST_FIT,
-                        limit);
+                sorter = new ExternalSortOperatorDescriptor(spec, new CBOMemoryBudget(frameLimit, -1, -1), SortFields,
+                        null, SortFieldsComparatorFactories, ordersDesc, Algorithm.MERGE_SORT,
+                        EnumFreeSlotPolicy.BIGGEST_FIT, limit);
             } else {
-                sorter = new ExternalSortOperatorDescriptor(spec, frameLimit, SortFields, null,
-                        SortFieldsComparatorFactories, ordersDesc, Algorithm.MERGE_SORT, EnumFreeSlotPolicy.LAST_FIT,
-                        limit);
+                sorter = new ExternalSortOperatorDescriptor(spec, new CBOMemoryBudget(frameLimit, -1, -1), SortFields,
+                        null, SortFieldsComparatorFactories, ordersDesc, Algorithm.MERGE_SORT,
+                        EnumFreeSlotPolicy.LAST_FIT, limit);
 
             }
         }

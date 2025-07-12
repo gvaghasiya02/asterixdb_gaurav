@@ -18,6 +18,105 @@
  !-->
 <a href="http://asterixdb.apache.org"><img src="http://asterixdb.apache.org/img/asterixdb_tm.png" height=100></img></a>
 
+## 🧠 Current Query Execution & Memory Management in AsterixDB
+
+AsterixDB follows a structured pipeline for query execution and memory allocation. Below is an overview of the process:
+
+### 1. Query Plan Generation
+- When a query is submitted, AsterixDB generates an **optimized logical query plan**.
+- Optimization is done using the **Cost-Based Optimizer (CBO)**.
+
+### 2. Memory Assignment
+- The memory budget is configured in the `cc.conf` configuration file.
+- The rule class `SetMemoryRequirementsRule.java` assigns memory to each operator in the query plan.
+- Memory assignment is based on:
+  - Operator type
+  - Estimated input data size (from CBO stats if available)
+
+### 3. Plan Stage Conversion
+- The logical plan is converted into **plan stages** via the **Plan Stages Generator**.
+
+### 4. Hyracks Job Generation
+- Plan stages are compiled into a **Hyracks job**, which represents the physical execution of the query.
+
+### 5. Memory Requirement Estimation
+- Total query memory requirements are computed by summing the budgets of all operators.
+- This value is used to evaluate whether the query can be admitted.
+
+### 6. Admission Control
+- The **Admission Controller** checks whether the system has sufficient resources to admit the query.
+- If yes, the query is accepted for execution.
+
+### 7. Scheduling & Execution
+- The **Scheduler** either:
+  - Executes the query immediately if resources are available, or
+  - Queues the query for later execution.
+
+---
+
+This process ensures efficient memory use and predictable performance under concurrent query loads.
+
+---
+
+## What We Changed: Introducing CBO-Based Memory Allocation
+
+To improve memory estimation, we introduced **Cost-Based Optimizer (CBO)**-driven memory budgeting for memory-intensive operators. This allows the system to assign more accurate memory based on operator statistics, reducing the chance of unnecessary spilling or under-utilization.
+
+### Memory-Intensive Operators
+The following operators are now allocated memory more precisely:
+- `Join`
+- `GroupBy`
+- `OrderBy`
+- `Window`
+- `TextSearch`
+
+---
+
+## CBO-Based Memory Allocation
+
+### `CBOMemoryBudget.java`
+
+For each memory-intensive operator, three types of memory budgets are computed (if CBO is enabled):
+
+1. **Default Memory Budget**
+  - Used when no CBO statistics are available.
+  - Configurable via `cc.conf`.
+
+2. **CBO-Based Max Memory**
+  - Used when `compiler.cbo = true` and sufficient memory is available.
+  - Allocates the ideal memory to avoid spilling and maximize in-memory processing.
+
+3. **CBO-Based Optimal Memory**
+  - Used when `compiler.cbo = true`, but max memory isn't available.
+  - Allocates a “good enough” amount of memory to minimize spilling and balance system usage.
+
+> 💡 *Note:* AsterixDB's current architecture does not support dynamic memory resizing after admission. Hence, all memory budgets must be determined **before query execution**.
+
+---
+
+###  Working Mechanism
+
+1. **Memory Budget Calculation**
+  - During optimization, in `SetMemoryRequirementsRule.java`, memory is assigned to each operator.
+  - For memory-intensive operators, all three memory budgets are populated.
+
+2. **Plan Stage Generation**
+  - These budgets propagate through the Plan Stages Generator and influence overall query memory needs.
+
+3. **Admission Decision**
+  - At admission time, if CBO is enabled:
+    - The system first tries to allocate the **CBO-Based Max Memory**.
+    - If not possible, it falls back to **CBO-Based Optimal Memory**.
+    - If still not feasible, the **Default Memory Budget** is used.
+
+4. **User-Defined Budget (Override)**
+  - If a user explicitly sets a memory budget for an operator, that value **overrides** all CBO-based budgets.
+
+---
+
+📂 **See:**  
+Implementation logic for memory estimation can be found in [`SetMemoryRequirementsRule.java`](hyracks-fullstack/algebricks/algebricks-rewriter/src/main/java/org/apache/hyracks/algebricks/rewriter/rules/SetMemoryRequirementsRule.java).
+---
 ## What is AsterixDB?
 
 AsterixDB is a BDMS (Big Data Management System) with a rich feature set that sets it apart from other Big Data platforms.  Its feature set makes it well-suited to modern needs such as web data warehousing and social data storage and analysis. AsterixDB has:

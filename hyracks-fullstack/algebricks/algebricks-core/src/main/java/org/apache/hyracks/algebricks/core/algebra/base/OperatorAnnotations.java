@@ -37,4 +37,6 @@ public interface OperatorAnnotations {
     String OP_COST_LOCAL = "OP_COST";
     String OP_LEFT_EXCHANGE_COST = "LEFT_EXCHANGE_COST";
     String OP_RIGHT_EXCHANGE_COST = "RIGHT_EXCHANGE_COST";
+    String OP_BUILD_CARDINALITY = "BUILD_CARDINALITY";
+    String OP_BUILD_DOCSIZE = "BUILD_DOCSIZE";
 }

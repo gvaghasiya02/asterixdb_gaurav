@@ -36,6 +36,7 @@ import org.apache.hyracks.algebricks.runtime.operators.sort.MicroSortRuntimeFact
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.INormalizedKeyComputerFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 public class MicroStableSortPOperator extends AbstractStableSortPOperator {
 
@@ -79,8 +80,10 @@ public class MicroStableSortPOperator extends AbstractStableSortPOperator {
             i++;
         }
 
-        int maxNumberOfFrames = localMemoryRequirements.getMemoryBudgetInFrames();
-        IPushRuntimeFactory runtime = new MicroSortRuntimeFactory(sortFields, nkcf, comps, null, maxNumberOfFrames);
+        CBOMemoryBudget cboMemoryBudget = new CBOMemoryBudget(localMemoryRequirements.getMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOOptimalMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOMaxMemoryBudgetInFrames());
+        IPushRuntimeFactory runtime = new MicroSortRuntimeFactory(sortFields, nkcf, comps, null, cboMemoryBudget);
         builder.contributeMicroOperator(op, runtime, recDescriptor);
         ILogicalOperator src = op.getInputs().get(0).getValue();
         builder.contributeGraphEdge(src, 0, op, 0);

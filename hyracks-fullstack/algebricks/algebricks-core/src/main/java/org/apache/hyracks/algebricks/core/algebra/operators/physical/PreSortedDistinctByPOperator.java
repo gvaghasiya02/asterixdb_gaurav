@@ -34,6 +34,7 @@ import org.apache.hyracks.algebricks.runtime.operators.aggreg.SimpleAlgebricksAc
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.group.AbstractAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupOperatorDescriptor;
 
@@ -72,7 +73,7 @@ public class PreSortedDistinctByPOperator extends AbstractPreSortedDistinctByPOp
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), opSchema, context);
         /* make fd columns part of the key but the comparator only compares the distinct key columns */
         PreclusteredGroupOperatorDescriptor opDesc = new PreclusteredGroupOperatorDescriptor(spec, keysAndDecs,
-                comparatorFactories, aggregatorFactory, recordDescriptor, false, -1);
+                comparatorFactories, aggregatorFactory, recordDescriptor, false, new CBOMemoryBudget(-1, -1, -1));
         opDesc.setSourceLocation(op.getSourceLocation());
 
         contributeOpDesc(builder, (AbstractLogicalOperator) op, opDesc);

@@ -47,6 +47,7 @@ import org.apache.hyracks.dataflow.common.data.marshalling.IntegerSerializerDese
 import org.apache.hyracks.dataflow.common.data.marshalling.UTF8StringSerializerDeserializer;
 import org.apache.hyracks.dataflow.common.data.normalizers.UTF8StringNormalizedKeyComputerFactory;
 import org.apache.hyracks.dataflow.common.data.partition.FieldHashPartitionComputerFactory;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.connectors.MToNPartitioningConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.file.ConstantFileSplitProvider;
@@ -176,7 +177,7 @@ public class Join {
         if ("nestedloop".equalsIgnoreCase(algo)) {
             join = new NestedLoopJoinOperatorDescriptor(spec,
                     new JoinComparatorFactory(UTF8StringBinaryComparatorFactory.INSTANCE, 0, 1),
-                    Common.custOrderJoinDesc, memSize, false, null);
+                    Common.custOrderJoinDesc, new CBOMemoryBudget(memSize, -1, -1), false, null);
 
         } else if ("inmem".equalsIgnoreCase(algo)) {
             join = new InMemoryHashJoinOperatorDescriptor(spec, new int[] { 0 }, new int[] { 1 },
@@ -185,11 +186,11 @@ public class Join {
                     new IBinaryHashFunctionFactory[] {
                             PointableBinaryHashFunctionFactory.of(UTF8StringPointable.FACTORY) },
                     new JoinComparatorFactory(UTF8StringBinaryComparatorFactory.INSTANCE, 0, 1),
-                    Common.custOrderJoinDesc, tableSize, memSize * frameSize);
+                    Common.custOrderJoinDesc, tableSize, new CBOMemoryBudget(memSize, -1, -1));
 
         } else if ("hybrid".equalsIgnoreCase(algo)) {
-            join = new OptimizedHybridHashJoinOperatorDescriptor(spec, memSize, graceInputSize, graceFactor,
-                    new int[] { 0 }, new int[] { 1 },
+            join = new OptimizedHybridHashJoinOperatorDescriptor(spec, new CBOMemoryBudget(memSize, -1, -1),
+                    graceInputSize, graceFactor, new int[] { 0 }, new int[] { 1 },
                     new IBinaryHashFunctionFamily[] { UTF8StringBinaryHashFunctionFamily.INSTANCE },
                     new IBinaryHashFunctionFamily[] { UTF8StringBinaryHashFunctionFamily.INSTANCE },
                     Common.custOrderJoinDesc,
@@ -221,7 +222,7 @@ public class Join {
                     new UTF8StringSerializerDeserializer(), IntegerSerializerDeserializer.INSTANCE });
 
             ExternalGroupOperatorDescriptor gby = new ExternalGroupOperatorDescriptor(spec, tableSize,
-                    custFileSize + orderFileSize, new int[] { 6 }, null, memSize,
+                    custFileSize + orderFileSize, new int[] { 6 }, null, new CBOMemoryBudget(memSize, -1, -1),
                     new IBinaryComparatorFactory[] { UTF8StringBinaryComparatorFactory.INSTANCE },
                     new UTF8StringNormalizedKeyComputerFactory(),
                     new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {

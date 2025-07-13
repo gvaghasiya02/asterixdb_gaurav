@@ -60,6 +60,7 @@ import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.INormalizedKeyComputerFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.group.AbstractAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.sort.SortGroupByOperatorDescriptor;
 
@@ -237,8 +238,10 @@ public class SortGroupByPOperator extends AbstractGroupByPOperator {
         normalizedKeyFactory =
                 orderColumns[0].getOrder() == OrderKind.ASC ? nkcfProvider.getNormalizedKeyComputerFactory(type, true)
                         : nkcfProvider.getNormalizedKeyComputerFactory(type, false);
-        int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
-        SortGroupByOperatorDescriptor gbyOpDesc = new SortGroupByOperatorDescriptor(spec, framesLimit, keys,
+        CBOMemoryBudget cboMemoryBudget = new CBOMemoryBudget(localMemoryRequirements.getMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOMaxMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOOptimalMemoryBudgetInFrames());
+        SortGroupByOperatorDescriptor gbyOpDesc = new SortGroupByOperatorDescriptor(spec, cboMemoryBudget, keys,
                 keyAndDecFields, normalizedKeyFactory, compFactories, aggregatorFactory, mergeFactory,
                 partialAggRecordDescriptor, recordDescriptor, false);
         gbyOpDesc.setSourceLocation(gby.getSourceLocation());

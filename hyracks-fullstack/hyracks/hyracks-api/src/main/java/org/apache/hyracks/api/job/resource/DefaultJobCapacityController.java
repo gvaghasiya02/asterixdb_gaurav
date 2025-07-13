@@ -38,6 +38,11 @@ public class DefaultJobCapacityController implements IJobCapacityController {
     }
 
     @Override
+    public double getMemoryRatio(JobSpecification job) {
+        return 0.5;
+    }
+
+    @Override
     public JobSubmissionStatus allocate(JobSpecification job, JobId jobId, Set<JobFlag> jobFlags) {
         return JobSubmissionStatus.EXECUTE;
     }
@@ -45,6 +50,16 @@ public class DefaultJobCapacityController implements IJobCapacityController {
     @Override
     public void release(JobSpecification job) {
         // No operation here.
+    }
+
+    @Override
+    public void setJobSizeTag(JobSpecification job) {
+        job.setSizeTag(JobSpecification.JobSizeTag.SMALL);
+    }
+
+    @Override
+    public int getNumberOfAvailableCores() {
+        return 1;
     }
 
     @Override

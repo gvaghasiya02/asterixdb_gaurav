@@ -40,6 +40,7 @@ import org.apache.hyracks.dataflow.common.data.marshalling.UTF8StringSerializerD
 import org.apache.hyracks.dataflow.common.data.parsers.IValueParserFactory;
 import org.apache.hyracks.dataflow.common.data.parsers.UTF8StringParserFactory;
 import org.apache.hyracks.dataflow.common.data.partition.FieldHashPartitionComputerFactory;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.connectors.MToNBroadcastConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.connectors.MToNPartitioningConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
@@ -82,7 +83,7 @@ public class CountOfCountsTest extends AbstractIntegrationTest {
                 new IBinaryComparatorFactory[] { UTF8StringBinaryComparatorFactory.INSTANCE },
                 new MultiFieldsAggregatorFactory(
                         new IFieldAggregateDescriptorFactory[] { new CountFieldAggregatorFactory(true) }),
-                desc2, false, -1);
+                desc2, false, new CBOMemoryBudget(-1, -1, -1));
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, group, NC2_ID);
 
         InMemorySortOperatorDescriptor sorter2 = new InMemorySortOperatorDescriptor(spec, new int[] { 1 },
@@ -95,7 +96,7 @@ public class CountOfCountsTest extends AbstractIntegrationTest {
                 new IBinaryComparatorFactory[] { IntegerBinaryComparatorFactory.INSTANCE },
                 new MultiFieldsAggregatorFactory(
                         new IFieldAggregateDescriptorFactory[] { new CountFieldAggregatorFactory(true) }),
-                desc3, false, -1);
+                desc3, false, new CBOMemoryBudget(-1, -1, -1));
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, group2, NC2_ID);
 
         ResultSetId rsId = new ResultSetId(1);
@@ -151,7 +152,7 @@ public class CountOfCountsTest extends AbstractIntegrationTest {
                 new IBinaryComparatorFactory[] { UTF8StringBinaryComparatorFactory.INSTANCE },
                 new MultiFieldsAggregatorFactory(
                         new IFieldAggregateDescriptorFactory[] { new CountFieldAggregatorFactory(true) }),
-                desc2, false, -1);
+                desc2, false, new CBOMemoryBudget(-1, -1, -1));
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, group, NC1_ID, NC2_ID, NC1_ID, NC2_ID);
 
         InMemorySortOperatorDescriptor sorter2 = new InMemorySortOperatorDescriptor(spec, new int[] { 1 },
@@ -164,7 +165,7 @@ public class CountOfCountsTest extends AbstractIntegrationTest {
                 new IBinaryComparatorFactory[] { IntegerBinaryComparatorFactory.INSTANCE },
                 new MultiFieldsAggregatorFactory(
                         new IFieldAggregateDescriptorFactory[] { new CountFieldAggregatorFactory(true) }),
-                desc3, false, -1);
+                desc3, false, new CBOMemoryBudget(-1, -1, -1));
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, group2, NC1_ID, NC2_ID);
 
         ResultSetId rsId = new ResultSetId(1);
@@ -211,8 +212,8 @@ public class CountOfCountsTest extends AbstractIntegrationTest {
                         new IValueParserFactory[] { UTF8StringParserFactory.INSTANCE }, ','), desc);
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, csvScanner, NC2_ID);
 
-        ExternalSortOperatorDescriptor sorter = new ExternalSortOperatorDescriptor(spec, 3, new int[] { 0 },
-                new IBinaryComparatorFactory[] { UTF8StringBinaryComparatorFactory.INSTANCE }, desc);
+        ExternalSortOperatorDescriptor sorter = new ExternalSortOperatorDescriptor(spec, new CBOMemoryBudget(3, -1, -1),
+                new int[] { 0 }, new IBinaryComparatorFactory[] { UTF8StringBinaryComparatorFactory.INSTANCE }, desc);
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, sorter, NC1_ID, NC2_ID, NC1_ID, NC2_ID);
 
         RecordDescriptor desc2 = new RecordDescriptor(new ISerializerDeserializer[] {
@@ -221,7 +222,7 @@ public class CountOfCountsTest extends AbstractIntegrationTest {
                 new IBinaryComparatorFactory[] { UTF8StringBinaryComparatorFactory.INSTANCE },
                 new MultiFieldsAggregatorFactory(
                         new IFieldAggregateDescriptorFactory[] { new CountFieldAggregatorFactory(true) }),
-                desc2, false, -1);
+                desc2, false, new CBOMemoryBudget(-1, -1, -1));
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, group, NC1_ID, NC2_ID, NC1_ID, NC2_ID);
 
         InMemorySortOperatorDescriptor sorter2 = new InMemorySortOperatorDescriptor(spec, new int[] { 1 },
@@ -234,7 +235,7 @@ public class CountOfCountsTest extends AbstractIntegrationTest {
                 new IBinaryComparatorFactory[] { IntegerBinaryComparatorFactory.INSTANCE },
                 new MultiFieldsAggregatorFactory(
                         new IFieldAggregateDescriptorFactory[] { new CountFieldAggregatorFactory(true) }),
-                desc3, false, -1);
+                desc3, false, new CBOMemoryBudget(-1, -1, -1));
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, group2, NC1_ID, NC2_ID);
 
         ResultSetId rsId = new ResultSetId(1);

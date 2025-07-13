@@ -52,6 +52,7 @@ import org.apache.hyracks.api.dataflow.IOperatorDescriptor;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
 import org.apache.hyracks.dataflow.common.data.partition.range.RangeMap;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 public class IntervalMergeJoinPOperator extends AbstractJoinPOperator {
 
@@ -189,7 +190,10 @@ public class IntervalMergeJoinPOperator extends AbstractJoinPOperator {
 
     IOperatorDescriptor getIntervalOperatorDescriptor(int[] keysBuild, int[] keysProbe,
             IOperatorDescriptorRegistry spec, RecordDescriptor recordDescriptor, IIntervalJoinUtilFactory mjcf) {
-        return new IntervalMergeJoinOperatorDescriptor(spec, memSizeInFrames, keysBuild, keysProbe, recordDescriptor,
+        CBOMemoryBudget cboMemoryBudget = new CBOMemoryBudget(localMemoryRequirements.getMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOOptimalMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOMaxMemoryBudgetInFrames());
+        return new IntervalMergeJoinOperatorDescriptor(spec, cboMemoryBudget, keysBuild, keysProbe, recordDescriptor,
                 mjcf);
     }
 }

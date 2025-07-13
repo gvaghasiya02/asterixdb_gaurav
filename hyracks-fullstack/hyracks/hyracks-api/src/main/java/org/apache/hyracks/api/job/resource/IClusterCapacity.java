@@ -34,6 +34,10 @@ public interface IClusterCapacity extends IReadOnlyClusterCapacity {
      */
     void setAggregatedMemoryByteSize(long aggregatedMemoryByteSize);
 
+    void setAggregatedCBOMaxMemoryByteSize(long aggregatedMemoryByteSize);
+
+    void setAggregatedCBOOptimalMemoryByteSize(long aggregatedMemoryByteSize);
+
     /**
      * Sets the aggregated number of CPU cores for a cluster.
      *

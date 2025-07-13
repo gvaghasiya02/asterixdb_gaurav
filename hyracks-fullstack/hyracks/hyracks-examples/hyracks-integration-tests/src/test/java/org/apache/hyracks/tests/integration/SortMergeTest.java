@@ -38,6 +38,7 @@ import org.apache.hyracks.dataflow.common.data.normalizers.UTF8StringNormalizedK
 import org.apache.hyracks.dataflow.common.data.parsers.IValueParserFactory;
 import org.apache.hyracks.dataflow.common.data.parsers.UTF8StringParserFactory;
 import org.apache.hyracks.dataflow.common.data.partition.FieldHashPartitionComputerFactory;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.connectors.MToNPartitioningMergingConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.file.ConstantFileSplitProvider;
@@ -126,8 +127,8 @@ public class SortMergeTest extends AbstractIntegrationTest {
                 ordersDesc);
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, ordScanner, NC1_ID, NC2_ID);
 
-        ExternalSortOperatorDescriptor sorter = new ExternalSortOperatorDescriptor(
-                spec, 4, new int[] { 1, 0 }, new IBinaryComparatorFactory[] {
+        ExternalSortOperatorDescriptor sorter = new ExternalSortOperatorDescriptor(spec,
+                new CBOMemoryBudget(4, -1, -1), new int[] { 1, 0 }, new IBinaryComparatorFactory[] {
                         UTF8StringBinaryComparatorFactory.INSTANCE, UTF8StringBinaryComparatorFactory.INSTANCE },
                 ordersDesc);
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, sorter, NC1_ID, NC2_ID);

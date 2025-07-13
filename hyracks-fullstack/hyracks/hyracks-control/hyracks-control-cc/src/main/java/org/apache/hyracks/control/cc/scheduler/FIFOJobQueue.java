@@ -68,7 +68,9 @@ public class FIFOJobQueue implements IJobQueue {
         if (size >= jobQueueCapacity) {
             throw HyracksException.create(ErrorCode.JOB_QUEUE_FULL, jobQueueCapacity);
         }
+        run.setAddedToQueueTime(System.nanoTime());
         jobListMap.put(run.getJobId(), run);
+        LOGGER.warn("Added jobid " + run.getJobId() + "to the queue." + run.toJSON());
     }
 
     @Override
@@ -120,6 +122,9 @@ public class FIFOJobQueue implements IJobQueue {
                 }
             }
         }
+        for (JobRun run : jobRuns) {
+            LOGGER.warn("Pulled " + run.toJSON() + "to the queue.");
+        }
         return jobRuns;
     }
 
@@ -136,5 +141,27 @@ public class FIFOJobQueue implements IJobQueue {
     @Override
     public int size() {
         return jobListMap.size();
+    }
+
+    @Override
+    public void notifyJobFinished(JobRun run) {
+        LOGGER.warn("Job Finished: " + run.toJSON_Shortened());
+        LOGGER.warn("Job Finished-short:" + run.toJSON());
+    }
+
+    @Override
+    public String printQueueInfo() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Jobs:{ ");
+        for (JobRun job : jobs()) {
+            sb.append(job.getJobId() + ",");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    @Override
+    public void cancel(JobId jobId) {
+
     }
 }

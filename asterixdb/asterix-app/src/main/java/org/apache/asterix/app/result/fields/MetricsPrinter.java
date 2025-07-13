@@ -39,6 +39,10 @@ public class MetricsPrinter implements IResponseFieldPrinter {
         ERROR_COUNT("errorCount"),
         PROCESSED_OBJECTS_COUNT("processedObjects"),
         WARNING_COUNT("warningCount"),
+        ADDED_TO_THE_QUEUE_TIME_NANO("addedToTheQueueTimeNano"),
+        ADDED_TO_THE_MEMORY_QUEUE_TIME_NANO("addedToTheMemoryQueueTimeNano"),
+        EXECUTION_START_TIME_NANO("executionStartTimeNano"),
+        EXECUTION_END_TIME_NANO("executionEndTimeNano"),
         BUFFERCACHE_HIT_RATIO("bufferCacheHitRatio"),
         BUFFERCACHE_PAGEREAD_COUNT("bufferCachePageReadCount"),
         REMOTE_STORAGE_REQUESTS_COUNT("remoteStorageRequestsCount"),
@@ -91,8 +95,7 @@ public class MetricsPrinter implements IResponseFieldPrinter {
         final boolean hasWarnings = metrics.getWarnCount() > 0;
         final boolean usedCache = !(Double.isNaN(metrics.getBufferCacheHitRatio()));
         final boolean madeCloudReadRequests = metrics.getCloudReadRequestsCount() > 0;
-        ResultUtil.printField(pw, Metrics.PROCESSED_OBJECTS_COUNT.str(), metrics.getProcessedObjects(),
-                usedCache || hasWarnings || hasErrors);
+        ResultUtil.printField(pw, Metrics.PROCESSED_OBJECTS_COUNT.str(), metrics.getProcessedObjects(), true);
         pw.print("\n");
         if (usedCache) {
             pw.print("\t");
@@ -101,7 +104,7 @@ public class MetricsPrinter implements IResponseFieldPrinter {
             pw.print("\n");
             pw.print("\t");
             ResultUtil.printField(pw, Metrics.BUFFERCACHE_PAGEREAD_COUNT.str(), metrics.getBufferCachePageReadCount(),
-                    hasWarnings || hasErrors || madeCloudReadRequests);
+                    true);
             pw.print("\n");
         }
         if (madeCloudReadRequests) {
@@ -120,14 +123,31 @@ public class MetricsPrinter implements IResponseFieldPrinter {
         }
         if (hasWarnings) {
             pw.print("\t");
-            ResultUtil.printField(pw, Metrics.WARNING_COUNT.str(), metrics.getWarnCount(), hasErrors);
+            ResultUtil.printField(pw, Metrics.WARNING_COUNT.str(), metrics.getWarnCount(), true);
             pw.print("\n");
         }
         if (hasErrors) {
             pw.print("\t");
-            ResultUtil.printField(pw, Metrics.ERROR_COUNT.str(), metrics.getErrorCount(), false);
+            ResultUtil.printField(pw, Metrics.ERROR_COUNT.str(), metrics.getErrorCount(), true);
             pw.print("\n");
         }
+
+        pw.print("\t");
+        ResultUtil.printField(pw, Metrics.ADDED_TO_THE_QUEUE_TIME_NANO.str(), metrics.getAddedToQueueTime(), true);
+        pw.print("\n");
+
+        pw.print("\t");
+        ResultUtil.printField(pw, Metrics.ADDED_TO_THE_MEMORY_QUEUE_TIME_NANO.str(),
+                metrics.getAddedToMemoryQueueTime(), true);
+        pw.print("\n");
+
+        pw.print("\t");
+        ResultUtil.printField(pw, Metrics.EXECUTION_START_TIME_NANO.str(), metrics.getExecutionStartTime(), true);
+        pw.print("\n");
+
+        pw.print("\t");
+        ResultUtil.printField(pw, Metrics.EXECUTION_END_TIME_NANO.str(), metrics.getExecutionEndTime(), false);
+        pw.print("\n");
         pw.print("\t}");
     }
 

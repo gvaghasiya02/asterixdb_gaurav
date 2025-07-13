@@ -37,6 +37,7 @@ import org.apache.hyracks.algebricks.runtime.operators.aggreg.NestedPlansRunning
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.group.AbstractAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupOperatorDescriptor;
 
@@ -86,9 +87,11 @@ public class PreclusteredGroupByPOperator extends AbstractPreclusteredGroupByPOp
         RecordDescriptor recordDescriptor =
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), opSchema, context);
 
-        int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
+        CBOMemoryBudget cboMemoryBudget = new CBOMemoryBudget(localMemoryRequirements.getMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOOptimalMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOMaxMemoryBudgetInFrames());
         PreclusteredGroupOperatorDescriptor opDesc = new PreclusteredGroupOperatorDescriptor(spec, keys,
-                comparatorFactories, aggregatorFactory, recordDescriptor, groupAll, framesLimit);
+                comparatorFactories, aggregatorFactory, recordDescriptor, groupAll, cboMemoryBudget);
         opDesc.setSourceLocation(gby.getSourceLocation());
 
         contributeOpDesc(builder, gby, opDesc);

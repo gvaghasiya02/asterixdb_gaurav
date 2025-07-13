@@ -60,6 +60,7 @@ public class JobCleanupWork extends AbstractWork {
             return;
         }
         try {
+            LOGGER.warn("In Tun calling for prepareCompelete and hopefully releasing the resources.");
             jobManager.prepareComplete(jobRun, status, exceptions);
             callback.setValue(null);
         } catch (HyracksException e) {

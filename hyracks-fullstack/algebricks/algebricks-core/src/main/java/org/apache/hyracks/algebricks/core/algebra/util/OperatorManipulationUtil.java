@@ -558,6 +558,8 @@ public class OperatorManipulationUtil {
                     case OperatorAnnotations.OP_OUTPUT_DOCSIZE:
                     case OperatorAnnotations.OP_LEFT_EXCHANGE_COST:
                     case OperatorAnnotations.OP_RIGHT_EXCHANGE_COST:
+                    case OperatorAnnotations.OP_BUILD_CARDINALITY:
+                    case OperatorAnnotations.OP_BUILD_DOCSIZE:
                         destOp.getAnnotations().put(annotation, annotationVal);
                         break;
                     default:

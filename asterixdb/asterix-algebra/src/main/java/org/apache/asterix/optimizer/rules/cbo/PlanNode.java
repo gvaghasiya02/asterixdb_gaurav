@@ -66,6 +66,9 @@ public class PlanNode {
     protected ICost leftExchangeCost;
     protected ICost rightExchangeCost;
 
+    protected double buildCardinality;
+    protected double buildDocSize;
+
     public enum ScanMethod {
         INDEX_SCAN,
         TABLE_SCAN
@@ -209,6 +212,14 @@ public class PlanNode {
         return rightExchangeCost;
     }
 
+    public double getBuildCardinality() {
+        return buildCardinality;
+    }
+
+    public double getBuildDocSize() {
+        return buildDocSize;
+    }
+
     protected double computeTotalCost() {
         return totalCost.computeTotalCost();
     }
@@ -325,10 +336,13 @@ public class PlanNode {
         }
     }
 
-    protected void setJoinCosts(ICost opCost, ICost totalCost, ICost leftExchangeCost, ICost rightExchangeCost) {
+    protected void setJoinCosts(ICost opCost, ICost totalCost, ICost leftExchangeCost, ICost rightExchangeCost,
+            double buildCardinality, double buildDocSize) {
         this.opCost = opCost;
         this.totalCost = totalCost;
         this.leftExchangeCost = leftExchangeCost;
         this.rightExchangeCost = rightExchangeCost;
+        this.buildCardinality = buildCardinality;
+        this.buildDocSize = buildDocSize;
     }
 }

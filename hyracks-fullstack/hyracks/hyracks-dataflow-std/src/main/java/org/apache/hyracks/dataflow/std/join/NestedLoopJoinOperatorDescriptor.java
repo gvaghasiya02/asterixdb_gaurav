@@ -35,6 +35,7 @@ import org.apache.hyracks.api.dataflow.value.ITuplePairComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import org.apache.hyracks.dataflow.common.comm.util.FrameUtils;
@@ -43,6 +44,7 @@ import org.apache.hyracks.dataflow.std.base.AbstractOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.base.AbstractStateObject;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputSinkOperatorNodePushable;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputUnaryOutputOperatorNodePushable;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 public class NestedLoopJoinOperatorDescriptor extends AbstractOperatorDescriptor {
     private static final int JOIN_CACHE_ACTIVITY_ID = 0;
@@ -50,17 +52,19 @@ public class NestedLoopJoinOperatorDescriptor extends AbstractOperatorDescriptor
 
     private static final long serialVersionUID = 1L;
     private final ITuplePairComparatorFactory comparatorFactory;
-    private final int memSize;
+    private int memSize;
+    private final CBOMemoryBudget cboMemoryBudget;
     private final boolean isLeftOuter;
     private final IMissingWriterFactory[] nullWriterFactories1;
 
     public NestedLoopJoinOperatorDescriptor(IOperatorDescriptorRegistry spec,
-            ITuplePairComparatorFactory comparatorFactory, RecordDescriptor recordDescriptor, int memSize,
-            boolean isLeftOuter, IMissingWriterFactory[] nullWriterFactories1) {
+            ITuplePairComparatorFactory comparatorFactory, RecordDescriptor recordDescriptor,
+            CBOMemoryBudget cboMemoryBudget, boolean isLeftOuter, IMissingWriterFactory[] nullWriterFactories1) {
         super(spec, 2, 1);
         this.comparatorFactory = comparatorFactory;
         this.outRecDescs[0] = recordDescriptor;
-        this.memSize = memSize;
+        this.cboMemoryBudget = cboMemoryBudget;
+        this.memSize = cboMemoryBudget.sizeInFrames();
         this.isLeftOuter = isLeftOuter;
         this.nullWriterFactories1 = nullWriterFactories1;
     }
@@ -104,6 +108,13 @@ public class NestedLoopJoinOperatorDescriptor extends AbstractOperatorDescriptor
         public IOperatorNodePushable createPushRuntime(final IHyracksTaskContext ctx,
                 IRecordDescriptorProvider recordDescProvider, final int partition, int nPartitions)
                 throws HyracksDataException {
+            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY) && cboMemoryBudget.cboMaxSizeInFrames() > 0) {
+                memSize = cboMemoryBudget.cboMaxSizeInFrames();
+            }
+            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)
+                    && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
+                memSize = cboMemoryBudget.cboOptimalSizeInFrames();
+            }
             final IHyracksJobletContext jobletCtx = ctx.getJobletContext();
             final RecordDescriptor rd0 = recordDescProvider.getInputRecordDescriptor(nljAid, 0);
             final RecordDescriptor rd1 = recordDescProvider.getInputRecordDescriptor(getActivityId(), 0);

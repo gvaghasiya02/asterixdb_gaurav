@@ -42,6 +42,7 @@ import org.apache.hyracks.dataflow.common.data.normalizers.IntegerNormalizedKeyC
 import org.apache.hyracks.dataflow.common.data.partition.FieldHashPartitionComputerFactory;
 import org.apache.hyracks.dataflow.std.base.AbstractOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.base.AbstractSingleActivityOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.connectors.MToNPartitioningConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.file.ConstantFileSplitProvider;
@@ -148,7 +149,8 @@ public class Groupby {
         AbstractOperatorDescriptor grouper;
 
         if (alg.equalsIgnoreCase("hash")) {// external hash graph
-            grouper = new ExternalGroupOperatorDescriptor(spec, htSize, fileSize, keys, null, frameLimit,
+            grouper = new ExternalGroupOperatorDescriptor(spec, htSize, fileSize, keys, null,
+                    new CBOMemoryBudget(frameLimit, -1, -1),
                     new IBinaryComparatorFactory[] { IntegerBinaryComparatorFactory.INSTANCE },
                     new IntegerNormalizedKeyComputerFactory(),
                     new MultiFieldsAggregatorFactory(
@@ -160,7 +162,7 @@ public class Groupby {
 
             createPartitionConstraint(spec, grouper, outSplits);
         } else if (alg.equalsIgnoreCase("sort")) {
-            grouper = new SortGroupByOperatorDescriptor(spec, frameLimit, keys, keys,
+            grouper = new SortGroupByOperatorDescriptor(spec, new CBOMemoryBudget(frameLimit, -1, -1), keys, keys,
                     new IntegerNormalizedKeyComputerFactory(),
                     new IBinaryComparatorFactory[] { IntegerBinaryComparatorFactory.INSTANCE },
                     new MultiFieldsAggregatorFactory(

@@ -29,8 +29,10 @@ import org.apache.hyracks.api.dataflow.value.IRecordDescriptorProvider;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.dataflow.std.base.AbstractActivityNode;
 import org.apache.hyracks.dataflow.std.base.AbstractOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.ISpillableTableFactory;
 import org.apache.hyracks.dataflow.std.structures.SerializableHashTable;
@@ -52,20 +54,23 @@ public class ExternalGroupOperatorDescriptor extends AbstractOperatorDescriptor 
     private final IAggregatorDescriptorFactory partialAggregatorFactory;
     private final IAggregatorDescriptorFactory intermediateAggregateFactory;
 
-    private final int framesLimit;
+    private final CBOMemoryBudget cboMemoryBudget;
+    private int framesLimit;
     private final ISpillableTableFactory spillableTableFactory;
     private final RecordDescriptor partialRecDesc;
     private final RecordDescriptor outRecDesc;
-    private final int tableSize;
-    private final long fileSize;
+    private int tableSize;
+    private long fileSize;
 
     public ExternalGroupOperatorDescriptor(IOperatorDescriptorRegistry spec, int inputSizeInTuple, long inputFileSize,
-            int[] gbyFields, int[] fdFields, int framesLimit, IBinaryComparatorFactory[] comparatorFactories,
-            INormalizedKeyComputerFactory firstNormalizerFactory, IAggregatorDescriptorFactory partialAggregatorFactory,
+            int[] gbyFields, int[] fdFields, CBOMemoryBudget cboMemoryBudget,
+            IBinaryComparatorFactory[] comparatorFactories, INormalizedKeyComputerFactory firstNormalizerFactory,
+            IAggregatorDescriptorFactory partialAggregatorFactory,
             IAggregatorDescriptorFactory intermediateAggregateFactory, RecordDescriptor partialAggRecordDesc,
             RecordDescriptor outRecordDesc, ISpillableTableFactory spillableTableFactory) {
         super(spec, 1, 1);
-        this.framesLimit = framesLimit;
+        this.cboMemoryBudget = cboMemoryBudget;
+        this.framesLimit = cboMemoryBudget.sizeInFrames();
         if (framesLimit <= 3) {
             /**
              * Minimum of 4 frames: 1 for input records, 1 for output, and 2 for hash table (1 header and 1 content)
@@ -119,6 +124,17 @@ public class ExternalGroupOperatorDescriptor extends AbstractOperatorDescriptor 
         public IOperatorNodePushable createPushRuntime(final IHyracksTaskContext ctx,
                 final IRecordDescriptorProvider recordDescProvider, final int partition, int nPartitions)
                 throws HyracksDataException {
+            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY) && cboMemoryBudget.cboMaxSizeInFrames() > 0) {
+                framesLimit = cboMemoryBudget.cboMaxSizeInFrames();
+            }
+            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)
+                    && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
+                framesLimit = cboMemoryBudget.cboOptimalSizeInFrames();
+            }
+            fileSize = (long) framesLimit * ctx.getInitialFrameSize();
+            tableSize = ExternalGroupOperatorDescriptor.calculateGroupByTableCardinality(
+                    (long) framesLimit * ctx.getInitialFrameSize(), gbyFields.length + fdFields.length,
+                    ctx.getInitialFrameSize());
             return new ExternalGroupBuildOperatorNodePushable(ctx, new TaskId(getActivityId(), partition), tableSize,
                     fileSize, gbyFields, fdFields, framesLimit, comparatorFactories, firstNormalizerFactory,
                     partialAggregatorFactory, recordDescProvider.getInputRecordDescriptor(getActivityId(), 0),

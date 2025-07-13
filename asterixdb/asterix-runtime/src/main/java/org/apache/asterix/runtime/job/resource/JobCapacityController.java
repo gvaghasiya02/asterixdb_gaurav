@@ -57,16 +57,33 @@ public class JobCapacityController implements IJobCapacityController {
         }
         IClusterCapacity requiredCapacity = job.getRequiredClusterCapacity();
         long reqAggregatedMemoryByteSize = requiredCapacity.getAggregatedMemoryByteSize();
+        long reqAggregatedCBOMaxMemoryByteSize = requiredCapacity.getAggregatedCBOMaxMemoryByteSize();
+        long reqAggregatedCBOOptimalMemoryByteSize = requiredCapacity.getAggregatedCBOOptimalMemoryByteSize();
         int reqAggregatedNumCores = requiredCapacity.getAggregatedCores();
         IReadOnlyClusterCapacity maximumCapacity = resourceManager.getMaximumCapacity();
-        if (!(reqAggregatedMemoryByteSize <= maximumCapacity.getAggregatedMemoryByteSize()
-                && reqAggregatedNumCores <= maximumCapacity.getAggregatedCores())) {
-            throw HyracksException.create(ErrorCode.JOB_REQUIREMENTS_EXCEED_CAPACITY, requiredCapacity.toString(),
-                    maximumCapacity.toString());
+        // NEED TO BE WRITTEN IN BETTER MANNER AFTER DECIDING THE FINAL DESIGN
+        if (reqAggregatedCBOMaxMemoryByteSize > 0
+                && reqAggregatedCBOMaxMemoryByteSize <= maximumCapacity.getAggregatedMemoryByteSize()
+                && reqAggregatedNumCores <= maximumCapacity.getAggregatedCores()) {
+            requiredCapacity.setAggregatedMemoryByteSize(reqAggregatedCBOMaxMemoryByteSize);
+            jobFlags.add(JobFlag.USE_CBO_MAX_MEMORY);
+        } else if (reqAggregatedCBOOptimalMemoryByteSize > 0
+                && reqAggregatedCBOOptimalMemoryByteSize <= maximumCapacity.getAggregatedMemoryByteSize()
+                && reqAggregatedNumCores <= maximumCapacity.getAggregatedCores()) {
+            requiredCapacity.setAggregatedMemoryByteSize(reqAggregatedCBOOptimalMemoryByteSize);
+            jobFlags.add(JobFlag.USE_CBO_OPTIMAL_MEMORY);
+        } else {
+            if (!(reqAggregatedMemoryByteSize <= maximumCapacity.getAggregatedMemoryByteSize()
+                    && reqAggregatedNumCores <= maximumCapacity.getAggregatedCores())) {
+                throw HyracksException.create(ErrorCode.JOB_REQUIREMENTS_EXCEED_CAPACITY, requiredCapacity.toString(),
+                        maximumCapacity.toString());
+            }
         }
+
         IClusterCapacity currentCapacity = resourceManager.getCurrentCapacity();
         long currentAggregatedMemoryByteSize = currentCapacity.getAggregatedMemoryByteSize();
         int currentAggregatedAvailableCores = currentCapacity.getAggregatedCores();
+        reqAggregatedMemoryByteSize = requiredCapacity.getAggregatedMemoryByteSize();
         if (!(reqAggregatedMemoryByteSize <= currentAggregatedMemoryByteSize
                 && reqAggregatedNumCores <= currentAggregatedAvailableCores)) {
             return JobSubmissionStatus.QUEUE;

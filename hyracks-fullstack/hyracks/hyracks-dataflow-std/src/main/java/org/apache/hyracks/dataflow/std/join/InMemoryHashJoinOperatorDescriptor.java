@@ -38,6 +38,7 @@ import org.apache.hyracks.api.dataflow.value.ITuplePartitionComputer;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import org.apache.hyracks.dataflow.common.comm.util.FrameUtils;
@@ -47,6 +48,7 @@ import org.apache.hyracks.dataflow.std.base.AbstractOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.base.AbstractStateObject;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputSinkOperatorNodePushable;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputUnaryOutputOperatorNodePushable;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.buffermanager.DeallocatableFramePool;
 import org.apache.hyracks.dataflow.std.buffermanager.FramePoolBackedFrameBufferManager;
 import org.apache.hyracks.dataflow.std.buffermanager.IDeallocatableFramePool;
@@ -65,20 +67,21 @@ public class InMemoryHashJoinOperatorDescriptor extends AbstractOperatorDescript
     private final IMissingWriterFactory[] nonMatchWriterFactories;
     private final int tableSize;
     // The maximum number of in-memory frames that this hash join can use.
-    private final int memSizeInFrames;
+    private int memSizeInFrames;
+    private final CBOMemoryBudget cboMemoryBudget;
 
     public InMemoryHashJoinOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] keys0, int[] keys1,
             IBinaryHashFunctionFactory[] hashFunctionFactories0, IBinaryHashFunctionFactory[] hashFunctionFactories1,
             ITuplePairComparatorFactory comparatorFactory, RecordDescriptor recordDescriptor, int tableSize,
-            int memSizeInFrames) {
+            CBOMemoryBudget cboMemoryBudget) {
         this(spec, keys0, keys1, hashFunctionFactories0, hashFunctionFactories1, comparatorFactory, recordDescriptor,
-                false, null, tableSize, memSizeInFrames);
+                false, null, tableSize, cboMemoryBudget);
     }
 
     public InMemoryHashJoinOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] keys0, int[] keys1,
             IBinaryHashFunctionFactory[] hashFunctionFactories0, IBinaryHashFunctionFactory[] hashFunctionFactories1,
             ITuplePairComparatorFactory comparatorFactory, RecordDescriptor recordDescriptor, boolean isLeftOuter,
-            IMissingWriterFactory[] missingWriterFactories1, int tableSize, int memSizeInFrames) {
+            IMissingWriterFactory[] missingWriterFactories1, int tableSize, CBOMemoryBudget cboMemoryBudget) {
         super(spec, 2, 1);
         this.keys0 = keys0;
         this.keys1 = keys1;
@@ -89,7 +92,8 @@ public class InMemoryHashJoinOperatorDescriptor extends AbstractOperatorDescript
         this.isLeftOuter = isLeftOuter;
         this.nonMatchWriterFactories = missingWriterFactories1;
         this.tableSize = tableSize;
-        this.memSizeInFrames = memSizeInFrames;
+        this.memSizeInFrames = cboMemoryBudget.sizeInFrames();
+        this.cboMemoryBudget = cboMemoryBudget;
     }
 
     @Override
@@ -155,7 +159,14 @@ public class InMemoryHashJoinOperatorDescriptor extends AbstractOperatorDescript
                 nullWriters1 = null;
             }
 
-            final int memSizeInBytes = memSizeInFrames * jobletCtx.getInitialFrameSize();
+            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY) && cboMemoryBudget.cboMaxSizeInFrames() > 0) {
+                memSizeInFrames = cboMemoryBudget.cboMaxSizeInFrames();
+            }
+            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)
+                    && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
+                memSizeInFrames = cboMemoryBudget.cboOptimalSizeInFrames();
+            }
+            final long memSizeInBytes = (long) memSizeInFrames * (long) jobletCtx.getInitialFrameSize();
             final IDeallocatableFramePool framePool = new DeallocatableFramePool(jobletCtx, memSizeInBytes);
             final ISimpleFrameBufferManager bufferManager = new FramePoolBackedFrameBufferManager(framePool);
 

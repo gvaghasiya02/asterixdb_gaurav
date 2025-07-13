@@ -39,6 +39,7 @@ import org.apache.hyracks.dataflow.common.data.normalizers.UTF8StringNormalizedK
 import org.apache.hyracks.dataflow.common.data.parsers.IValueParserFactory;
 import org.apache.hyracks.dataflow.common.data.parsers.UTF8StringParserFactory;
 import org.apache.hyracks.dataflow.common.data.partition.FieldHashPartitionComputerFactory;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.connectors.MToNPartitioningMergingConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.file.ConstantFileSplitProvider;
@@ -81,7 +82,8 @@ public class HeapSortMergeTest extends AbstractIntegrationTest {
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, ordScanner, NC1_ID, NC2_ID);
 
         int outputLimit = 5; // larger than the total record numbers.
-        TopKSorterOperatorDescriptor sorter = new TopKSorterOperatorDescriptor(spec, 4, outputLimit, new int[] { 1, 0 },
+        TopKSorterOperatorDescriptor sorter = new TopKSorterOperatorDescriptor(spec, new CBOMemoryBudget(4, -1, -1),
+                outputLimit, new int[] { 1, 0 },
                 (INormalizedKeyComputerFactory) null, new IBinaryComparatorFactory[] {
                         UTF8StringBinaryComparatorFactory.INSTANCE, UTF8StringBinaryComparatorFactory.INSTANCE },
                 ordersDesc);
@@ -144,7 +146,8 @@ public class HeapSortMergeTest extends AbstractIntegrationTest {
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, ordScanner, NC1_ID, NC2_ID);
 
         int outputLimit = 20;
-        TopKSorterOperatorDescriptor sorter = new TopKSorterOperatorDescriptor(spec, 4, outputLimit, new int[] { 1, 0 },
+        TopKSorterOperatorDescriptor sorter = new TopKSorterOperatorDescriptor(spec, new CBOMemoryBudget(4, -1, -1),
+                outputLimit, new int[] { 1, 0 },
                 (INormalizedKeyComputerFactory) null, new IBinaryComparatorFactory[] {
                         UTF8StringBinaryComparatorFactory.INSTANCE, UTF8StringBinaryComparatorFactory.INSTANCE },
                 ordersDesc);

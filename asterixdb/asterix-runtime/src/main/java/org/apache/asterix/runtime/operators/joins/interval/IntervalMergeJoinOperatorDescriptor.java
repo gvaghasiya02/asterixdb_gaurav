@@ -33,6 +33,7 @@ import org.apache.hyracks.api.dataflow.value.IRecordDescriptorProvider;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.dataflow.common.comm.util.FrameUtils;
 import org.apache.hyracks.dataflow.std.base.AbstractActivityNode;
@@ -40,6 +41,7 @@ import org.apache.hyracks.dataflow.std.base.AbstractOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.base.AbstractStateObject;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputSinkOperatorNodePushable;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputUnaryOutputOperatorNodePushable;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 public class IntervalMergeJoinOperatorDescriptor extends AbstractOperatorDescriptor {
     private static final long serialVersionUID = 1L;
@@ -48,16 +50,18 @@ public class IntervalMergeJoinOperatorDescriptor extends AbstractOperatorDescrip
     private static final int JOIN_PROBE_ACTIVITY_ID = 1;
     private final int buildKey;
     private final int probeKey;
-    private final int memoryForJoin;
+    private final CBOMemoryBudget cboMemoryBudget;
+    private int memoryForJoin;
     private final IIntervalJoinUtilFactory imjcf;
 
-    public IntervalMergeJoinOperatorDescriptor(IOperatorDescriptorRegistry spec, int memoryForJoin, int[] buildKey,
-            int[] probeKeys, RecordDescriptor recordDescriptor, IIntervalJoinUtilFactory imjcf) {
+    public IntervalMergeJoinOperatorDescriptor(IOperatorDescriptorRegistry spec, CBOMemoryBudget cboMemoryBudget,
+            int[] buildKey, int[] probeKeys, RecordDescriptor recordDescriptor, IIntervalJoinUtilFactory imjcf) {
         super(spec, 2, 1);
         outRecDescs[0] = recordDescriptor;
         this.buildKey = buildKey[0];
         this.probeKey = probeKeys[0];
-        this.memoryForJoin = memoryForJoin;
+        this.cboMemoryBudget = cboMemoryBudget;
+        this.memoryForJoin = cboMemoryBudget.sizeInFrames();
         this.imjcf = imjcf;
     }
 
@@ -99,6 +103,13 @@ public class IntervalMergeJoinOperatorDescriptor extends AbstractOperatorDescrip
         @Override
         public IOperatorNodePushable createPushRuntime(final IHyracksTaskContext ctx,
                 IRecordDescriptorProvider recordDescProvider, final int partition, int nPartitions) {
+            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY) && cboMemoryBudget.cboMaxSizeInFrames() > 0) {
+                memoryForJoin = cboMemoryBudget.cboMaxSizeInFrames();
+            }
+            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)
+                    && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
+                memoryForJoin = cboMemoryBudget.cboOptimalSizeInFrames();
+            }
             final RecordDescriptor probeRd = recordDescProvider.getInputRecordDescriptor(nljAid, 0);
             final RecordDescriptor buildRd = recordDescProvider.getInputRecordDescriptor(getActivityId(), 0);
 

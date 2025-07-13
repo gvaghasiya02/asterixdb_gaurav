@@ -47,6 +47,7 @@ import org.apache.hyracks.dataflow.common.data.parsers.IntegerParserFactory;
 import org.apache.hyracks.dataflow.common.data.parsers.UTF8StringParserFactory;
 import org.apache.hyracks.dataflow.common.data.partition.FieldHashPartitionComputerFactory;
 import org.apache.hyracks.dataflow.std.base.AbstractSingleActivityOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.connectors.GlobalHashingLocalityMap;
 import org.apache.hyracks.dataflow.std.connectors.HashtableLocalityMap;
 import org.apache.hyracks.dataflow.std.connectors.LocalityAwareMToNPartitioningConnectorDescriptor;
@@ -126,7 +127,7 @@ public class LocalityAwareConnectorTest extends AbstractMultiNCIntegrationTest {
         int tableSize = 8;
 
         ExternalGroupOperatorDescriptor grouper = new ExternalGroupOperatorDescriptor(spec, tableSize, fileSize,
-                keyFields, null, fileSize / spec.getFrameSize() + 1,
+                keyFields, null, new CBOMemoryBudget(fileSize / spec.getFrameSize() + 1, -1, -1),
                 new IBinaryComparatorFactory[] { UTF8StringBinaryComparatorFactory.INSTANCE },
                 new UTF8StringNormalizedKeyComputerFactory(),
                 new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {
@@ -191,7 +192,7 @@ public class LocalityAwareConnectorTest extends AbstractMultiNCIntegrationTest {
         int tableSize = 8;
 
         ExternalGroupOperatorDescriptor grouper = new ExternalGroupOperatorDescriptor(spec, tableSize, fileSize,
-                keyFields, null, fileSize / spec.getFrameSize() + 1,
+                keyFields, null, new CBOMemoryBudget(fileSize / spec.getFrameSize() + 1, -1, -1),
                 new IBinaryComparatorFactory[] { UTF8StringBinaryComparatorFactory.INSTANCE },
                 new UTF8StringNormalizedKeyComputerFactory(),
                 new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {

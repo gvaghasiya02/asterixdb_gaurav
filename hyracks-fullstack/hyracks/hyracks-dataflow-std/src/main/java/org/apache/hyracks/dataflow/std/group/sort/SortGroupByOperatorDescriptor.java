@@ -31,6 +31,7 @@ import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
 import org.apache.hyracks.dataflow.common.io.GeneratedRunFileReader;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.sort.AbstractExternalSortRunMerger;
 import org.apache.hyracks.dataflow.std.sort.AbstractSorterOperatorDescriptor;
@@ -79,12 +80,12 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
      * @param finalStage
      *            whether the operator is used for final stage aggregation
      */
-    public SortGroupByOperatorDescriptor(IOperatorDescriptorRegistry spec, int framesLimit, int[] sortFields,
-            int[] groupFields, INormalizedKeyComputerFactory firstKeyNormalizerFactory,
+    public SortGroupByOperatorDescriptor(IOperatorDescriptorRegistry spec, CBOMemoryBudget cboMemoryBudget,
+            int[] sortFields, int[] groupFields, INormalizedKeyComputerFactory firstKeyNormalizerFactory,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory partialAggregatorFactory,
             IAggregatorDescriptorFactory mergeAggregatorFactory, RecordDescriptor partialAggRecordDesc,
             RecordDescriptor outRecordDesc, boolean finalStage) {
-        this(spec, framesLimit, sortFields, groupFields,
+        this(spec, cboMemoryBudget, sortFields, groupFields,
                 firstKeyNormalizerFactory != null ? new INormalizedKeyComputerFactory[] { firstKeyNormalizerFactory }
                         : null,
                 comparatorFactories, partialAggregatorFactory, mergeAggregatorFactory, partialAggRecordDesc,
@@ -96,6 +97,8 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
      *            the Hyracks job specification
      * @param framesLimit
      *            the frame limit for this operator
+     * @param cboMemoryBudget
+     *            the cboMemoryBudget for this operator
      * @param sortFields
      *            the fields to sort
      * @param groupFields
@@ -115,12 +118,12 @@ public class SortGroupByOperatorDescriptor extends AbstractSorterOperatorDescrip
      * @param finalStage
      *            whether the operator is used for final stage aggregation
      */
-    public SortGroupByOperatorDescriptor(IOperatorDescriptorRegistry spec, int framesLimit, int[] sortFields,
-            int[] groupFields, INormalizedKeyComputerFactory[] keyNormalizerFactories,
+    public SortGroupByOperatorDescriptor(IOperatorDescriptorRegistry spec, CBOMemoryBudget cboMemoryBudget,
+            int[] sortFields, int[] groupFields, INormalizedKeyComputerFactory[] keyNormalizerFactories,
             IBinaryComparatorFactory[] comparatorFactories, IAggregatorDescriptorFactory partialAggregatorFactory,
             IAggregatorDescriptorFactory mergeAggregatorFactory, RecordDescriptor partialAggRecordDesc,
             RecordDescriptor outRecordDesc, boolean finalStage) {
-        super(spec, framesLimit, sortFields, keyNormalizerFactories, comparatorFactories, outRecordDesc);
+        super(spec, cboMemoryBudget, sortFields, keyNormalizerFactories, comparatorFactories, outRecordDesc);
         if (framesLimit <= 1) {
             throw new IllegalStateException(); // minimum of 2 frames (1 in,1 out)
         }

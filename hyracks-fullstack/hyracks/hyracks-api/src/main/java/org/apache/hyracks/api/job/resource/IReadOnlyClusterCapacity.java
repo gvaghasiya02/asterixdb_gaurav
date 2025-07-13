@@ -35,6 +35,10 @@ public interface IReadOnlyClusterCapacity extends Serializable {
      */
     long getAggregatedMemoryByteSize();
 
+    long getAggregatedCBOOptimalMemoryByteSize();
+
+    long getAggregatedCBOMaxMemoryByteSize();
+
     /**
      * @return the aggregated number of cores
      */

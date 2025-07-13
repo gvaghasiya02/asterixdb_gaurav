@@ -21,6 +21,7 @@ package org.apache.hyracks.algebricks.runtime.operators.win;
 
 import org.apache.hyracks.algebricks.runtime.base.IRunningAggregateEvaluatorFactory;
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 /**
  * Base class for window runtime factories that compute nested aggregates
@@ -37,9 +38,10 @@ abstract class AbstractWindowNestedPlansRuntimeFactory extends WindowMaterializi
             IBinaryComparatorFactory[] partitionComparatorFactories,
             IBinaryComparatorFactory[] orderComparatorFactories, int[] projectionColumnsExcludingSubplans,
             int[] runningAggOutColumns, IRunningAggregateEvaluatorFactory[] runningAggFactories,
-            int nestedAggOutSchemaSize, WindowAggregatorDescriptorFactory nestedAggFactory, int memSizeInFrames) {
+            int nestedAggOutSchemaSize, WindowAggregatorDescriptorFactory nestedAggFactory,
+            CBOMemoryBudget cboMemoryBudget) {
         super(partitionColumns, partitionComparatorFactories, orderComparatorFactories,
-                projectionColumnsExcludingSubplans, runningAggOutColumns, runningAggFactories, memSizeInFrames);
+                projectionColumnsExcludingSubplans, runningAggOutColumns, runningAggFactories, cboMemoryBudget);
         this.nestedAggFactory = nestedAggFactory;
         this.nestedAggOutSchemaSize = nestedAggOutSchemaSize;
     }

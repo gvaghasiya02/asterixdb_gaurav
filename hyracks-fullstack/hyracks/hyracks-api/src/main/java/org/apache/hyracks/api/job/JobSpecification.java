@@ -54,6 +54,19 @@ public class JobSpecification implements Serializable, IOperatorDescriptorRegist
 
     private static final int DEFAULT_FRAME_SIZE = 32768;
 
+    private String userID;
+
+    public enum JobSizeTag {
+        ZERO,
+        ZERO_SHORT,
+        ZERO_LONG,
+        SMALL,
+        MEDIUM,
+        LARGE
+    }
+
+    private JobSizeTag sizeTag;
+
     private final List<OperatorDescriptorId> roots;
 
     private final List<ResultSetId> resultSetIds;
@@ -137,6 +150,14 @@ public class JobSpecification implements Serializable, IOperatorDescriptorRegist
         conn.setConnectorId(cdId);
         connMap.put(cdId, conn);
         return cdId;
+    }
+
+    public String getUserID() {
+        return userID;
+    }
+
+    public void setUserID(String userID) {
+        this.userID = userID;
     }
 
     public void addRoot(IOperatorDescriptor op) {
@@ -338,6 +359,14 @@ public class JobSpecification implements Serializable, IOperatorDescriptorRegist
 
     public List<IOperatorDescriptor> getMetaOps() {
         return metaOps;
+    }
+
+    public JobSizeTag getSizeTag() {
+        return sizeTag;
+    }
+
+    public void setSizeTag(JobSizeTag sizeTag) {
+        this.sizeTag = sizeTag;
     }
 
     public void setLogical2PhysicalMap(Map<Object, String> logical2PhysicalMap) {

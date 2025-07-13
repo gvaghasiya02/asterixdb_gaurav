@@ -52,6 +52,7 @@ import org.apache.hyracks.api.dataflow.value.IPredicateEvaluatorFactoryProvider;
 import org.apache.hyracks.api.dataflow.value.ITuplePairComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.join.OptimizedHybridHashJoinOperatorDescriptor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -148,16 +149,18 @@ public class HybridHashJoinPOperator extends AbstractHashJoinPOperator {
             ITuplePairComparatorFactory comparatorFactory, ITuplePairComparatorFactory reverseComparatorFactory,
             IPredicateEvaluatorFactory leftPredEvalFactory, IPredicateEvaluatorFactory rightPredEvalFactory,
             RecordDescriptor recDescriptor, IOperatorDescriptorRegistry spec) throws AlgebricksException {
-        int memSizeInFrames = localMemoryRequirements.getMemoryBudgetInFrames();
+        CBOMemoryBudget cboMemoryBudget = new CBOMemoryBudget(localMemoryRequirements.getMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOOptimalMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOMaxMemoryBudgetInFrames());
         switch (kind) {
             case INNER:
-                return new OptimizedHybridHashJoinOperatorDescriptor(spec, memSizeInFrames, maxInputBuildSizeInFrames,
+                return new OptimizedHybridHashJoinOperatorDescriptor(spec, cboMemoryBudget, maxInputBuildSizeInFrames,
                         getFudgeFactor(), keysLeft, keysRight, leftHashFunFamilies, rightHashFunFamilies, recDescriptor,
                         comparatorFactory, reverseComparatorFactory, leftPredEvalFactory, rightPredEvalFactory);
             case LEFT_OUTER:
                 IMissingWriterFactory[] nonMatchWriterFactories = JobGenHelper.createMissingWriterFactories(context,
                         ((LeftOuterJoinOperator) joinOp).getMissingValue(), inputSchemas[1].getSize());
-                return new OptimizedHybridHashJoinOperatorDescriptor(spec, memSizeInFrames, maxInputBuildSizeInFrames,
+                return new OptimizedHybridHashJoinOperatorDescriptor(spec, cboMemoryBudget, maxInputBuildSizeInFrames,
                         getFudgeFactor(), keysLeft, keysRight, leftHashFunFamilies, rightHashFunFamilies, recDescriptor,
                         comparatorFactory, reverseComparatorFactory, leftPredEvalFactory, rightPredEvalFactory, true,
                         nonMatchWriterFactories);

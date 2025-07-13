@@ -47,6 +47,7 @@ import org.apache.hyracks.api.dataflow.value.IMissingWriterFactory;
 import org.apache.hyracks.api.dataflow.value.ITuplePairComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.join.InMemoryHashJoinOperatorDescriptor;
 
 public class InMemoryHashJoinPOperator extends AbstractHashJoinPOperator {
@@ -103,20 +104,21 @@ public class InMemoryHashJoinPOperator extends AbstractHashJoinPOperator {
                 new TuplePairEvaluatorFactory(cond, false, context.getBinaryBooleanInspectorFactory());
         IOperatorDescriptorRegistry spec = builder.getJobSpec();
         IOperatorDescriptor opDesc;
-
-        int memSizeInFrames = localMemoryRequirements.getMemoryBudgetInFrames();
+        CBOMemoryBudget cboMemoryBudget = new CBOMemoryBudget(localMemoryRequirements.getMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOOptimalMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOMaxMemoryBudgetInFrames());
 
         switch (kind) {
             case INNER:
                 opDesc = new InMemoryHashJoinOperatorDescriptor(spec, keysLeft, keysRight, leftHashFunFactories,
-                        rightHashFunFactories, comparatorFactory, recDescriptor, tableSize, memSizeInFrames);
+                        rightHashFunFactories, comparatorFactory, recDescriptor, tableSize, cboMemoryBudget);
                 break;
             case LEFT_OUTER:
                 IMissingWriterFactory[] nonMatchWriterFactories = JobGenHelper.createMissingWriterFactories(context,
                         ((LeftOuterJoinOperator) joinOp).getMissingValue(), inputSchemas[1].getSize());
                 opDesc = new InMemoryHashJoinOperatorDescriptor(spec, keysLeft, keysRight, leftHashFunFactories,
                         rightHashFunFactories, comparatorFactory, recDescriptor, true, nonMatchWriterFactories,
-                        tableSize, memSizeInFrames);
+                        tableSize, cboMemoryBudget);
                 break;
             default:
                 throw new NotImplementedException();

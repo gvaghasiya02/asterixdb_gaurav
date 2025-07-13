@@ -82,6 +82,14 @@ public class JobRun implements IJobStatusConditionVariable {
 
     private final Map<ConnectorDescriptorId, IConnectorPolicy> connectorPolicyMap;
 
+    private long addedToQueueTime = -1;
+
+    private long addedToMemoryQueueTime = -1;
+
+    private long executionStartTime;
+
+    private long executionEndTime;
+
     private final long createTime;
 
     private volatile long startTime;
@@ -146,6 +154,22 @@ public class JobRun implements IJobStatusConditionVariable {
 
     public JobId getJobId() {
         return jobId;
+    }
+
+    public long getExecutionStartTime() {
+        return executionStartTime;
+    }
+
+    public void setExecutionStartTime(long executionStartTime) {
+        this.executionStartTime = executionStartTime;
+    }
+
+    public long getExecutionEndTime() {
+        return executionEndTime;
+    }
+
+    public void setExecutionEndTime(long executionEndTime) {
+        this.executionEndTime = executionEndTime;
     }
 
     public ActivityClusterGraph getActivityClusterGraph() {
@@ -264,10 +288,30 @@ public class JobRun implements IJobStatusConditionVariable {
         return connectorPolicyMap;
     }
 
-    public ObjectNode toJSON() {
+    public ObjectNode toJSON_Shortened() {
         ObjectMapper om = new ObjectMapper();
         ObjectNode result = om.createObjectNode();
 
+        result.put("job-id", jobId.toString());
+        result.putPOJO("status", getStatus());
+        result.put("create-time", getCreateTime());
+        result.put("start-time", getStartTime());
+        result.put("end-time", getEndTime());
+        if (getJobSpecification().getSizeTag() != null) {
+            result.put("query-size", getJobSpecification().getSizeTag().toString());
+        }
+        long executionTime = getEndTime() - getStartTime();
+        long waitTime = getStartTime() - getCreateTime();
+        result.put("slow-down", (double) (waitTime + executionTime) / executionTime);
+        return result;
+    }
+
+    public ObjectNode toJSON() {
+        ObjectMapper om = new ObjectMapper();
+        ObjectNode result = om.createObjectNode();
+        result.put("mem-req", (double) getJobSpecification().getRequiredClusterCapacity().getAggregatedMemoryByteSize()
+                / 1024 / 1024);
+        result.put("cpu-req", (double) getJobSpecification().getRequiredClusterCapacity().getAggregatedCores());
         result.put("job-id", jobId.toString());
         result.putPOJO("status", getStatus());
         result.put("create-time", getCreateTime());
@@ -423,6 +467,22 @@ public class JobRun implements IJobStatusConditionVariable {
         result.set("profile", profile.toJSON());
 
         return result;
+    }
+
+    public long getAddedToQueueTime() {
+        return addedToQueueTime;
+    }
+
+    public void setAddedToQueueTime(long addedToQueueTime) {
+        this.addedToQueueTime = addedToQueueTime;
+    }
+
+    public long getAddedToMemoryQueueTime() {
+        return addedToMemoryQueueTime;
+    }
+
+    public void setAddedToMemoryQueueTime(long addedToMemoryQueueTime) {
+        this.addedToMemoryQueueTime = addedToMemoryQueueTime;
     }
 
     public Map<OperatorDescriptorId, Map<Integer, String>> getOperatorLocations() {

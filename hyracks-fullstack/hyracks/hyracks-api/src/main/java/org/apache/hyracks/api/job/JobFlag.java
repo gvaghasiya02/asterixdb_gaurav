@@ -21,5 +21,7 @@ package org.apache.hyracks.api.job;
 public enum JobFlag {
     PROFILE_RUNTIME,
     ENFORCE_CONTRACT,
-    ENSURE_RUNNABLE
+    ENSURE_RUNNABLE,
+    USE_CBO_MAX_MEMORY,
+    USE_CBO_OPTIMAL_MEMORY
 }

@@ -44,6 +44,7 @@ import org.apache.hyracks.api.dataflow.value.ITuplePartitionComputer;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.api.job.profiling.IOperatorStats;
 import org.apache.hyracks.api.job.profiling.NoOpOperatorStats;
@@ -59,6 +60,7 @@ import org.apache.hyracks.dataflow.std.base.AbstractOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.base.AbstractStateObject;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputSinkOperatorNodePushable;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputUnaryOutputOperatorNodePushable;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.buffermanager.DeallocatableFramePool;
 import org.apache.hyracks.dataflow.std.buffermanager.FramePoolBackedFrameBufferManager;
 import org.apache.hyracks.dataflow.std.buffermanager.IDeallocatableFramePool;
@@ -125,7 +127,8 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
     private static final String PROBE_REL = "RelR";
     private static final String BUILD_REL = "RelS";
 
-    private final int memSizeInFrames;
+    private int memSizeInFrames;
+    private final CBOMemoryBudget cboMemoryBudget;
     private final int inputsize0;
     private final double fudgeFactor;
     private final int[] probeKeys;
@@ -142,7 +145,7 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
 
     private static final Logger LOGGER = LogManager.getLogger();
 
-    public OptimizedHybridHashJoinOperatorDescriptor(IOperatorDescriptorRegistry spec, int memSizeInFrames,
+    public OptimizedHybridHashJoinOperatorDescriptor(IOperatorDescriptorRegistry spec, CBOMemoryBudget cboMemoryBudget,
             int inputsize0, double factor, int[] keys0, int[] keys1,
             IBinaryHashFunctionFamily[] propHashFunctionFactories,
             IBinaryHashFunctionFamily[] buildHashFunctionFactories, RecordDescriptor recordDescriptor,
@@ -151,7 +154,8 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
             IPredicateEvaluatorFactory predEvalFactory1, boolean isLeftOuter,
             IMissingWriterFactory[] nonMatchWriterFactories) {
         super(spec, 2, 1);
-        this.memSizeInFrames = memSizeInFrames;
+        this.memSizeInFrames = cboMemoryBudget.sizeInFrames();
+        this.cboMemoryBudget = cboMemoryBudget;
         this.inputsize0 = inputsize0;
         this.fudgeFactor = factor;
         this.probeKeys = keys0;
@@ -167,14 +171,14 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
         this.nonMatchWriterFactories = nonMatchWriterFactories;
     }
 
-    public OptimizedHybridHashJoinOperatorDescriptor(IOperatorDescriptorRegistry spec, int memSizeInFrames,
+    public OptimizedHybridHashJoinOperatorDescriptor(IOperatorDescriptorRegistry spec, CBOMemoryBudget cboMemoryBudget,
             int inputsize0, double factor, int[] keys0, int[] keys1,
             IBinaryHashFunctionFamily[] propHashFunctionFactories,
             IBinaryHashFunctionFamily[] buildHashFunctionFactories, RecordDescriptor recordDescriptor,
             ITuplePairComparatorFactory tupPaircomparatorFactory01,
             ITuplePairComparatorFactory tupPaircomparatorFactory10, IPredicateEvaluatorFactory predEvalFactory0,
             IPredicateEvaluatorFactory predEvalFactory1) {
-        this(spec, memSizeInFrames, inputsize0, factor, keys0, keys1, propHashFunctionFactories,
+        this(spec, cboMemoryBudget, inputsize0, factor, keys0, keys1, propHashFunctionFactories,
                 buildHashFunctionFactories, recordDescriptor, tupPaircomparatorFactory01, tupPaircomparatorFactory10,
                 predEvalFactory0, predEvalFactory1, false, null);
     }
@@ -264,6 +268,13 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
         public IOperatorNodePushable createPushRuntime(final IHyracksTaskContext ctx,
                 IRecordDescriptorProvider recordDescProvider, final int partition, final int nPartitions)
                 throws HyracksDataException {
+            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY) && cboMemoryBudget.cboMaxSizeInFrames() > 0) {
+                memSizeInFrames = cboMemoryBudget.cboMaxSizeInFrames();
+            }
+            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)
+                    && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
+                memSizeInFrames = cboMemoryBudget.cboOptimalSizeInFrames();
+            }
 
             final RecordDescriptor buildRd = recordDescProvider.getInputRecordDescriptor(getActivityId(), 0);
             final RecordDescriptor probeRd = recordDescProvider.getInputRecordDescriptor(probeAid, 0);
@@ -733,8 +744,8 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
                     boolean isReversed = pKeys == OptimizedHybridHashJoinOperatorDescriptor.this.buildKeys
                             && bKeys == OptimizedHybridHashJoinOperatorDescriptor.this.probeKeys;
                     assert isLeftOuter ? !isReversed : true : "LeftOut Join can not reverse roles";
-                    IDeallocatableFramePool framePool =
-                            new DeallocatableFramePool(jobletCtx, state.memForJoin * jobletCtx.getInitialFrameSize());
+                    IDeallocatableFramePool framePool = new DeallocatableFramePool(jobletCtx,
+                            (long) state.memForJoin * (long) jobletCtx.getInitialFrameSize());
                     ISimpleFrameBufferManager bufferManager = new FramePoolBackedFrameBufferManager(framePool);
 
                     ISerializableTable table = new SerializableHashTable(tabSize, jobletCtx, bufferManager);

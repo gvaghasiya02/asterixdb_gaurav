@@ -84,6 +84,7 @@ import org.apache.hyracks.dataflow.common.data.parsers.FloatParserFactory;
 import org.apache.hyracks.dataflow.common.data.parsers.IValueParserFactory;
 import org.apache.hyracks.dataflow.common.data.parsers.IntegerParserFactory;
 import org.apache.hyracks.dataflow.common.data.parsers.UTF8StringParserFactory;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.file.ConstantFileSplitProvider;
 import org.apache.hyracks.dataflow.std.file.DelimitedDataTupleParserFactory;
@@ -445,7 +446,8 @@ public class PushRuntimeTest {
         RecordDescriptor gbyDesc = new RecordDescriptor(new ISerializerDeserializer[] {
                 IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE });
         PreclusteredGroupOperatorDescriptor gby = new PreclusteredGroupOperatorDescriptor(spec, new int[] { 3 },
-                new IBinaryComparatorFactory[] { IntegerBinaryComparatorFactory.INSTANCE }, npaaf, gbyDesc, false, -1);
+                new IBinaryComparatorFactory[] { IntegerBinaryComparatorFactory.INSTANCE }, npaaf, gbyDesc, false,
+                new CBOMemoryBudget(-1, -1, -1));
 
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, gby,
                 new String[] { AlgebricksHyracksIntegrationUtil.NC1_ID });
@@ -792,7 +794,8 @@ public class PushRuntimeTest {
         // the algebricks op.
         MicroSortRuntimeFactory sort =
                 new MicroSortRuntimeFactory(new int[] { 1 }, (INormalizedKeyComputerFactory) null,
-                        new IBinaryComparatorFactory[] { UTF8StringBinaryComparatorFactory.INSTANCE }, null, 50);
+                        new IBinaryComparatorFactory[] { UTF8StringBinaryComparatorFactory.INSTANCE }, null,
+                        new CBOMemoryBudget(50, -1, -1));
         RecordDescriptor sortDesc = scannerDesc;
 
         String fileName = "scanMicroSortWrite.out";
@@ -908,7 +911,8 @@ public class PushRuntimeTest {
         RecordDescriptor sortDesc = scannerDesc;
         MicroSortRuntimeFactory sort =
                 new MicroSortRuntimeFactory(new int[] { 3 }, (INormalizedKeyComputerFactory) null,
-                        new IBinaryComparatorFactory[] { IntegerBinaryComparatorFactory.INSTANCE }, null, 50);
+                        new IBinaryComparatorFactory[] { IntegerBinaryComparatorFactory.INSTANCE }, null,
+                        new CBOMemoryBudget(50, -1, -1));
 
         // the group-by
         NestedTupleSourceRuntimeFactory nts = new NestedTupleSourceRuntimeFactory();
@@ -925,7 +929,7 @@ public class PushRuntimeTest {
                 IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE });
         MicroPreClusteredGroupRuntimeFactory gby = new MicroPreClusteredGroupRuntimeFactory(new int[] { 3 },
                 new IBinaryComparatorFactory[] { IntegerBinaryComparatorFactory.INSTANCE }, npaaf, sortDesc, gbyDesc,
-                null, -1);
+                null, new CBOMemoryBudget(-1, -1, -1));
 
         // the algebricks op.
         IScalarEvaluatorFactory cond =

@@ -60,6 +60,7 @@ import org.apache.hyracks.api.dataflow.IOperatorDescriptor;
 import org.apache.hyracks.api.dataflow.value.IMissingWriterFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.JobSpecification;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.storage.am.common.dataflow.IIndexDataflowHelperFactory;
 import org.apache.hyracks.storage.am.common.dataflow.IndexDataflowHelperFactory;
 import org.apache.hyracks.storage.am.common.ophelpers.IndexOperation;
@@ -140,16 +141,18 @@ public class InvertedIndexPOperator extends IndexSearchPOperator {
                             unnestMapOp.getSourceLocation());
         }
         // In-memory budget (frame limit) for inverted-index search operations
-        int frameLimit = localMemoryRequirements.getMemoryBudgetInFrames();
+        CBOMemoryBudget cboMemoryBudget = new CBOMemoryBudget(localMemoryRequirements.getMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOOptimalMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOMaxMemoryBudgetInFrames());
 
         // Build runtime.
-        Pair<IOperatorDescriptor, AlgebricksPartitionConstraint> invIndexSearch =
-                buildInvertedIndexRuntime(metadataProvider, context, builder.getJobSpec(), unnestMapOp, opSchema,
-                        jobGenParams.getRetainInput(), retainMissing, nonMatchWriterFactory,
-                        jobGenParams.getDatasetName(), dataset, jobGenParams.getIndexName(),
-                        jobGenParams.getSearchKeyType(), keyIndexes, jobGenParams.getSearchModifierType(),
-                        jobGenParams.getSimilarityThreshold(), propagateIndexFilter, nonFilterWriterFactory,
-                        minFilterFieldIndexes, maxFilterFieldIndexes, jobGenParams.getIsFullTextSearch(), frameLimit);
+        Pair<IOperatorDescriptor, AlgebricksPartitionConstraint> invIndexSearch = buildInvertedIndexRuntime(
+                metadataProvider, context, builder.getJobSpec(), unnestMapOp, opSchema, jobGenParams.getRetainInput(),
+                retainMissing, nonMatchWriterFactory, jobGenParams.getDatasetName(), dataset,
+                jobGenParams.getIndexName(), jobGenParams.getSearchKeyType(), keyIndexes,
+                jobGenParams.getSearchModifierType(), jobGenParams.getSimilarityThreshold(), propagateIndexFilter,
+                nonFilterWriterFactory, minFilterFieldIndexes, maxFilterFieldIndexes,
+                jobGenParams.getIsFullTextSearch(), cboMemoryBudget);
         IOperatorDescriptor opDesc = invIndexSearch.first;
         opDesc.setSourceLocation(unnestMapOp.getSourceLocation());
 
@@ -167,7 +170,7 @@ public class InvertedIndexPOperator extends IndexSearchPOperator {
             ATypeTag searchKeyType, int[] keyFields, SearchModifierType searchModifierType,
             IAlgebricksConstantValue similarityThreshold, boolean propagateIndexFilter,
             IMissingWriterFactory nonFilterWriterFactory, int[] minFilterFieldIndexes, int[] maxFilterFieldIndexes,
-            boolean isFullTextSearchQuery, int frameLimit) throws AlgebricksException {
+            boolean isFullTextSearchQuery, CBOMemoryBudget cboMemoryBudget) throws AlgebricksException {
         IAObject simThresh = ((AsterixConstantValue) similarityThreshold).getObject();
         int numPrimaryKeys = dataset.getPrimaryKeys().size();
         Index secondaryIndex = MetadataManager.INSTANCE.getIndex(metadataProvider.getMetadataTxnContext(),
@@ -200,7 +203,7 @@ public class InvertedIndexPOperator extends IndexSearchPOperator {
                         dataset.getSearchCallbackFactory(metadataProvider.getStorageComponentProvider(), secondaryIndex,
                                 IndexOperation.SEARCH, null),
                         minFilterFieldIndexes, maxFilterFieldIndexes, isFullTextSearchQuery, numPrimaryKeys,
-                        propagateIndexFilter, nonFilterWriterFactory, frameLimit,
+                        propagateIndexFilter, nonFilterWriterFactory, cboMemoryBudget,
                         partitioningProperties.getComputeStorageMap());
         return new Pair<>(invIndexSearchOp, partitioningProperties.getConstraints());
     }

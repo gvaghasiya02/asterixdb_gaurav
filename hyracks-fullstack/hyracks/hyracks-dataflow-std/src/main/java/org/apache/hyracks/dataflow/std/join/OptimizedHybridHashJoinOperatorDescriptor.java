@@ -142,6 +142,7 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
 
     private final boolean isLeftOuter;
     private final IMissingWriterFactory[] nonMatchWriterFactories;
+    private int noBuildFrames;
 
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -169,6 +170,7 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
         this.buildPredEvalFactory = predEvalFactory1;
         this.isLeftOuter = isLeftOuter;
         this.nonMatchWriterFactories = nonMatchWriterFactories;
+        this.noBuildFrames = 0;
     }
 
     public OptimizedHybridHashJoinOperatorDescriptor(IOperatorDescriptorRegistry spec, CBOMemoryBudget cboMemoryBudget,
@@ -298,6 +300,7 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
 
                 @Override
                 public void open() throws HyracksDataException {
+                    noBuildFrames = 0;
                     if (memSizeInFrames <= 2) { //Dedicated buffers: One buffer to read and two buffers for output
                         throw new HyracksDataException("Not enough memory is assigned for Hybrid Hash Join.");
                     }
@@ -319,6 +322,7 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
 
                 @Override
                 public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
+                    noBuildFrames++;
                     state.hybridHJ.build(buffer);
                 }
 
@@ -332,6 +336,9 @@ public class OptimizedHybridHashJoinOperatorDescriptor extends AbstractOperatorD
                             state.hybridHJ.clearBuildTempFiles();
                         }
                     }
+                    LOGGER.warn(
+                            "OptimizedHybridHashJoin is ending the build phase with {} partitions using {} frames for memory and noBuildFrames {}.",
+                            state.numOfPartitions, state.memForJoin, noBuildFrames);
                 }
 
                 @Override

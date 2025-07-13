@@ -18,7 +18,8 @@
  !-->
 <a href="http://asterixdb.apache.org"><img src="http://asterixdb.apache.org/img/asterixdb_tm.png" height=100></img></a>
 
-## 🧠 Current Query Execution & Memory Management in AsterixDB
+# Commit with two branches merged CBOBasedMemoryManger and SchedulerFinal and added fixes and logging for JoinNode.java for testing refer last commit 
+## Current Query Execution & Memory Management in AsterixDB
 
 AsterixDB follows a structured pipeline for query execution and memory allocation. Below is an overview of the process:
 

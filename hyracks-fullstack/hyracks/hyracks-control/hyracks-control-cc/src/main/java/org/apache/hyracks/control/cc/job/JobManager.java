@@ -66,16 +66,26 @@ public class JobManager implements IJobManager {
 
     private static final Logger LOGGER = LogManager.getLogger();
 
-    private final ClusterControllerService ccs;
-    private final Map<JobId, JobRun> activeRunMap;
-    private final Map<JobId, JobRun> runMapArchive;
-    private final Map<JobId, List<Exception>> runMapHistory;
-    private final IJobCapacityController jobCapacityController;
-    private final AtomicLong successfulJobs;
-    private final AtomicLong totalFailedJobs;
-    private final AtomicLong totalCancelledJobs;
-    private final AtomicLong totalRejectedJobs;
-    private IJobQueue jobQueue;
+    protected final ClusterControllerService ccs;
+    protected final Map<JobId, JobRun> activeRunMap;
+    protected final Map<JobId, JobRun> runMapArchive;
+    protected final Map<JobId, List<Exception>> runMapHistory;
+    protected final IJobCapacityController jobCapacityController;
+    protected final AtomicLong successfulJobs;
+    protected final AtomicLong totalFailedJobs;
+    protected final AtomicLong totalCancelledJobs;
+    protected final AtomicLong totalRejectedJobs;
+    protected IJobQueue jobQueue;
+
+    public String printElementsInActiveRunMap() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        for (JobRun jr : activeRunMap.values()) {
+            sb.append("JID:" + jr.getJobId() + "," + "USERID:" + jr.getJobSpecification().getUserID() + "\n");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
 
     public JobManager(CCConfig ccConfig, ClusterControllerService ccs, IJobCapacityController jobCapacityController) {
         this.ccs = ccs;
@@ -131,6 +141,7 @@ public class JobManager implements IJobManager {
                     queueJob(jobRun);
                     break;
                 case EXECUTE:
+                    LOGGER.warn("Executing without queuing: " + jobRun.toJSON());
                     executeJob(jobRun);
                     break;
                 default:
@@ -179,6 +190,7 @@ public class JobManager implements IJobManager {
 
     @Override
     public void prepareComplete(JobRun run, JobStatus status, List<Exception> exceptions) throws HyracksException {
+        LOGGER.warn("Passed Status: " + status);
         checkJob(run);
         ccs.removeJobParameterByteStore(run.getJobId());
         if (status == JobStatus.FAILURE_BEFORE_EXECUTION) {
@@ -194,7 +206,9 @@ public class JobManager implements IJobManager {
             return;
         }
         Set<String> targetNodes = run.getParticipatingNodeIds();
+        LOGGER.warn("targetNodes: " + targetNodes.toString());
         run.getCleanupPendingNodeIds().addAll(targetNodes);
+        LOGGER.warn("Status: " + run.getPendingStatus());
         if (run.getPendingStatus() != JobStatus.FAILURE && run.getPendingStatus() != JobStatus.TERMINATED) {
             run.setPendingStatus(status, exceptions);
         }
@@ -238,6 +252,7 @@ public class JobManager implements IJobManager {
 
     @Override
     public void finalComplete(JobRun run) throws HyracksException {
+        LOGGER.warn("In Final Complete");
         checkJob(run);
         boolean successful = run.getPendingStatus() == JobStatus.TERMINATED;
 
@@ -253,11 +268,15 @@ public class JobManager implements IJobManager {
         }
         run.setStatus(run.getPendingStatus(), run.getPendingExceptions());
         run.setEndTime(System.currentTimeMillis());
+        run.setExecutionEndTime(System.nanoTime());
         if (activeRunMap.remove(jobId) != null) {
             incrementJobCounters(run, successful);
 
             // non-active jobs have zero capacity
+            LOGGER.warn("Released! " + run.toJSON());
             releaseJobCapacity(run);
+        } else {
+            LOGGER.warn("NOT Released! " + run.toJSON());
         }
         runMapArchive.put(jobId, run);
         runMapHistory.put(jobId, run.getExceptions());
@@ -273,7 +292,7 @@ public class JobManager implements IJobManager {
                 caughtException = ExceptionUtils.suppress(caughtException, e);
             }
         }
-
+        jobQueue.notifyJobFinished(run);
         // Picks the next job to execute.
         pickJobsToRun();
 
@@ -341,10 +360,13 @@ public class JobManager implements IJobManager {
     @Override
     public JobRun get(JobId jobId) {
         JobRun jobRun = activeRunMap.get(jobId); // Running job.
+        LOGGER.warn("Get is called from JobManager instead...");
         if (jobRun == null) {
+            LOGGER.warn("It was not in the activeRunMap, trying to get it from the queue.");
             jobRun = jobQueue.get(jobId); // Pending job.
         }
         if (jobRun == null) {
+            LOGGER.warn("It was not in the queue, trying to get it from the runMapArchive.");
             jobRun = runMapArchive.get(jobId); // Completed job.
         }
         return jobRun;
@@ -381,26 +403,32 @@ public class JobManager implements IJobManager {
         return totalRejectedJobs.get();
     }
 
-    private void pickJobsToRun() throws HyracksException {
+    protected void pickJobsToRun() throws HyracksException {
+        //        LOGGER.warn(jobQueue.printQueueInfo());
         List<JobRun> selectedRuns = jobQueue.pull();
+        //        LOGGER.warn("Jobs Pulled: ");
+        //        for (JobRun run : selectedRuns) {
+        //            LOGGER.warn("Pulled: " + run.getJobId());
+        //        }
         for (JobRun run : selectedRuns) {
             executeJob(run);
         }
     }
 
     // Executes a job when the required capacity for the job is met.
-    private void executeJob(JobRun run) throws HyracksException {
+    protected void executeJob(JobRun run) throws HyracksException {
         run.setStartTime(System.currentTimeMillis());
         run.setStartTimeZoneId(ZoneId.systemDefault().getId());
         JobId jobId = run.getJobId();
         logJobCapacity(run, "running", Level.INFO);
         activeRunMap.put(jobId, run);
+        LOGGER.warn("Added jobid: " + jobId + " to activeRunMap.");
         run.setStatus(JobStatus.RUNNING, null);
         executeJobInternal(run);
     }
 
     // Queue a job when the required capacity for the job is not met.
-    private void queueJob(JobRun jobRun) throws HyracksException {
+    void queueJob(JobRun jobRun) throws HyracksException {
         logJobCapacity(jobRun, "queueing", Level.INFO);
         jobRun.setStatus(JobStatus.PENDING, null);
         jobQueue.add(jobRun);
@@ -408,6 +436,7 @@ public class JobManager implements IJobManager {
 
     private void executeJobInternal(JobRun run) {
         try {
+            run.setExecutionStartTime(System.nanoTime());
             run.getExecutor().startJob();
         } catch (Exception e) {
             LOGGER.log(Level.ERROR, "Aborting " + run.getJobId() + " due to failure during job start", e);
@@ -428,7 +457,7 @@ public class JobManager implements IJobManager {
         return jobLogObject;
     }
 
-    private void checkJob(JobRun jobRun) throws HyracksException {
+    void checkJob(JobRun jobRun) throws HyracksException {
         if (jobRun == null) {
             throw HyracksException.create(ErrorCode.INVALID_INPUT_PARAMETER);
         }

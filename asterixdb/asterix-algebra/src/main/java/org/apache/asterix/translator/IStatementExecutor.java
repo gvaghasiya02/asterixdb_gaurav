@@ -133,6 +133,10 @@ public interface IStatementExecutor {
         private long count;
         private long size;
         private long processedObjects;
+        private long addedToQueueTime;
+        private long addedToTheMemoryQueueTime;
+        private long executionStartTime;
+        private long executionEndTime;
         private long queueWaitTime;
         private Profile profile;
         private ProfileType profileType;
@@ -180,6 +184,38 @@ public interface IStatementExecutor {
             if (delta <= Long.MAX_VALUE - totalWarningsCount) {
                 totalWarningsCount += delta;
             }
+        }
+
+        public long getAddedToTheMemoryQueueTime() {
+            return addedToTheMemoryQueueTime;
+        }
+
+        public void setAddedToTheMemoryQueueTime(long addedToTheMemoryQueueTime) {
+            this.addedToTheMemoryQueueTime = addedToTheMemoryQueueTime;
+        }
+
+        public long getAddedToQueueTime() {
+            return addedToQueueTime;
+        }
+
+        public void setAddedToQueueTime(long addedToQueueTime) {
+            this.addedToQueueTime = addedToQueueTime;
+        }
+
+        public long getExecutionStartTime() {
+            return executionStartTime;
+        }
+
+        public void setExecutionStartTime(long executionStartTime) {
+            this.executionStartTime = executionStartTime;
+        }
+
+        public long getExecutionEndTime() {
+            return executionEndTime;
+        }
+
+        public void setExecutionEndTime(long executionEndTime) {
+            this.executionEndTime = executionEndTime;
         }
 
         public void setQueueWaitTime(long queueWaitTime) {

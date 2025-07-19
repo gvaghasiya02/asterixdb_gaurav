@@ -71,8 +71,12 @@ public class JobCapacityController implements IJobCapacityController {
                 && reqAggregatedNumCores <= currentAggregatedAvailableCores)) {
             return JobSubmissionStatus.QUEUE;
         }
+        LOGGER.warn("Before Allocation: " + currentCapacity.getAggregatedCores() + " cores "
+                + currentCapacity.getAggregatedMemoryByteSize() / 1024 / 1024 + " MB");
         currentCapacity.setAggregatedMemoryByteSize(currentAggregatedMemoryByteSize - reqAggregatedMemoryByteSize);
         currentCapacity.setAggregatedCores(currentAggregatedAvailableCores - reqAggregatedNumCores);
+        LOGGER.warn("After Allocation: " + currentCapacity.getAggregatedCores() + " cores "
+                + currentCapacity.getAggregatedMemoryByteSize() / 1024 / 1024 + " MB");
         return JobSubmissionStatus.EXECUTE;
     }
 
@@ -81,12 +85,56 @@ public class JobCapacityController implements IJobCapacityController {
         IClusterCapacity requiredCapacity = job.getRequiredClusterCapacity();
         long reqAggregatedMemoryByteSize = requiredCapacity.getAggregatedMemoryByteSize();
         int reqAggregatedNumCores = requiredCapacity.getAggregatedCores();
+        LOGGER.warn("Job " + job.getSizeTag() + " is finishing...Required Resources: "
+                + (double) reqAggregatedMemoryByteSize / 1024 / 1024 + " MB of memory and " + reqAggregatedNumCores
+                + " CPU cores.");
         IClusterCapacity currentCapacity = resourceManager.getCurrentCapacity();
         long aggregatedMemoryByteSize = currentCapacity.getAggregatedMemoryByteSize();
         int aggregatedNumCores = currentCapacity.getAggregatedCores();
+        LOGGER.warn("Resources Before Release: " + (double) aggregatedMemoryByteSize / 1024 / 1024
+                + " MB of memory and " + aggregatedNumCores + " CPU cores.");
         currentCapacity.setAggregatedMemoryByteSize(aggregatedMemoryByteSize + reqAggregatedMemoryByteSize);
         currentCapacity.setAggregatedCores(aggregatedNumCores + reqAggregatedNumCores);
+        LOGGER.warn("Resources After Release: "
+                + (double) resourceManager.getCurrentCapacity().getAggregatedMemoryByteSize() / 1024 / 1024
+                + " MB of memory and " + resourceManager.getCurrentCapacity().getAggregatedCores() + " CPU cores.");
         ensureMaxCapacity();
+    }
+
+    @Override
+    public void setJobSizeTag(JobSpecification job) {
+        double memRatio = getMemoryRatio(job);
+        LOGGER.warn(memRatio);
+        if (memRatio <= 0.05) {
+            String uid = job.getUserID();
+            if (uid != null) {
+                if (uid.contains("ZERO_Short")) {
+                    job.setSizeTag(JobSpecification.JobSizeTag.ZERO_SHORT);
+                } else if (uid.contains("ZERO_Long")) {
+                    job.setSizeTag(JobSpecification.JobSizeTag.ZERO_LONG);
+                }
+            } else {
+                job.setSizeTag(JobSpecification.JobSizeTag.ZERO);
+            }
+        } else if (memRatio <= 0.25) {
+            job.setSizeTag(JobSpecification.JobSizeTag.SMALL);
+        } else if (memRatio <= 0.75) {
+            job.setSizeTag(JobSpecification.JobSizeTag.MEDIUM);
+        } else {
+            job.setSizeTag(JobSpecification.JobSizeTag.LARGE);
+        }
+
+    }
+
+    @Override
+    public int getNumberOfAvailableCores() {
+        return resourceManager.getCurrentCapacity().getAggregatedCores();
+    }
+
+    @Override
+    public double getMemoryRatio(JobSpecification job) {
+        return (double) job.getRequiredClusterCapacity().getAggregatedMemoryByteSize()
+                / resourceManager.getMaximumCapacity().getAggregatedMemoryByteSize();
     }
 
     @Override
@@ -103,4 +151,9 @@ public class JobCapacityController implements IJobCapacityController {
                     maximumCapacity);
         }
     }
+
+    @Override
+    public boolean hasEnoughMemory(long avgMemoryUsage) {
+        return resourceManager.getCurrentCapacity().getAggregatedMemoryByteSize() >= avgMemoryUsage;
+    };
 }

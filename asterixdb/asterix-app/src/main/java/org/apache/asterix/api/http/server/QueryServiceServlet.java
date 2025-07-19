@@ -91,6 +91,7 @@ import org.apache.hyracks.control.common.controllers.CCConfig;
 import org.apache.hyracks.http.api.IServletRequest;
 import org.apache.hyracks.http.api.IServletResponse;
 import org.apache.hyracks.http.server.utils.HttpUtil;
+import org.apache.hyracks.util.LogRedactionUtil;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -280,6 +281,7 @@ public class QueryServiceServlet extends AbstractQueryApiServlet {
             if (forceReadOnly) {
                 param.setReadOnly(true);
             }
+            LOGGER.warn(() -> "handleRequest: " + LogRedactionUtil.statement(param.toString()));
             String statement = param.getStatement();
             statement = statement == null || (!statement.isEmpty() && statement.charAt(statement.length() - 1) == ';')
                     ? statement : (statement + ";");
@@ -369,7 +371,8 @@ public class QueryServiceServlet extends AbstractQueryApiServlet {
         }
         final ResponseMetrics metrics = ResponseMetrics.of(System.nanoTime() - elapsedStart, executionState.duration(),
                 stats.getCount(), stats.getSize(), stats.getProcessedObjects(), errorCount,
-                stats.getTotalWarningsCount(), stats.getCompileTime(), stats.getQueueWaitTime(),
+                stats.getTotalWarningsCount(), stats.getAddedToQueueTime(), stats.getAddedToTheMemoryQueueTime(),
+                stats.getExecutionStartTime(), System.nanoTime(), stats.getCompileTime(), stats.getQueueWaitTime(),
                 stats.getBufferCacheHitRatio(), stats.getBufferCachePageReadCount(), stats.getCloudReadRequestsCount(),
                 stats.getCloudPagesReadCount(), stats.getCloudPagesPersistedCount());
         responsePrinter.addFooterPrinter(new MetricsPrinter(metrics, resultCharset));

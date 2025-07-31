@@ -27,6 +27,8 @@ import org.apache.hyracks.algebricks.runtime.base.IScalarEvaluatorFactory;
 import org.apache.hyracks.algebricks.runtime.operators.base.AbstractOneInputOneOutputOneFramePushRuntime;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
+import org.apache.hyracks.api.job.JobFlag;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 /**
  * Optimized runtime for window operators that performs partition materialization and can evaluate running aggregates
@@ -56,10 +58,11 @@ public class WindowNestedPlansRunningRuntimeFactory extends AbstractWindowNested
             IScalarEvaluatorFactory[] frameEndValidationEvalFactories, int frameMaxObjects,
             IBinaryBooleanInspectorFactory booleanAccessorFactory, int[] projectionColumnsExcludingSubplans,
             int[] runningAggOutColumns, IRunningAggregateEvaluatorFactory[] runningAggFactories,
-            int nestedAggOutSchemaSize, WindowAggregatorDescriptorFactory nestedAggFactory, int memSizeInFrames) {
+            int nestedAggOutSchemaSize, WindowAggregatorDescriptorFactory nestedAggFactory,
+            CBOMemoryBudget cboMemoryBudget) {
         super(partitionColumns, partitionComparatorFactories, orderComparatorFactories,
                 projectionColumnsExcludingSubplans, runningAggOutColumns, runningAggFactories, nestedAggOutSchemaSize,
-                nestedAggFactory, memSizeInFrames);
+                nestedAggFactory, cboMemoryBudget);
         this.frameValueEvalFactories = frameValueEvalFactories;
         this.frameValueComparatorFactories = frameValueComparatorFactories;
         this.frameEndEvalFactories = frameEndEvalFactories;
@@ -70,6 +73,13 @@ public class WindowNestedPlansRunningRuntimeFactory extends AbstractWindowNested
 
     @Override
     public AbstractOneInputOneOutputOneFramePushRuntime createOneOutputPushRuntime(IHyracksTaskContext ctx) {
+        if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY) && cboMemoryBudget.cboMaxSizeInFrames() > 0) {
+            memSizeInFrames = cboMemoryBudget.cboMaxSizeInFrames();
+        }
+        if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)
+                && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
+            memSizeInFrames = cboMemoryBudget.cboOptimalSizeInFrames();
+        }
         return new WindowNestedPlansRunningPushRuntime(partitionColumns, partitionComparatorFactories,
                 orderComparatorFactories, frameValueEvalFactories, frameValueComparatorFactories, frameEndEvalFactories,
                 frameEndValidationEvalFactories, frameMaxObjects, booleanAccessorFactory, projectionList,

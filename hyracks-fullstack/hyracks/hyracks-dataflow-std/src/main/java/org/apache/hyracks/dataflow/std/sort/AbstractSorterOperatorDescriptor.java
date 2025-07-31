@@ -36,6 +36,7 @@ import org.apache.hyracks.api.dataflow.value.IRecordDescriptorProvider;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.dataflow.common.io.GeneratedRunFileReader;
 import org.apache.hyracks.dataflow.std.base.AbstractActivityNode;
@@ -43,6 +44,7 @@ import org.apache.hyracks.dataflow.std.base.AbstractOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.base.AbstractStateObject;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputSinkOperatorNodePushable;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryOutputSourceOperatorNodePushable;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -55,13 +57,15 @@ public abstract class AbstractSorterOperatorDescriptor extends AbstractOperatorD
     protected final int[] sortFields;
     protected final INormalizedKeyComputerFactory[] keyNormalizerFactories;
     protected final IBinaryComparatorFactory[] comparatorFactories;
-    protected final int framesLimit;
+    protected final CBOMemoryBudget cboMemoryBudget;
+    protected int framesLimit;
 
-    public AbstractSorterOperatorDescriptor(IOperatorDescriptorRegistry spec, int framesLimit, int[] sortFields,
-            INormalizedKeyComputerFactory[] keyNormalizerFactories, IBinaryComparatorFactory[] comparatorFactories,
-            RecordDescriptor recordDescriptor) {
+    public AbstractSorterOperatorDescriptor(IOperatorDescriptorRegistry spec, CBOMemoryBudget cboMemoryBudget,
+            int[] sortFields, INormalizedKeyComputerFactory[] keyNormalizerFactories,
+            IBinaryComparatorFactory[] comparatorFactories, RecordDescriptor recordDescriptor) {
         super(spec, 1, 1);
-        this.framesLimit = framesLimit;
+        this.cboMemoryBudget = cboMemoryBudget;
+        this.framesLimit = cboMemoryBudget.sizeInFrames();
         this.sortFields = sortFields;
         this.keyNormalizerFactories = keyNormalizerFactories;
         this.comparatorFactories = comparatorFactories;
@@ -108,6 +112,13 @@ public abstract class AbstractSorterOperatorDescriptor extends AbstractOperatorD
         @Override
         public IOperatorNodePushable createPushRuntime(final IHyracksTaskContext ctx,
                 final IRecordDescriptorProvider recordDescProvider, final int partition, int nPartitions) {
+            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY) && cboMemoryBudget.cboMaxSizeInFrames() > 0) {
+                framesLimit = cboMemoryBudget.cboMaxSizeInFrames();
+            }
+            if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)
+                    && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
+                framesLimit = cboMemoryBudget.cboOptimalSizeInFrames();
+            }
             return new AbstractUnaryInputSinkOperatorNodePushable() {
                 private IRunGenerator runGen;
 

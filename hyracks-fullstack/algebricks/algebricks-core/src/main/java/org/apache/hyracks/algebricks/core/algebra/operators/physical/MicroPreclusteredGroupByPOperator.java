@@ -35,6 +35,7 @@ import org.apache.hyracks.algebricks.runtime.operators.aggreg.NestedPlansAccumul
 import org.apache.hyracks.algebricks.runtime.operators.group.MicroPreClusteredGroupRuntimeFactory;
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 
 public class MicroPreclusteredGroupByPOperator extends AbstractPreclusteredGroupByPOperator {
@@ -72,9 +73,12 @@ public class MicroPreclusteredGroupByPOperator extends AbstractPreclusteredGroup
         RecordDescriptor recordDescriptor = JobGenHelper.mkRecordDescriptor(env, opSchema, context);
         RecordDescriptor inputRecordDesc = JobGenHelper.mkRecordDescriptor(
                 context.getTypeEnvironment(op.getInputs().get(0).getValue()), inputSchemas[0], context);
-        int framesLimit = localMemoryRequirements.getMemoryBudgetInFrames();
+        CBOMemoryBudget cboMemoryBudget = new CBOMemoryBudget(localMemoryRequirements.getMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOOptimalMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOMaxMemoryBudgetInFrames());
+
         MicroPreClusteredGroupRuntimeFactory runtime = new MicroPreClusteredGroupRuntimeFactory(keys,
-                comparatorFactories, aggregatorFactory, inputRecordDesc, recordDescriptor, null, framesLimit);
+                comparatorFactories, aggregatorFactory, inputRecordDesc, recordDescriptor, null, cboMemoryBudget);
         runtime.setSourceLocation(gby.getSourceLocation());
         builder.contributeMicroOperator(gby, runtime, recordDescriptor);
         ILogicalOperator src = op.getInputs().get(0).getValue();

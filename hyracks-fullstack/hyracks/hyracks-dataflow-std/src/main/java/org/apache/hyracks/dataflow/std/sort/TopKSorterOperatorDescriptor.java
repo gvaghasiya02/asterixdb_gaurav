@@ -31,25 +31,26 @@ import org.apache.hyracks.api.dataflow.value.IRecordDescriptorProvider;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
 import org.apache.hyracks.dataflow.common.io.GeneratedRunFileReader;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 public class TopKSorterOperatorDescriptor extends AbstractSorterOperatorDescriptor {
 
     private static final long serialVersionUID = 1L;
     private final int topK;
 
-    public TopKSorterOperatorDescriptor(IOperatorDescriptorRegistry spec, int framesLimit, int topK, int[] sortFields,
-            INormalizedKeyComputerFactory firstKeyNormalizerFactory, IBinaryComparatorFactory[] comparatorFactories,
-            RecordDescriptor recordDescriptor) {
-        this(spec, framesLimit, topK,
+    public TopKSorterOperatorDescriptor(IOperatorDescriptorRegistry spec, CBOMemoryBudget cboMemoryBudget, int topK,
+            int[] sortFields, INormalizedKeyComputerFactory firstKeyNormalizerFactory,
+            IBinaryComparatorFactory[] comparatorFactories, RecordDescriptor recordDescriptor) {
+        this(spec, cboMemoryBudget, topK,
                 sortFields, firstKeyNormalizerFactory != null
                         ? new INormalizedKeyComputerFactory[] { firstKeyNormalizerFactory } : null,
                 comparatorFactories, recordDescriptor);
     }
 
-    private TopKSorterOperatorDescriptor(IOperatorDescriptorRegistry spec, int framesLimit, int topK, int[] sortFields,
-            INormalizedKeyComputerFactory[] keyNormalizerFactories, IBinaryComparatorFactory[] comparatorFactories,
-            RecordDescriptor recordDescriptor) {
-        super(spec, framesLimit, sortFields, keyNormalizerFactories, comparatorFactories, recordDescriptor);
+    private TopKSorterOperatorDescriptor(IOperatorDescriptorRegistry spec, CBOMemoryBudget cboMemoryBudget, int topK,
+            int[] sortFields, INormalizedKeyComputerFactory[] keyNormalizerFactories,
+            IBinaryComparatorFactory[] comparatorFactories, RecordDescriptor recordDescriptor) {
+        super(spec, cboMemoryBudget, sortFields, keyNormalizerFactories, comparatorFactories, recordDescriptor);
         this.topK = topK;
     }
 

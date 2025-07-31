@@ -63,6 +63,21 @@ public class OptimizationConfUtil {
                 (String) querySpecificConfig.get(CompilerProperties.COMPILER_WINDOWMEMORY_KEY),
                 compilerProperties.getWindowMemorySize(), frameSize, MIN_FRAME_LIMIT_FOR_WINDOW, sourceLoc);
         int textSearchFrameLimit = getTextSearchNumFrames(compilerProperties, querySpecificConfig, sourceLoc);
+        int sortCBOFrameLimit = getFrameLimit(CompilerProperties.COMPILER_CBO_SORTMEMORY_KEY,
+                (String) querySpecificConfig.get(CompilerProperties.COMPILER_CBO_SORTMEMORY_KEY),
+                compilerProperties.getCBOSortMemorySize(), frameSize, MIN_FRAME_LIMIT_FOR_SORT, sourceLoc);
+        int groupCBOFrameLimit = getCBOFrameLimit(CompilerProperties.COMPILER_CBO_GROUPMEMORY_KEY,
+                (String) querySpecificConfig.get(CompilerProperties.COMPILER_CBO_GROUPMEMORY_KEY),
+                compilerProperties.getCBOGroupMemorySize(), frameSize, MIN_FRAME_LIMIT_FOR_GROUP_BY, sourceLoc);
+        int windowCBOFrameLimit = getCBOFrameLimit(CompilerProperties.COMPILER_CBO_WINDOWMEMORY_KEY,
+                (String) querySpecificConfig.get(CompilerProperties.COMPILER_CBO_WINDOWMEMORY_KEY),
+                compilerProperties.getCBOWindowMemorySize(), frameSize, MIN_FRAME_LIMIT_FOR_WINDOW, sourceLoc);
+        int joinCBOFrameLimit = getCBOFrameLimit(CompilerProperties.COMPILER_CBO_JOINMEMORY_KEY,
+                (String) querySpecificConfig.get(CompilerProperties.COMPILER_CBO_JOINMEMORY_KEY),
+                compilerProperties.getCBOJoinMemorySize(), frameSize, MIN_FRAME_LIMIT_FOR_JOIN, sourceLoc);
+        int textSearchCBOFrameLimit = getCBOFrameLimit(CompilerProperties.COMPILER_CBO_TEXTSEARCHMEMORY_KEY,
+                (String) querySpecificConfig.get(CompilerProperties.COMPILER_CBO_TEXTSEARCHMEMORY_KEY),
+                compilerProperties.getCBOTextSearchMemorySize(), frameSize, MIN_FRAME_LIMIT_FOR_TEXT_SEARCH, sourceLoc);
         int sortNumSamples = getSortSamples(compilerProperties, querySpecificConfig, sourceLoc);
         boolean fullParallelSort = getBoolean(querySpecificConfig, CompilerProperties.COMPILER_SORT_PARALLEL_KEY,
                 compilerProperties.getSortParallel());
@@ -99,6 +114,12 @@ public class OptimizationConfUtil {
                 getMaxVariableOccurrencesForInlining(compilerProperties, querySpecificConfig, sourceLoc);
         boolean orderFields = getBoolean(querySpecificConfig, CompilerProperties.COMPILER_ORDERED_FIELDS_KEY,
                 compilerProperties.isOrderedFields());
+        boolean querySortMemory = doesExist(querySpecificConfig, CompilerProperties.COMPILER_SORTMEMORY_KEY);
+        boolean queryGroupMemory = doesExist(querySpecificConfig, CompilerProperties.COMPILER_GROUPMEMORY_KEY);
+        boolean queryWindowMemory = doesExist(querySpecificConfig, CompilerProperties.COMPILER_WINDOWMEMORY_KEY);
+        boolean queryJoinMemory = doesExist(querySpecificConfig, CompilerProperties.COMPILER_JOINMEMORY_KEY);
+        boolean queryTextSearchMemory =
+                doesExist(querySpecificConfig, CompilerProperties.COMPILER_TEXTSEARCHMEMORY_KEY);
 
         PhysicalOptimizationConfig physOptConf = new PhysicalOptimizationConfig();
         physOptConf.setFrameSize(frameSize);
@@ -129,6 +150,16 @@ public class OptimizationConfUtil {
         physOptConf.setMinWindowFrames(compilerProperties.getMinWindowMemoryFrames());
         physOptConf.setMaxVariableOccurrencesForInlining(maxVariableOccurrencesForInlining);
         physOptConf.setOrderFields(orderFields);
+        physOptConf.setQueryCompilerSortMemoryKey(querySortMemory);
+        physOptConf.setQueryCompilerGroupMemoryKey(queryGroupMemory);
+        physOptConf.setQueryCompilerWindowMemoryKey(queryWindowMemory);
+        physOptConf.setQueryCompilerJoinMemoryKey(queryJoinMemory);
+        physOptConf.setQueryCompilerTextSearchMemoryKey(queryTextSearchMemory);
+        physOptConf.setMaxCBOSortFrames(sortCBOFrameLimit);
+        physOptConf.setMaxCBOGroupFrames(groupCBOFrameLimit);
+        physOptConf.setMaxCBOWindowFrames(windowCBOFrameLimit);
+        physOptConf.setMaxCBOJoinFrames(joinCBOFrameLimit);
+        physOptConf.setMaxCBOTextSearchFrames(textSearchCBOFrameLimit);
 
         // We should have already validated the parameter names at this point...
         Set<String> filteredParameterNames = new HashSet<>(parameterNames);
@@ -197,6 +228,24 @@ public class OptimizationConfUtil {
         return Math.max(frameLimit, minFrameLimit);
     }
 
+    private static int getCBOFrameLimit(String parameterName, String parameter, long memBudgetInConfiguration,
+            int frameSize, int minFrameLimit, SourceLocation sourceLoc) throws AlgebricksException {
+        IOptionType<Long> longBytePropertyInterpreter = OptionTypes.LONG_BYTE_UNIT;
+        long memBudget;
+        try {
+            memBudget = parameter == null ? memBudgetInConfiguration : longBytePropertyInterpreter.parse(parameter);
+        } catch (IllegalArgumentException e) {
+            throw AsterixException.create(ErrorCode.COMPILATION_ERROR, e, sourceLoc, e.getMessage());
+        }
+        int frameLimit = (int) (memBudget / frameSize);
+        if (frameLimit < minFrameLimit) {
+            throw AsterixException.create(ErrorCode.COMPILATION_BAD_QUERY_PARAMETER_VALUE, sourceLoc, parameterName,
+                    frameSize * minFrameLimit, "bytes");
+        }
+        // sets the frame limit to the minimum frame limit if the calculated frame limit is too small.
+        return Math.max(frameLimit, minFrameLimit);
+    }
+
     @SuppressWarnings("squid:S1166") // Either log or rethrow this exception
     private static int getSortSamples(CompilerProperties compilerProperties, Map<String, Object> querySpecificConfig,
             SourceLocation sourceLoc) throws AsterixException {
@@ -216,6 +265,14 @@ public class OptimizationConfUtil {
             return OptionTypes.BOOLEAN.parse(valueInQuery);
         }
         return defaultValue;
+    }
+
+    private static boolean doesExist(Map<String, Object> queryConfig, String queryConfigKey) {
+        String valueInQuery = (String) queryConfig.get(queryConfigKey);
+        if (valueInQuery != null) {
+            return Boolean.TRUE;
+        }
+        return Boolean.FALSE;
     }
 
     private static String getString(Map<String, Object> queryConfig, String queryConfigKey, String defaultValue) {

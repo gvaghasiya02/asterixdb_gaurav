@@ -39,6 +39,7 @@ import org.apache.hyracks.dataflow.common.data.normalizers.UTF8StringNormalizedK
 import org.apache.hyracks.dataflow.common.data.parsers.IValueParserFactory;
 import org.apache.hyracks.dataflow.common.data.parsers.UTF8StringParserFactory;
 import org.apache.hyracks.dataflow.common.data.partition.FieldHashPartitionComputerFactory;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.connectors.MToNPartitioningMergingConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.file.ConstantFileSplitProvider;
@@ -90,7 +91,7 @@ public class VSizeFrameSortMergeTest extends AbstractIntegrationTest {
 
         spec.setFrameSize(frameSize);
         ExternalSortOperatorDescriptor sorter = new ExternalSortOperatorDescriptor(spec,
-                frameLimit, new int[] { 1, 0 }, new IBinaryComparatorFactory[] {
+                new CBOMemoryBudget(frameLimit, -1, -1), new int[] { 1, 0 }, new IBinaryComparatorFactory[] {
                         UTF8StringBinaryComparatorFactory.INSTANCE, UTF8StringBinaryComparatorFactory.INSTANCE },
                 ordersDesc);
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, sorter, NC1_ID, NC2_ID);

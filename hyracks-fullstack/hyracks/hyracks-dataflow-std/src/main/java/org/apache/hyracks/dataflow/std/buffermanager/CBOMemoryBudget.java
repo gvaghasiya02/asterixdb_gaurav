@@ -16,12 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.hyracks.api.job;
 
-public enum JobFlag {
-    PROFILE_RUNTIME,
-    ENFORCE_CONTRACT,
-    ENSURE_RUNNABLE,
-    USE_CBO_MAX_MEMORY,
-    USE_CBO_OPTIMAL_MEMORY
+package org.apache.hyracks.dataflow.std.buffermanager;
+
+import java.io.Serializable;
+
+public record CBOMemoryBudget(int sizeInFrames, int cboOptimalSizeInFrames, int cboMaxSizeInFrames) implements
+        Serializable {
 }

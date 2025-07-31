@@ -26,7 +26,9 @@ import org.apache.hyracks.api.dataflow.value.IRecordDescriptorProvider;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.dataflow.std.base.AbstractSingleActivityOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.storage.am.common.api.ISearchOperationCallbackFactory;
 import org.apache.hyracks.storage.am.common.dataflow.IIndexDataflowHelperFactory;
 import org.apache.hyracks.storage.am.lsm.invertedindex.api.IInvertedIndexSearchModifier;
@@ -53,7 +55,8 @@ public class LSMInvertedIndexSearchOperatorDescriptor extends AbstractSingleActi
     private final ISearchOperationCallbackFactory searchCallbackFactory;
     private final int numOfFields;
     // the maximum number of frames that this inverted-index-search can use
-    private final int frameLimit;
+    private int frameLimit;
+    private final CBOMemoryBudget cboMemoryBudget;
     private final int[][] partitionsMap;
 
     public LSMInvertedIndexSearchOperatorDescriptor(IOperatorDescriptorRegistry spec, RecordDescriptor outRecDesc,
@@ -63,7 +66,7 @@ public class LSMInvertedIndexSearchOperatorDescriptor extends AbstractSingleActi
             IInvertedIndexSearchModifierFactory searchModifierFactory, boolean retainInput, boolean retainMissing,
             IMissingWriterFactory missingWriterFactory, ISearchOperationCallbackFactory searchCallbackFactory,
             int[] minFilterFieldIndexes, int[] maxFilterFieldIndexes, boolean isFullTextSearchQuery, int numOfFields,
-            boolean appendIndexFilter, IMissingWriterFactory nonFilterWriterFactory, int frameLimit,
+            boolean appendIndexFilter, IMissingWriterFactory nonFilterWriterFactory, CBOMemoryBudget cboMemoryBudget,
             int[][] partitionsMap) {
         super(spec, 1, 1);
         this.indexHelperFactory = indexHelperFactory;
@@ -83,12 +86,20 @@ public class LSMInvertedIndexSearchOperatorDescriptor extends AbstractSingleActi
         this.numOfFields = numOfFields;
         this.partitionsMap = partitionsMap;
         this.outRecDescs[0] = outRecDesc;
-        this.frameLimit = frameLimit;
+        this.cboMemoryBudget = cboMemoryBudget;
+        this.frameLimit = cboMemoryBudget.sizeInFrames();
     }
 
     @Override
     public IOperatorNodePushable createPushRuntime(IHyracksTaskContext ctx,
             IRecordDescriptorProvider recordDescProvider, int partition, int nPartitions) throws HyracksDataException {
+        if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY) && cboMemoryBudget.cboMaxSizeInFrames() > 0) {
+            frameLimit = cboMemoryBudget.cboMaxSizeInFrames();
+        }
+        if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)
+                && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
+            frameLimit = cboMemoryBudget.cboOptimalSizeInFrames();
+        }
         IInvertedIndexSearchModifier searchModifier = searchModifierFactory.createSearchModifier();
         return new LSMInvertedIndexSearchOperatorNodePushable(ctx,
                 recordDescProvider.getInputRecordDescriptor(getActivityId(), 0), partition, minFilterFieldIndexes,

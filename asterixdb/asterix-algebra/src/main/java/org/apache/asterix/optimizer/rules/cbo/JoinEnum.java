@@ -1027,11 +1027,16 @@ public class JoinEnum {
         double grpInputCard = (double) Math.round(jnArray[jnNumber].getCardinality() * 100) / 100;
         double grpOutputCard =
                 (double) Math.round(Math.min(grpInputCard, jnArray[jnNumber].distinctCardinality) * 100) / 100;
+        double inputSize = (double) Math.round(jnArray[jnNumber].getInputSize() * 100) / 100;
+        double outputSize = (double) Math.round(jnArray[jnNumber].getOutputSize() * 100) / 100;
+        //        double avgSize = (double) Math.round(jnArray[jnNumber].getAvgDocSize() * 100) / 100;
 
         // set the root group-by/distinct operator's cardinality annotations (if exists)
         if (!cboTestMode && this.rootGroupByDistinctOp != null) {
             this.rootGroupByDistinctOp.getAnnotations().put(OperatorAnnotations.OP_INPUT_CARDINALITY, grpInputCard);
             this.rootGroupByDistinctOp.getAnnotations().put(OperatorAnnotations.OP_OUTPUT_CARDINALITY, grpOutputCard);
+            this.rootGroupByDistinctOp.getAnnotations().put(OperatorAnnotations.OP_INPUT_DOCSIZE, inputSize);
+            this.rootGroupByDistinctOp.getAnnotations().put(OperatorAnnotations.OP_OUTPUT_DOCSIZE, outputSize);
         }
 
         // set the root order by operator's cardinality annotations (if exists)
@@ -1039,9 +1044,13 @@ public class JoinEnum {
             if (this.rootGroupByDistinctOp != null) {
                 this.rootOrderByOp.getAnnotations().put(OperatorAnnotations.OP_INPUT_CARDINALITY, grpOutputCard);
                 this.rootOrderByOp.getAnnotations().put(OperatorAnnotations.OP_OUTPUT_CARDINALITY, grpOutputCard);
+                this.rootOrderByOp.getAnnotations().put(OperatorAnnotations.OP_INPUT_DOCSIZE, inputSize);
+                this.rootOrderByOp.getAnnotations().put(OperatorAnnotations.OP_OUTPUT_DOCSIZE, outputSize);
             } else {
                 this.rootOrderByOp.getAnnotations().put(OperatorAnnotations.OP_INPUT_CARDINALITY, grpInputCard);
                 this.rootOrderByOp.getAnnotations().put(OperatorAnnotations.OP_OUTPUT_CARDINALITY, grpInputCard);
+                this.rootOrderByOp.getAnnotations().put(OperatorAnnotations.OP_INPUT_DOCSIZE, inputSize);
+                this.rootOrderByOp.getAnnotations().put(OperatorAnnotations.OP_OUTPUT_DOCSIZE, outputSize);
             }
         }
         return jnNumber;

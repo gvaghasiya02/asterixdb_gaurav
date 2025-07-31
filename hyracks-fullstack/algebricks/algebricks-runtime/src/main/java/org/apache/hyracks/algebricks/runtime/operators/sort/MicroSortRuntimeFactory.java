@@ -31,9 +31,11 @@ import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.INormalizedKeyComputer;
 import org.apache.hyracks.api.dataflow.value.INormalizedKeyComputerFactory;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.api.resources.IDeallocatable;
 import org.apache.hyracks.api.util.CleanupUtils;
 import org.apache.hyracks.dataflow.common.io.GeneratedRunFileReader;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.buffermanager.EnumFreeSlotPolicy;
 import org.apache.hyracks.dataflow.std.sort.Algorithm;
 import org.apache.hyracks.dataflow.std.sort.ExternalSortRunGenerator;
@@ -42,20 +44,21 @@ import org.apache.hyracks.dataflow.std.sort.ExternalSortRunMerger;
 public class MicroSortRuntimeFactory extends AbstractOneInputOneOutputRuntimeFactory {
 
     private static final long serialVersionUID = 1L;
-    private final int framesLimit;
+    private int framesLimit;
+    private final CBOMemoryBudget cboMemoryBudget;
     private final int[] sortFields;
     private final INormalizedKeyComputerFactory[] keyNormalizerFactories;
     private final IBinaryComparatorFactory[] comparatorFactories;
 
     public MicroSortRuntimeFactory(int[] sortFields, INormalizedKeyComputerFactory firstKeyNormalizerFactory,
-            IBinaryComparatorFactory[] comparatorFactories, int[] projectionList, int framesLimit) {
+            IBinaryComparatorFactory[] comparatorFactories, int[] projectionList, CBOMemoryBudget cboMemoryBudget) {
         this(sortFields, firstKeyNormalizerFactory != null
                 ? new INormalizedKeyComputerFactory[] { firstKeyNormalizerFactory } : null, comparatorFactories,
-                projectionList, framesLimit);
+                projectionList, cboMemoryBudget);
     }
 
     public MicroSortRuntimeFactory(int[] sortFields, INormalizedKeyComputerFactory[] keyNormalizerFactories,
-            IBinaryComparatorFactory[] comparatorFactories, int[] projectionList, int framesLimit) {
+            IBinaryComparatorFactory[] comparatorFactories, int[] projectionList, CBOMemoryBudget cboMemoryBudget) {
         super(projectionList);
         // Obs: the projection list is currently ignored.
         if (projectionList != null) {
@@ -64,12 +67,21 @@ public class MicroSortRuntimeFactory extends AbstractOneInputOneOutputRuntimeFac
         this.sortFields = sortFields;
         this.keyNormalizerFactories = keyNormalizerFactories;
         this.comparatorFactories = comparatorFactories;
-        this.framesLimit = framesLimit;
+        this.cboMemoryBudget = cboMemoryBudget;
+        this.framesLimit = cboMemoryBudget.sizeInFrames();
     }
 
     @Override
     public AbstractOneInputOneOutputPushRuntime createOneOutputPushRuntime(final IHyracksTaskContext ctx)
             throws HyracksDataException {
+        if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY) && cboMemoryBudget.cboMaxSizeInFrames() > 0) {
+            framesLimit = cboMemoryBudget.cboMaxSizeInFrames();
+        }
+        if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)
+                && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
+            framesLimit = cboMemoryBudget.cboOptimalSizeInFrames();
+        }
+
         InMemorySortPushRuntime pushRuntime = new InMemorySortPushRuntime(ctx);
         ctx.registerDeallocatable(pushRuntime);
         return pushRuntime;

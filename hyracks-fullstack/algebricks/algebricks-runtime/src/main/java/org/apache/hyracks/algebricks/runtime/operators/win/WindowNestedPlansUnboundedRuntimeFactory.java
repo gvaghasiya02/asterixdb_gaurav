@@ -25,6 +25,8 @@ import org.apache.hyracks.algebricks.runtime.base.IRunningAggregateEvaluatorFact
 import org.apache.hyracks.algebricks.runtime.operators.base.AbstractOneInputOneOutputOneFramePushRuntime;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
+import org.apache.hyracks.api.job.JobFlag;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 /**
  * Optimized runtime for window operators that performs partition materialization and can evaluate running aggregates
@@ -41,15 +43,22 @@ public final class WindowNestedPlansUnboundedRuntimeFactory extends AbstractWind
             IBinaryComparatorFactory[] orderComparatorFactories, int frameMaxObjects,
             int[] projectionColumnsExcludingSubplans, int[] runningAggOutColumns,
             IRunningAggregateEvaluatorFactory[] runningAggFactories, int nestedAggOutSchemaSize,
-            WindowAggregatorDescriptorFactory nestedAggFactory, int memSizeInFrames) {
+            WindowAggregatorDescriptorFactory nestedAggFactory, CBOMemoryBudget cboMemoryBudget) {
         super(partitionColumns, partitionComparatorFactories, orderComparatorFactories,
                 projectionColumnsExcludingSubplans, runningAggOutColumns, runningAggFactories, nestedAggOutSchemaSize,
-                nestedAggFactory, memSizeInFrames);
+                nestedAggFactory, cboMemoryBudget);
         this.frameMaxObjects = frameMaxObjects;
     }
 
     @Override
     public AbstractOneInputOneOutputOneFramePushRuntime createOneOutputPushRuntime(IHyracksTaskContext ctx) {
+        if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY) && cboMemoryBudget.cboMaxSizeInFrames() > 0) {
+            memSizeInFrames = cboMemoryBudget.cboMaxSizeInFrames();
+        }
+        if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)
+                && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
+            memSizeInFrames = cboMemoryBudget.cboOptimalSizeInFrames();
+        }
         return new WindowNestedPlansUnboundedPushRuntime(partitionColumns, partitionComparatorFactories,
                 orderComparatorFactories, frameMaxObjects, projectionList, runningAggOutColumns, runningAggFactories,
                 nestedAggOutSchemaSize, nestedAggFactory, ctx, memSizeInFrames, sourceLoc);

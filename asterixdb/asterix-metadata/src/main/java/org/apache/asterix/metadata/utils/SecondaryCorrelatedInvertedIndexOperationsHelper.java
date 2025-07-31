@@ -52,6 +52,7 @@ import org.apache.hyracks.data.std.primitive.ShortPointable;
 import org.apache.hyracks.dataflow.common.data.marshalling.ShortSerializerDeserializer;
 import org.apache.hyracks.dataflow.std.base.AbstractOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.base.AbstractSingleActivityOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.sort.ExternalSortOperatorDescriptor;
 import org.apache.hyracks.storage.am.lsm.invertedindex.dataflow.BinaryTokenizerOperatorDescriptor;
@@ -315,8 +316,9 @@ public class SecondaryCorrelatedInvertedIndexOperationsHelper extends SecondaryC
         for (int i = 0; i < numPrimaryKeys; i++) {
             taggedSortFields[idx++] = i + numSecondaryKeys + NUM_TAG_FIELDS;
         }
-        ExternalSortOperatorDescriptor sortOp = new ExternalSortOperatorDescriptor(spec, sortNumFrames,
-                taggedSortFields, taggedSecondaryComparatorFactories, taggedSecondaryRecDesc);
+        ExternalSortOperatorDescriptor sortOp =
+                new ExternalSortOperatorDescriptor(spec, new CBOMemoryBudget(sortNumFrames, -1, -1), taggedSortFields,
+                        taggedSecondaryComparatorFactories, taggedSecondaryRecDesc);
         AlgebricksPartitionConstraintHelper.setPartitionConstraintInJobSpec(spec, sortOp, primaryPartitionConstraint);
         return sortOp;
     }

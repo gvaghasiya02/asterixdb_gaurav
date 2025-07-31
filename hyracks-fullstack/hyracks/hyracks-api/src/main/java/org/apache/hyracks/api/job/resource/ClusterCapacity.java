@@ -34,6 +34,8 @@ public class ClusterCapacity implements IClusterCapacity {
     private static final long serialVersionUID = 3487998182013966747L;
 
     private long aggregatedMemoryByteSize = 0;
+    private long aggregatedCBOOptimalMemoryByteSize = 0;
+    private long aggregatedCBOMaxMemoryByteSize = 0;
     private int aggregatedCores = 0;
     private final Map<String, Long> nodeMemoryMap = new HashMap<>();
     private final Map<String, Integer> nodeCoreMap = new HashMap<>();
@@ -41,6 +43,16 @@ public class ClusterCapacity implements IClusterCapacity {
     @Override
     public long getAggregatedMemoryByteSize() {
         return aggregatedMemoryByteSize;
+    }
+
+    @Override
+    public long getAggregatedCBOOptimalMemoryByteSize() {
+        return aggregatedCBOOptimalMemoryByteSize;
+    }
+
+    @Override
+    public long getAggregatedCBOMaxMemoryByteSize() {
+        return aggregatedCBOMaxMemoryByteSize;
     }
 
     @Override
@@ -67,6 +79,16 @@ public class ClusterCapacity implements IClusterCapacity {
     @Override
     public void setAggregatedMemoryByteSize(long aggregatedMemoryByteSize) {
         this.aggregatedMemoryByteSize = aggregatedMemoryByteSize;
+    }
+
+    @Override
+    public void setAggregatedCBOOptimalMemoryByteSize(long aggregatedCBOMaxMemoryByteSize) {
+        this.aggregatedCBOOptimalMemoryByteSize = aggregatedCBOMaxMemoryByteSize;
+    }
+
+    @Override
+    public void setAggregatedCBOMaxMemoryByteSize(long aggregatedCBOMaxMemoryByteSize) {
+        this.aggregatedCBOMaxMemoryByteSize = aggregatedCBOMaxMemoryByteSize;
     }
 
     @Override

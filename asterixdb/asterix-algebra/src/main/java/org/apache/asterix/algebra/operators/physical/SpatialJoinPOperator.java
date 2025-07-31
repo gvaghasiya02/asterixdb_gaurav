@@ -50,6 +50,7 @@ import org.apache.hyracks.algebricks.core.jobgen.impl.JobGenHelper;
 import org.apache.hyracks.api.dataflow.IOperatorDescriptor;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 /**
  * The right input is broadcast and the left input can be partitioned in any way.
@@ -156,7 +157,10 @@ public class SpatialJoinPOperator extends AbstractJoinPOperator {
         RecordDescriptor recordDescriptor =
                 JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), propagatedSchema, context);
 
-        IOperatorDescriptor opDesc = new PlaneSweepJoinOperatorDescriptor(spec, memSizeInFrames, keysBuild, keysProbe,
+        CBOMemoryBudget cboMemoryBudget = new CBOMemoryBudget(localMemoryRequirements.getMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOOptimalMemoryBudgetInFrames(),
+                localMemoryRequirements.getCBOMaxMemoryBudgetInFrames());
+        IOperatorDescriptor opDesc = new PlaneSweepJoinOperatorDescriptor(spec, cboMemoryBudget, keysBuild, keysProbe,
                 recordDescriptor, mjcf);
         contributeOpDesc(builder, (AbstractLogicalOperator) op, opDesc);
 

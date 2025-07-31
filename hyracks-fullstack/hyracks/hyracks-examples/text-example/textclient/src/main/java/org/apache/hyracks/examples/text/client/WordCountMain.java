@@ -44,6 +44,7 @@ import org.apache.hyracks.dataflow.common.data.marshalling.IntegerSerializerDese
 import org.apache.hyracks.dataflow.common.data.marshalling.UTF8StringSerializerDeserializer;
 import org.apache.hyracks.dataflow.common.data.normalizers.UTF8StringNormalizedKeyComputerFactory;
 import org.apache.hyracks.dataflow.common.data.partition.FieldHashPartitionComputerFactory;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.connectors.MToNPartitioningConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.file.ConstantFileSplitProvider;
@@ -153,7 +154,8 @@ public class WordCountMain {
         IOperatorDescriptor gBy;
         int[] keys = new int[] { 0 };
         if ("hash".equalsIgnoreCase(algo)) {
-            gBy = new ExternalGroupOperatorDescriptor(spec, htSize, fileSize, keys, null, frameLimit,
+            gBy = new ExternalGroupOperatorDescriptor(spec, htSize, fileSize, keys, null,
+                    new CBOMemoryBudget(frameLimit, -1, -1),
                     new IBinaryComparatorFactory[] { UTF8StringBinaryComparatorFactory.INSTANCE },
                     new UTF8StringNormalizedKeyComputerFactory(),
                     new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {
@@ -179,7 +181,7 @@ public class WordCountMain {
                                     new INormalizedKeyComputerFactory[] {
                                             new UTF8StringNormalizedKeyComputerFactory() },
                                     cfs, wordDesc)
-                            : new ExternalSortOperatorDescriptor(spec, frameLimit, keys,
+                            : new ExternalSortOperatorDescriptor(spec, new CBOMemoryBudget(frameLimit, -1, -1), keys,
                                     new UTF8StringNormalizedKeyComputerFactory(), cfs, wordDesc);
             createPartitionConstraint(spec, sorter, outSplits);
 
@@ -192,7 +194,7 @@ public class WordCountMain {
                     new IBinaryComparatorFactory[] { UTF8StringBinaryComparatorFactory.INSTANCE },
                     new MultiFieldsAggregatorFactory(
                             new IFieldAggregateDescriptorFactory[] { new CountFieldAggregatorFactory(true) }),
-                    groupResultDesc, false, -1);
+                    groupResultDesc, false, new CBOMemoryBudget(-1, -1, -1));
             createPartitionConstraint(spec, gBy, outSplits);
             OneToOneConnectorDescriptor sortGroupConn = new OneToOneConnectorDescriptor(spec);
             spec.connect(sortGroupConn, sorter, 0, gBy, 0);

@@ -37,6 +37,7 @@ import org.apache.hyracks.dataflow.common.data.marshalling.IntegerSerializerDese
 import org.apache.hyracks.dataflow.common.data.marshalling.UTF8StringSerializerDeserializer;
 import org.apache.hyracks.dataflow.common.data.partition.FieldHashPartitionComputerFactory;
 import org.apache.hyracks.dataflow.common.data.partition.FieldHashPartitionerFactory;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 import org.apache.hyracks.dataflow.std.connectors.MToNPartitioningConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.file.IFileSplitProvider;
@@ -126,8 +127,8 @@ public class PrimaryIndexBulkLoadExample {
         // comparators for sort fields
         IBinaryComparatorFactory[] comparatorFactories = new IBinaryComparatorFactory[1];
         comparatorFactories[0] = IntegerBinaryComparatorFactory.INSTANCE;
-        ExternalSortOperatorDescriptor sorter =
-                new ExternalSortOperatorDescriptor(spec, options.sbSize, sortFields, comparatorFactories, recDesc);
+        ExternalSortOperatorDescriptor sorter = new ExternalSortOperatorDescriptor(spec,
+                new CBOMemoryBudget(options.sbSize, -1, -1), sortFields, comparatorFactories, recDesc);
         JobHelper.createPartitionConstraint(spec, sorter, splitNCs);
 
         // tuples to be put into B-Tree shall have 4 fields

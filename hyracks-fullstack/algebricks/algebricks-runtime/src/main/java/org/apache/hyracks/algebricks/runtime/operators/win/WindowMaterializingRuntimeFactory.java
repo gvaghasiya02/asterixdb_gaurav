@@ -25,6 +25,8 @@ import org.apache.hyracks.algebricks.runtime.base.IRunningAggregateEvaluatorFact
 import org.apache.hyracks.algebricks.runtime.operators.base.AbstractOneInputOneOutputOneFramePushRuntime;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
+import org.apache.hyracks.api.job.JobFlag;
+import org.apache.hyracks.dataflow.std.buffermanager.CBOMemoryBudget;
 
 /**
  * Runtime factory for window operators that performs partition materialization and evaluates running aggregates
@@ -33,20 +35,30 @@ import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 public class WindowMaterializingRuntimeFactory extends AbstractWindowRuntimeFactory {
 
     private static final long serialVersionUID = 1L;
+    final CBOMemoryBudget cboMemoryBudget;
 
-    final int memSizeInFrames;
+    int memSizeInFrames;
 
     public WindowMaterializingRuntimeFactory(int[] partitionColumns,
             IBinaryComparatorFactory[] partitionComparatorFactories,
             IBinaryComparatorFactory[] orderComparatorFactories, int[] projectionColumnsExcludingSubplans,
-            int[] runningAggOutColumns, IRunningAggregateEvaluatorFactory[] runningAggFactories, int memSizeInFrames) {
+            int[] runningAggOutColumns, IRunningAggregateEvaluatorFactory[] runningAggFactories,
+            CBOMemoryBudget cboMemoryBudget) {
         super(partitionColumns, partitionComparatorFactories, orderComparatorFactories,
                 projectionColumnsExcludingSubplans, runningAggOutColumns, runningAggFactories);
-        this.memSizeInFrames = memSizeInFrames;
+        this.cboMemoryBudget = cboMemoryBudget;
+        this.memSizeInFrames = cboMemoryBudget.sizeInFrames();
     }
 
     @Override
     public AbstractOneInputOneOutputOneFramePushRuntime createOneOutputPushRuntime(IHyracksTaskContext ctx) {
+        if (ctx.getJobFlags().contains(JobFlag.USE_CBO_MAX_MEMORY) && cboMemoryBudget.cboMaxSizeInFrames() > 0) {
+            memSizeInFrames = cboMemoryBudget.cboMaxSizeInFrames();
+        }
+        if (ctx.getJobFlags().contains(JobFlag.USE_CBO_OPTIMAL_MEMORY)
+                && cboMemoryBudget.cboOptimalSizeInFrames() > 0) {
+            memSizeInFrames = cboMemoryBudget.cboOptimalSizeInFrames();
+        }
         return new WindowMaterializingPushRuntime(partitionColumns, partitionComparatorFactories,
                 orderComparatorFactories, projectionList, runningAggOutColumns, runningAggFactories, ctx,
                 memSizeInFrames, sourceLoc);

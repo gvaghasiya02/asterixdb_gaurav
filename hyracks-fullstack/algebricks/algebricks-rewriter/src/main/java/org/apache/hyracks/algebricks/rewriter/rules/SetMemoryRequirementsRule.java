@@ -78,6 +78,8 @@ import org.apache.hyracks.algebricks.core.algebra.visitors.ILogicalOperatorVisit
 import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
 import org.apache.hyracks.algebricks.core.rewriter.base.PhysicalOptimizationConfig;
 import org.apache.hyracks.api.exceptions.ErrorCode;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Set memory requirements for all operators as follows:
@@ -89,6 +91,7 @@ import org.apache.hyracks.api.exceptions.ErrorCode;
  * </ol>
  */
 public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
+    private static final Logger LOGGER = LogManager.getLogger();
 
     @Override
     public boolean rewritePost(Mutable<ILogicalOperator> opRef, IOptimizationContext context)
@@ -183,6 +186,10 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                 CBOBasedMaxMemBudgetInFrames = -1;
                 CBOBasedOptimalMemBudgetInFrames = -1;
             }
+            if (CBOBasedMaxMemBudgetInFrames != -1 || CBOBasedOptimalMemBudgetInFrames != -1)
+                LOGGER.warn("CBOMemoryBudget {} to {} frames (max: {}, optimal: {}) ComputationLocation: {}",
+                        op.getOperatorTag(), memBudgetInFrames, CBOBasedMaxMemBudgetInFrames,
+                        CBOBasedOptimalMemBudgetInFrames, computationLocationsLength);;
             memoryReqs.setCBOMaxMemoryBudgetInFrames(CBOBasedMaxMemBudgetInFrames);
             memoryReqs.setCBOOptimalMemoryBudgetInFrames(CBOBasedOptimalMemBudgetInFrames);
         }
@@ -357,6 +364,7 @@ public class SetMemoryRequirementsRule implements IAlgebraicRewriteRule {
                     outputSize = (Double) anno.getValue();
                 }
             }
+            LOGGER.warn("buildCardinality: " + buildCardinality + " buildDocSize: " + buildDocSize);
             int CBOBasedMaxMemBudgetInFrames = -1;
             int CBOBasedOptimalMemBudgetInFrames = -1;
             if (!physConfig.getQueryCompilerJoinMemoryKey() && buildCardinality != null && buildDocSize != null

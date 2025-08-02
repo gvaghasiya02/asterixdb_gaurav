@@ -32,8 +32,11 @@ import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
 import org.apache.hyracks.algebricks.core.rewriter.base.PhysicalOptimizationConfig;
 import org.apache.hyracks.api.job.resource.ClusterCapacity;
 import org.apache.hyracks.api.job.resource.IClusterCapacity;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ResourceUtils {
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private ResourceUtils() {
     }
@@ -57,6 +60,7 @@ public class ResourceUtils {
             AlgebricksAbsolutePartitionConstraint computationLocations,
             PhysicalOptimizationConfig physicalOptimizationConfig, CompilerProperties compilerProperties)
             throws AlgebricksException {
+
         final int frameSize = physicalOptimizationConfig.getFrameSize();
         final List<PlanStage> planStages = getStages(plan);
         return getStageBasedRequiredCapacity(planStages, computationLocations.getLocations().length, frameSize,
@@ -73,6 +77,7 @@ public class ResourceUtils {
 
     public static IClusterCapacity getStageBasedRequiredCapacity(List<PlanStage> stages, int computationLocations,
             int frameSize, CompilerProperties compilerProperties) {
+        LOGGER.warn("ComputationLocations ResourceUtils: " + computationLocations);
         final OperatorResourcesComputer computer =
                 new OperatorResourcesComputer(computationLocations, frameSize, compilerProperties);
         final IClusterCapacity clusterCapacity = new ClusterCapacity();

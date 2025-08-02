@@ -227,7 +227,8 @@ public class OptimizedHybridHashJoin {
         // during this step in order to make the space.)
         // and tries to bring back as many spilled partitions as possible if there is free space.
         int inMemTupCount = makeSpaceForHashTableAndBringBackSpilledPartitions();
-
+        LOGGER.warn(HybridHashJoinUtil.printPartitionInfo(spilledStatus, HybridHashJoinUtil.SIDE.BUILD, numOfPartitions,
+                probePSizeInTups, buildPSizeInTups, probeRFWriters, buildRFWriters, bufferManager));
         ISerializableTable table = new SerializableHashTable(inMemTupCount, jobletCtx, bufferManagerForHashTable);
         this.inMemJoiner = new InMemoryHashJoin(jobletCtx, new FrameTupleAccessor(probeRd), probeHpc,
                 new FrameTupleAccessor(buildRd), buildRd, buildHpc, isLeftOuter, nonMatchWriters, table, isReversed,
